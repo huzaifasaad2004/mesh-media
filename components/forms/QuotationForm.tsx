@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { DEFAULT_TERMS, DEFAULT_QUOTE_NOTES } from '@/lib/company'
 
 const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent'
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1'
@@ -19,9 +20,15 @@ function addDays(n: number) {
   const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]
 }
 
+function getStoredSettings() {
+  if (typeof window === 'undefined') return {}
+  try { return JSON.parse(localStorage.getItem('mesh_company_settings') ?? '{}') } catch { return {} }
+}
+
 export default function QuotationForm({ onSuccess, clients, initialData }: QuotationFormProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showTerms, setShowTerms] = useState(!!(initialData?.terms))
   const [form, setForm] = useState({
     quote_number: (initialData?.quote_number as string) ?? '',
     client_id: (initialData?.client_id as string) ?? '',
@@ -29,8 +36,22 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
     issue_date: (initialData?.issue_date as string) ?? new Date().toISOString().split('T')[0],
     expiry_date: (initialData?.expiry_date as string) ?? addDays(7),
     subject: (initialData?.subject as string) ?? '',
-    notes: (initialData?.notes as string) ?? 'Looking forward for your business.',
+    notes: (initialData?.notes as string) ?? '',
+    terms: (initialData?.terms as string) ?? '',
   })
+
+  useEffect(() => {
+    if (!initialData?.id) {
+      const s = getStoredSettings()
+      setForm(f => ({
+        ...f,
+        notes: f.notes || s.default_quote_notes || DEFAULT_QUOTE_NOTES,
+        terms: f.terms || s.default_terms || DEFAULT_TERMS,
+      }))
+      setShowTerms(true)
+    }
+  }, [initialData?.id])
+
   const existingItems = (initialData?.items as any[]) ?? []
   const [items, setItems] = useState<LineItem[]>(
     existingItems.length > 0
@@ -50,7 +71,14 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
     e.preventDefault()
     if (!form.client_id) { setError('Please select a client'); return }
     setSaving(true); setError('')
-    const payload = { ...form, expiry_date: form.expiry_date || null, subject: form.subject || null, notes: form.notes || null, items }
+    const payload = {
+      ...form,
+      expiry_date: form.expiry_date || null,
+      subject: form.subject || null,
+      notes: form.notes || null,
+      terms: showTerms ? (form.terms || null) : null,
+      items,
+    }
     const id = initialData?.id as string | undefined
     const res = await fetch(id ? `/api/quotations/${id}` : '/api/quotations', {
       method: id ? 'PUT' : 'POST',
@@ -76,7 +104,9 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
         <div>
           <label className={labelClass}>Status</label>
           <select className={inputClass} value={form.status} onChange={set('status')}>
-            {['draft','sent','accepted','declined','expired'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+            {['draft', 'sent', 'accepted', 'declined', 'expired'].map(s =>
+              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            )}
           </select>
         </div>
       </div>
@@ -121,7 +151,9 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
                 onChange={e => setItem(idx, 'quantity', e.target.value)} />
               <input className={inputClass + ' col-span-3'} type="number" min="0" step="0.01" value={item.unit_price}
                 onChange={e => setItem(idx, 'unit_price', e.target.value)} />
-              <span className="col-span-1 text-right text-sm font-medium">{(item.quantity * item.unit_price).toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+              <span className="col-span-1 text-right text-sm font-medium text-gray-700">
+                {(item.quantity * item.unit_price).toLocaleString('en-AE', { maximumFractionDigits: 0 })}
+              </span>
               <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}
                 className="col-span-1 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded">
                 <Trash2 className="w-3.5 h-3.5" />
@@ -131,15 +163,31 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
         </div>
         <div className="flex justify-end pt-3 mt-2 border-t border-gray-100">
           <div className="text-right">
-            <span className="text-sm text-gray-500 mr-4">Total</span>
-            <span className="text-lg font-bold text-gray-900">AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="text-sm text-gray-500 mr-4">Grand Total</span>
+            <span className="text-xl font-bold text-gray-900">AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>
 
       <div>
-        <label className={labelClass}>Notes (bottom of quote)</label>
+        <label className={labelClass}>Notes <span className="text-gray-400 font-normal">(shown on quote)</span></label>
         <textarea className={inputClass} rows={2} value={form.notes} onChange={set('notes')} />
+      </div>
+
+      {/* Terms & Conditions toggle */}
+      <div>
+        <button type="button" onClick={() => setShowTerms(p => !p)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-brand-600 transition-colors">
+          {showTerms ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showTerms ? 'Hide' : 'Include'} Terms & Conditions
+        </button>
+        {showTerms && (
+          <div className="mt-2">
+            <textarea className={inputClass} rows={6} value={form.terms} onChange={set('terms')}
+              placeholder="Enter terms and conditions..." style={{ fontFamily: 'monospace', fontSize: 12 }} />
+            <p className="text-xs text-gray-400 mt-1">These will appear at the bottom of the quotation PDF.</p>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}

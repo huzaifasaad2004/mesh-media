@@ -7,7 +7,7 @@ import { cn, getInitials } from '@/lib/utils'
 import type { Profile } from '@/types/database'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
-  FileText, DollarSign, UserCog, LogOut, Building2
+  FileText, DollarSign, UserCog, LogOut, Building2, Settings
 } from 'lucide-react'
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/contracts',  label: 'Contracts',   icon: FileText },
   { href: '/finance',    label: 'Finance',     icon: DollarSign },
   { href: '/team',       label: 'Team',        icon: UserCog },
+  { href: '/settings',   label: 'Settings',    icon: Settings },
 ]
 
 interface SidebarProps {

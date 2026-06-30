@@ -2,6 +2,7 @@
 
 import { amountToWords } from '@/lib/numberToWords'
 import { COMPANY } from '@/lib/company'
+import Image from 'next/image'
 
 const BRAND = '#6E1318'
 const CREAM = '#F3EEE6'
@@ -33,27 +34,13 @@ interface DocumentTemplateProps {
   taxAmount?: number
   total: number
   notes?: string | null
-  status?: string
-}
-
-function MeshLogo() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <svg width="36" height="36" viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-        <rect width="100" height="100" fill={BRAND} rx="8" />
-        <text x="50" y="65" fontFamily="Georgia, serif" fontSize="52" fontStyle="italic" fontWeight="700" fill={CREAM} textAnchor="middle">M</text>
-      </svg>
-      <div>
-        <div style={{ fontFamily: 'Cormorant, Georgia, serif', fontWeight: 600, fontSize: 16, color: BRAND, lineHeight: 1.1 }}>MeshMedia</div>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>For Marketing and PR</div>
-      </div>
-    </div>
-  )
+  terms?: string | null
 }
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
+
 function fmtDate(s?: string | null) {
   if (!s) return '—'
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(s))
@@ -61,10 +48,10 @@ function fmtDate(s?: string | null) {
 
 export default function DocumentTemplate({
   type, number, issueDate, dueOrExpiryDate, dueOrExpiryLabel,
-  subject, client, items, subtotal, taxRate = 0, taxAmount = 0, total, notes,
+  subject, client, items, subtotal, taxRate = 0, taxAmount = 0, total, notes, terms,
 }: DocumentTemplateProps) {
   const isInvoice = type === 'invoice'
-  const docLabel = isInvoice ? 'INVOICE' : 'QUOTE'
+  const docLabel = isInvoice ? 'INVOICE' : 'QUOTATION'
 
   return (
     <div style={{
@@ -72,35 +59,48 @@ export default function DocumentTemplate({
       width: 794,
       minHeight: 1123,
       margin: '0 auto',
-      padding: '48px 52px',
+      padding: '44px 52px',
       fontFamily: 'Inter, sans-serif',
       fontSize: 13,
       color: '#1a1a1a',
       boxSizing: 'border-box',
     }}>
-      {/* Header row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 }}>
-        <MeshLogo />
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36 }}>
+        {/* Real logo */}
+        <img
+          src="/logo.jpg"
+          alt="MeshMedia"
+          style={{ height: 44, width: 'auto', objectFit: 'contain' }}
+        />
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: 'Cormorant, Georgia, serif', fontWeight: 700, fontSize: 52, color: BRAND, lineHeight: 1, letterSpacing: '-1px' }}>
+          <div style={{
+            fontFamily: 'Cormorant, Georgia, serif', fontWeight: 700,
+            fontSize: 54, color: BRAND, lineHeight: 1, letterSpacing: '-1px',
+          }}>
             {docLabel}
           </div>
-          <div style={{ fontSize: 13, color: '#555', marginTop: 4 }}># {number}</div>
+          <div style={{ fontSize: 13, color: '#555', marginTop: 4 }}>#{number}</div>
           {isInvoice && (
-            <div style={{ marginTop: 12, textAlign: 'right' }}>
+            <div style={{ marginTop: 10, textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Balance Due</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: BRAND, fontFamily: 'Cormorant, Georgia, serif' }}>AED {fmt(total)}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: BRAND, fontFamily: 'Cormorant, Georgia, serif' }}>
+                AED {fmt(total)}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Company + Bill To row */}
-      <div style={{ display: 'flex', gap: 60, marginBottom: 32 }}>
-        {/* Company details */}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: BRAND, marginBottom: 6 }}>{COMPANY.name}</div>
-          <div style={{ color: '#555', lineHeight: 1.7, fontSize: 12 }}>
+      {/* ── Divider ── */}
+      <div style={{ borderTop: `2px solid ${BRAND}`, marginBottom: 28 }} />
+
+      {/* ── Company info + Dates ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: BRAND, marginBottom: 5 }}>{COMPANY.name}</div>
+          <div style={{ color: '#555', lineHeight: 1.75, fontSize: 12 }}>
             <div>{COMPANY.address}</div>
             <div>{COMPANY.city}</div>
             <div>{COMPANY.phone}</div>
@@ -109,63 +109,70 @@ export default function DocumentTemplate({
           </div>
         </div>
 
-        {/* Dates */}
-        <div style={{ minWidth: 200 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <div style={{ minWidth: 210, textAlign: 'right' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginLeft: 'auto' }}>
             <tbody>
               <tr>
-                <td style={{ color: '#888', paddingBottom: 4, paddingRight: 16 }}>{isInvoice ? 'Invoice Date' : 'Quote Date'}</td>
-                <td style={{ fontWeight: 500, paddingBottom: 4 }}>{fmtDate(issueDate)}</td>
+                <td style={{ color: '#888', paddingBottom: 6, paddingRight: 12 }}>{isInvoice ? 'Invoice Date' : 'Quote Date'}</td>
+                <td style={{ fontWeight: 600, paddingBottom: 6 }}>{fmtDate(issueDate)}</td>
               </tr>
               {isInvoice && (
                 <tr>
-                  <td style={{ color: '#888', paddingBottom: 4, paddingRight: 16 }}>Terms</td>
-                  <td style={{ fontWeight: 500, paddingBottom: 4 }}>Due on Receipt</td>
+                  <td style={{ color: '#888', paddingBottom: 6, paddingRight: 12 }}>Terms</td>
+                  <td style={{ fontWeight: 600, paddingBottom: 6 }}>Due on Receipt</td>
                 </tr>
               )}
-              <tr>
-                <td style={{ color: '#888', paddingRight: 16 }}>{dueOrExpiryLabel}</td>
-                <td style={{ fontWeight: 500 }}>{fmtDate(dueOrExpiryDate)}</td>
-              </tr>
+              {dueOrExpiryDate && (
+                <tr>
+                  <td style={{ color: '#888', paddingRight: 12 }}>{dueOrExpiryLabel}</td>
+                  <td style={{ fontWeight: 600 }}>{fmtDate(dueOrExpiryDate)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Bill To */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Bill To</div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: BRAND }}>{client.company_name}</div>
-        {client.contact_person && <div style={{ fontSize: 12, color: '#555' }}>{client.contact_person}</div>}
-        {client.address && <div style={{ fontSize: 12, color: '#555' }}>{client.address}</div>}
+      {/* ── Bill To ── */}
+      <div style={{
+        backgroundColor: '#faf8f5', border: `1px solid ${CREAM}`,
+        borderLeft: `4px solid ${BRAND}`, borderRadius: 4,
+        padding: '12px 16px', marginBottom: 28,
+      }}>
+        <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          {isInvoice ? 'Bill To' : 'Prepared For'}
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 15, color: BRAND }}>{client.company_name}</div>
+        {client.contact_person && <div style={{ fontSize: 12, color: '#444', marginTop: 2 }}>{client.contact_person}</div>}
+        {client.address && <div style={{ fontSize: 12, color: '#555', marginTop: 1 }}>{client.address}</div>}
         {client.email && <div style={{ fontSize: 12, color: '#555' }}>{client.email}</div>}
         {client.phone && <div style={{ fontSize: 12, color: '#555' }}>{client.phone}</div>}
       </div>
 
-      {/* Subject */}
+      {/* ── Subject ── */}
       {subject && (
-        <div style={{ marginBottom: 24 }}>
-          <span style={{ fontSize: 11, color: '#999', marginRight: 8 }}>Subject:</span>
-          <span style={{ fontWeight: 500 }}>{subject}</span>
+        <div style={{ marginBottom: 22, fontSize: 12 }}>
+          <span style={{ color: '#999', marginRight: 8, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 10 }}>Subject:</span>
+          <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{subject}</span>
         </div>
       )}
 
-      {/* Line items table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
+      {/* ── Line items table ── */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
         <thead>
           <tr style={{ backgroundColor: BRAND }}>
-            <th style={{ width: 36, padding: '10px 12px', textAlign: 'left', color: CREAM, fontSize: 11, fontWeight: 600 }}>#</th>
+            <th style={{ width: 32, padding: '10px 12px', textAlign: 'left', color: CREAM, fontSize: 11, fontWeight: 600 }}>#</th>
             <th style={{ padding: '10px 12px', textAlign: 'left', color: CREAM, fontSize: 11, fontWeight: 600 }}>Item & Description</th>
-            <th style={{ width: 60, padding: '10px 12px', textAlign: 'right', color: CREAM, fontSize: 11, fontWeight: 600 }}>Qty</th>
+            <th style={{ width: 55, padding: '10px 12px', textAlign: 'right', color: CREAM, fontSize: 11, fontWeight: 600 }}>Qty</th>
             <th style={{ width: 90, padding: '10px 12px', textAlign: 'right', color: CREAM, fontSize: 11, fontWeight: 600 }}>Rate</th>
             <th style={{ width: 100, padding: '10px 12px', textAlign: 'right', color: CREAM, fontSize: 11, fontWeight: 600 }}>Amount</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, idx) => (
-            <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fafafa' : 'white', borderBottom: '1px solid #f0f0f0' }}>
-              <td style={{ padding: '10px 12px', fontSize: 12, color: '#666' }}>{idx + 1}</td>
-              <td style={{ padding: '10px 12px', fontSize: 12, color: '#1a1a1a' }}>{item.description}</td>
+            <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fafaf9' : 'white', borderBottom: '1px solid #f0ebe6' }}>
+              <td style={{ padding: '10px 12px', fontSize: 12, color: '#888' }}>{idx + 1}</td>
+              <td style={{ padding: '10px 12px', fontSize: 12 }}>{item.description}</td>
               <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right' }}>{item.quantity}</td>
               <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right' }}>{fmt(item.unit_price)}</td>
               <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', fontWeight: 500 }}>{fmt(item.amount)}</td>
@@ -174,64 +181,95 @@ export default function DocumentTemplate({
         </tbody>
       </table>
 
-      {/* Totals */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 28 }}>
-        <table style={{ borderCollapse: 'collapse', minWidth: 240 }}>
+      {/* ── Totals ── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+        <table style={{ borderCollapse: 'collapse', minWidth: 250 }}>
           <tbody>
             <tr>
-              <td style={{ padding: '5px 16px 5px 0', color: '#888', fontSize: 12 }}>Sub Total</td>
-              <td style={{ padding: '5px 0', textAlign: 'right', fontSize: 12 }}>{fmt(subtotal)}</td>
+              <td style={{ padding: '5px 20px 5px 0', color: '#888', fontSize: 12 }}>Sub Total</td>
+              <td style={{ padding: '5px 0', textAlign: 'right', fontSize: 12 }}>AED {fmt(subtotal)}</td>
             </tr>
             {taxRate > 0 && (
               <tr>
-                <td style={{ padding: '5px 16px 5px 0', color: '#888', fontSize: 12 }}>VAT ({taxRate}%)</td>
-                <td style={{ padding: '5px 0', textAlign: 'right', fontSize: 12 }}>{fmt(taxAmount)}</td>
+                <td style={{ padding: '5px 20px 5px 0', color: '#888', fontSize: 12 }}>VAT ({taxRate}%)</td>
+                <td style={{ padding: '5px 0', textAlign: 'right', fontSize: 12 }}>AED {fmt(taxAmount)}</td>
               </tr>
             )}
             <tr style={{ borderTop: `2px solid ${BRAND}` }}>
-              <td style={{ padding: '10px 16px 4px 0', fontWeight: 700, fontSize: 14, color: BRAND }}>Total</td>
-              <td style={{ padding: '10px 0 4px', textAlign: 'right', fontWeight: 700, fontSize: 14, color: BRAND }}>AED {fmt(total)}</td>
+              <td style={{ padding: '10px 20px 4px 0', fontWeight: 700, fontSize: 15, color: BRAND }}>Total</td>
+              <td style={{ padding: '10px 0 4px', textAlign: 'right', fontWeight: 700, fontSize: 15, color: BRAND }}>AED {fmt(total)}</td>
             </tr>
             {isInvoice && (
               <tr>
-                <td style={{ padding: '4px 16px 4px 0', fontWeight: 700, fontSize: 13 }}>Balance Due</td>
-                <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>AED {fmt(total)}</td>
+                <td style={{ padding: '4px 20px 0 0', fontWeight: 600, fontSize: 13 }}>Balance Due</td>
+                <td style={{ padding: '4px 0 0', textAlign: 'right', fontWeight: 600, fontSize: 13 }}>AED {fmt(total)}</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Amount in words */}
-      <div style={{ backgroundColor: '#faf9f6', border: '1px solid #ede8df', borderRadius: 6, padding: '10px 14px', marginBottom: 28, fontSize: 12 }}>
+      {/* ── Amount in words ── */}
+      <div style={{
+        backgroundColor: '#faf8f5', border: `1px solid ${CREAM}`,
+        borderRadius: 5, padding: '9px 14px', marginBottom: 24, fontSize: 12,
+      }}>
         <span style={{ color: '#888', marginRight: 8 }}>Total In Words:</span>
-        <span style={{ fontWeight: 600, fontStyle: 'italic' }}>{amountToWords(total)}</span>
+        <span style={{ fontWeight: 600, fontStyle: 'italic', color: BRAND }}>{amountToWords(total)}</span>
       </div>
 
-      {/* Bank details */}
-      <div style={{ borderTop: '1px solid #eee', paddingTop: 20, marginBottom: 28 }}>
-        <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Payment Details</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 40px', fontSize: 12 }}>
-          <div><span style={{ color: '#888' }}>Account Name: </span><span style={{ fontWeight: 500 }}>{COMPANY.account_name}</span></div>
-          <div><span style={{ color: '#888' }}>Bank: </span><span style={{ fontWeight: 500 }}>{COMPANY.bank_name}</span></div>
-          <div><span style={{ color: '#888' }}>Account No: </span><span style={{ fontWeight: 500 }}>{COMPANY.account_number}</span></div>
-          <div><span style={{ color: '#888' }}>Branch: </span><span style={{ fontWeight: 500 }}>{COMPANY.branch}</span></div>
-          <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#888' }}>IBAN: </span><span style={{ fontWeight: 500, letterSpacing: '0.05em' }}>{COMPANY.iban}</span></div>
-        </div>
-      </div>
-
-      {notes && (
-        <div style={{ marginBottom: 28, fontSize: 12 }}>
-          <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</div>
-          <div style={{ color: '#555' }}>{notes}</div>
+      {/* ── Bank details (invoices only, single-line layout) ── */}
+      {isInvoice && (
+        <div style={{ borderTop: '1px solid #ece7e0', paddingTop: 18, marginBottom: 24 }}>
+          <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Payment Details
+          </div>
+          <div style={{ fontSize: 12, lineHeight: 1.85, color: '#333' }}>
+            <div><span style={{ color: '#888', display: 'inline-block', width: 130 }}>Account Name</span><span style={{ fontWeight: 500 }}>{COMPANY.account_name}</span></div>
+            <div><span style={{ color: '#888', display: 'inline-block', width: 130 }}>Account Number</span><span style={{ fontWeight: 500 }}>{COMPANY.account_number}</span></div>
+            <div><span style={{ color: '#888', display: 'inline-block', width: 130 }}>IBAN</span><span style={{ fontWeight: 600, letterSpacing: '0.04em' }}>{COMPANY.iban}</span></div>
+            <div><span style={{ color: '#888', display: 'inline-block', width: 130 }}>Bank</span><span style={{ fontWeight: 500 }}>{COMPANY.bank_name}</span></div>
+            <div><span style={{ color: '#888', display: 'inline-block', width: 130 }}>Branch</span><span style={{ fontWeight: 500 }}>{COMPANY.branch}</span></div>
+          </div>
         </div>
       )}
 
-      {/* Signature */}
-      <div style={{ marginTop: 40 }}>
-        <div style={{ borderTop: '1px solid #ccc', width: 180, marginBottom: 6 }} />
-        <div style={{ fontFamily: 'Cormorant, Georgia, serif', fontStyle: 'italic', fontSize: 20, color: BRAND }}>{COMPANY.signatory}</div>
-        <div style={{ fontSize: 11, color: '#888' }}>Authorized Signature</div>
+      {/* ── Notes ── */}
+      {notes && (
+        <div style={{ marginBottom: 20, fontSize: 12 }}>
+          <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Notes</div>
+          <div style={{ color: '#555', lineHeight: 1.6 }}>{notes}</div>
+        </div>
+      )}
+
+      {/* ── Terms & Conditions ── */}
+      {terms && (
+        <div style={{ marginBottom: 28, fontSize: 11 }}>
+          <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Terms & Conditions</div>
+          <div style={{ color: '#666', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{terms}</div>
+        </div>
+      )}
+
+      {/* ── Signature ── */}
+      <div style={{ marginTop: 36, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+        <img
+          src="/signature.png"
+          alt="Signature"
+          style={{ height: 64, width: 'auto', objectFit: 'contain', marginBottom: 4, display: 'block' }}
+        />
+        <div style={{ borderTop: '1px solid #bbb', width: 200, paddingTop: 6 }}>
+          <div style={{ fontWeight: 600, fontSize: 12, color: '#1a1a1a' }}>{COMPANY.signatory}</div>
+          <div style={{ fontSize: 11, color: '#888' }}>Authorized Signature</div>
+        </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <div style={{
+        marginTop: 32, borderTop: '1px solid #ece7e0', paddingTop: 12,
+        display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#bbb',
+      }}>
+        <span>{COMPANY.name} · TL# {COMPANY.trade_license}</span>
+        <span>{COMPANY.email} · {COMPANY.website}</span>
       </div>
     </div>
   )
