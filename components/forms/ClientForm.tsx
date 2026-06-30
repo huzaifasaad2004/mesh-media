@@ -16,10 +16,12 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     company_name: initialData?.company_name ?? '',
+    contact_person: (initialData as any)?.contact_person ?? '',
     industry: initialData?.industry ?? '',
     status: initialData?.status ?? 'lead',
     email: initialData?.email ?? '',
     phone: initialData?.phone ?? '',
+    website: (initialData as any)?.website ?? '',
     address: initialData?.address ?? '',
     monthly_retainer: initialData?.monthly_retainer?.toString() ?? '',
     currency: (initialData as any)?.currency ?? 'AED',
@@ -42,6 +44,8 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
       contract_start_date: form.contract_start_date || null,
       contract_end_date: form.contract_end_date || null,
       industry: form.industry || null,
+      contact_person: form.contact_person || null,
+      website: form.website || null,
       email: form.email || null,
       phone: form.phone || null,
       address: form.address || null,
@@ -81,6 +85,11 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
         </div>
       </div>
 
+      <div>
+        <label className={labelClass}>Contact Person</label>
+        <input className={inputClass} value={form.contact_person} onChange={set('contact_person')} placeholder="Name of primary contact" />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Email</label>
@@ -92,9 +101,15 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
         </div>
       </div>
 
-      <div>
-        <label className={labelClass}>Address</label>
-        <input className={inputClass} value={form.address} onChange={set('address')} />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Website</label>
+          <input className={inputClass} value={form.website} onChange={set('website')} placeholder="https://..." />
+        </div>
+        <div>
+          <label className={labelClass}>Address</label>
+          <input className={inputClass} value={form.address} onChange={set('address')} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

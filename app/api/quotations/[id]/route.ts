@@ -5,8 +5,8 @@ const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { data, error } = await admin()
-    .from('invoices')
-    .select('*, client:clients(company_name, email, contact_person, phone, address), items:invoice_items(*)')
+    .from('quotations')
+    .select('*, client:clients(company_name, email, contact_person, phone, address), items:quotation_items(*)')
     .eq('id', params.id)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -15,32 +15,32 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json()
-  const { items, ...invoiceData } = body
+  const { items, ...quoteData } = body
 
   if (items) {
     const total = items.reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
-    await admin().from('invoice_items').delete().eq('invoice_id', params.id)
-    await admin().from('invoice_items').insert(
+    await admin().from('quotation_items').delete().eq('quotation_id', params.id)
+    await admin().from('quotation_items').insert(
       items.map((item: { description: string; quantity: number; unit_price: number }, idx: number) => ({
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         amount: item.quantity * item.unit_price,
-        invoice_id: params.id,
+        quotation_id: params.id,
         sort_order: idx,
       }))
     )
-    invoiceData.subtotal = total
-    invoiceData.total = total
+    quoteData.subtotal = total
+    quoteData.total = total
   }
 
-  const { data, error } = await admin().from('invoices').update(invoiceData).eq('id', params.id).select().single()
+  const { data, error } = await admin().from('quotations').update(quoteData).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { error } = await admin().from('invoices').delete().eq('id', params.id)
+  const { error } = await admin().from('quotations').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ success: true })
 }

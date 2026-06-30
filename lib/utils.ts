@@ -63,6 +63,8 @@ export function statusColor(status: string) {
     paid:        'bg-green-100 text-green-800',
     overdue:     'bg-red-100 text-red-700',
     cancelled:   'bg-red-100 text-red-700',
+    accepted:    'bg-green-100 text-green-800',
+    declined:    'bg-red-100 text-red-700',
     expired:     'bg-orange-100 text-orange-700',
     low:         'bg-gray-100 text-gray-600',
     medium:      'bg-yellow-100 text-yellow-700',

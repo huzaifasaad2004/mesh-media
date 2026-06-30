@@ -1,0 +1,16 @@
+export const COMPANY = {
+  name: 'MeshMedia For Marketing and PR',
+  address: 'Mazyad mall, Tower 2, Office 619',
+  city: 'MBZ Abu Dhabi, United Arab Emirates',
+  phone: '0509501326',
+  email: 'hello@m3m.ae',
+  website: 'themeshmedia.com',
+  bank_name: 'Abu Dhabi Islamic Bank',
+  account_name: 'MeshMedia For Marketing and PR',
+  account_number: '19587651',
+  iban: 'AE980500000000019587651',
+  branch: 'Sheik',
+  currency: 'AED',
+  signatory: 'Huzaifa Bin Saad',
+  trade_license: '1594410',
+} as const

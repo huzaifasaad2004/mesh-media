@@ -29,9 +29,15 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
     status: (initialData?.status as string) ?? 'draft',
     issue_date: (initialData?.issue_date as string) ?? new Date().toISOString().split('T')[0],
     due_date: (initialData?.due_date as string) ?? '',
+    subject: (initialData?.subject as string) ?? '',
     notes: (initialData?.notes as string) ?? '',
   })
-  const [items, setItems] = useState<LineItem[]>([defaultItem()])
+  const existingItems = (initialData?.items as any[]) ?? []
+  const [items, setItems] = useState<LineItem[]>(
+    existingItems.length > 0
+      ? existingItems.map((i: any) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) }))
+      : [defaultItem()]
+  )
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -54,6 +60,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
     const payload = {
       ...form,
       due_date: form.due_date || null,
+      subject: form.subject || null,
       notes: form.notes || null,
       items,
     }
@@ -107,6 +114,11 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
           <label className={labelClass}>Due Date</label>
           <input className={inputClass} type="date" value={form.due_date} onChange={set('due_date')} />
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Subject / Project Description</label>
+        <input className={inputClass} value={form.subject} onChange={set('subject')} placeholder="e.g. Social media management – June 2025" />
       </div>
 
       <div>

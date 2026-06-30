@@ -29,6 +29,7 @@ export default function ExpenseForm({ onSuccess, clients, initialData }: Expense
     amount: (initialData?.amount as number)?.toString() ?? '',
     date: (initialData?.date as string) ?? new Date().toISOString().split('T')[0],
     client_id: (initialData?.client_id as string) ?? '',
+    is_recurring: (initialData?.is_recurring as boolean) ?? false,
   })
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -44,6 +45,7 @@ export default function ExpenseForm({ onSuccess, clients, initialData }: Expense
       amount: form.amount ? parseFloat(form.amount) : 0,
       date: form.date,
       client_id: form.client_id || null,
+      is_recurring: form.is_recurring,
     }
     const id = initialData?.id as string | undefined
     const url = id ? `/api/expenses/${id}` : '/api/expenses'
@@ -92,6 +94,12 @@ export default function ExpenseForm({ onSuccess, clients, initialData }: Expense
           </select>
         </div>
       </div>
+
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" checked={form.is_recurring} onChange={e => setForm(p => ({ ...p, is_recurring: e.target.checked }))}
+          className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+        <span className="text-sm text-gray-700">Recurring expense (monthly)</span>
+      </label>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
