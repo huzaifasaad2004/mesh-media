@@ -81,6 +81,7 @@ export default async function ClientsPage() {
                       </a>
                     )}
                     <Link href={`/clients/${client.id}`} className="btn-secondary btn-sm">View</Link>
+                    <Link href={`/clients/${client.id}/edit`} className="btn-ghost btn-sm">Edit</Link>
                   </div>
                 </td>
               </tr>
