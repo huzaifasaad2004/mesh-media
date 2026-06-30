@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Sparkles, Loader2 } from 'lucide-react'
 import { DEFAULT_TERMS, DEFAULT_QUOTE_NOTES } from '@/lib/company'
 
 const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent'
@@ -29,6 +29,21 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showTerms, setShowTerms] = useState(!!(initialData?.terms))
+  const [aiLoading, setAiLoading] = useState<number | null>(null)
+
+  const suggestDescription = async (idx: number) => {
+    setAiLoading(idx)
+    try {
+      const existing = items.filter((_, i) => i !== idx).map(i => i.description).filter(Boolean)
+      const res = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'description', context: 'quotation for marketing agency services', existing }),
+      })
+      const data = await res.json()
+      if (data.result) setItems(p => p.map((item, i) => i === idx ? { ...item, description: data.result } : item))
+    } catch { /* ignore */ } finally { setAiLoading(null) }
+  }
   const [form, setForm] = useState({
     quote_number: (initialData?.quote_number as string) ?? '',
     client_id: (initialData?.client_id as string) ?? '',
@@ -145,8 +160,15 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
           </div>
           {items.map((item, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-              <input className={inputClass + ' col-span-5'} placeholder="Description" value={item.description}
-                onChange={e => setItem(idx, 'description', e.target.value)} required />
+              <div className="col-span-5 relative">
+                <input className={inputClass + ' pr-8'} placeholder="Description" value={item.description}
+                  onChange={e => setItem(idx, 'description', e.target.value)} required />
+                <button type="button" title="AI suggest description"
+                  onClick={() => suggestDescription(idx)} disabled={aiLoading === idx}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-purple-400 hover:text-purple-600 disabled:opacity-50 transition-colors">
+                  {aiLoading === idx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                </button>
+              </div>
               <input className={inputClass + ' col-span-2'} type="number" min="0.01" step="0.01" value={item.quantity}
                 onChange={e => setItem(idx, 'quantity', e.target.value)} />
               <input className={inputClass + ' col-span-3'} type="number" min="0" step="0.01" value={item.unit_price}

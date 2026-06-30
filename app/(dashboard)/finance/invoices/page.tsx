@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import InvoiceForm from '@/components/forms/InvoiceForm'
@@ -16,6 +16,8 @@ export default function InvoicesPage() {
   const [editing, setEditing] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null)
+  const [sending, setSending] = useState<string | null>(null)
+  const [sendMsg, setSendMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null)
 
   const fetchData = useCallback(async () => {
     const [invRes, cliRes] = await Promise.all([fetch('/api/invoices'), fetch('/api/clients')])
@@ -37,6 +39,16 @@ export default function InvoicesPage() {
     setStatusDropdown(null)
     await fetch(`/api/invoices/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     fetchData()
+  }
+
+  const sendEmail = async (id: string) => {
+    setSending(id); setSendMsg(null)
+    const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST' })
+    const d = await res.json()
+    setSending(null)
+    setSendMsg({ id, msg: res.ok ? `Sent to ${d.to}` : (d.error ?? 'Send failed'), ok: res.ok })
+    if (res.ok) fetchData()
+    setTimeout(() => setSendMsg(null), 4000)
   }
 
   const deleteInvoice = async (id: string) => {
@@ -85,7 +97,14 @@ export default function InvoicesPage() {
         ))}
       </div>
 
-      <div className="card overflow-hidden">
+      {sendMsg && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${sendMsg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {sendMsg.ok && <CheckCircle className="w-4 h-4" />}
+          {sendMsg.msg}
+        </div>
+      )}
+
+      <div className="card overflow-visible">
         {loading ? (
           <div className="px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
         ) : (
@@ -103,29 +122,32 @@ export default function InvoicesPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {invoices.length > 0 ? invoices.map((inv) => (
-                <tr key={inv.id} className="table-row">
+                <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3 font-medium text-brand-600">{inv.invoice_number}</td>
                   <td className="px-5 py-3 text-gray-700">{inv.client?.company_name ?? '—'}</td>
                   <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{inv.subject ?? inv.notes ?? '—'}</td>
                   <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
                   <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(inv.issue_date)}</td>
                   <td className="px-5 py-3">
-                    <div className="relative">
+                    <div className="relative inline-block">
                       <button
-                        onClick={() => setStatusDropdown(statusDropdown === inv.id ? null : inv.id)}
+                        onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === inv.id ? null : inv.id) }}
                         className={`badge ${statusColor(inv.status)} cursor-pointer flex items-center gap-1`}
                       >
                         {statusLabel(inv.status)} <ChevronDown className="w-3 h-3" />
                       </button>
                       {statusDropdown === inv.id && (
-                        <div className="absolute left-0 top-7 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-                          {STATUS_FLOW.map(s => (
-                            <button key={s} onClick={() => updateStatus(inv.id, s)}
-                              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${inv.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
-                              {statusLabel(s)}
-                            </button>
-                          ))}
-                        </div>
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
+                          <div className="absolute left-0 top-7 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                            {STATUS_FLOW.map(s => (
+                              <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(inv.id, s) }}
+                                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${inv.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
+                                {statusLabel(s)}
+                              </button>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   </td>
@@ -136,10 +158,10 @@ export default function InvoicesPage() {
                         <Eye className="w-3.5 h-3.5" />
                       </a>
                       {inv.client?.email && (
-                        <a href={`mailto:${inv.client.email}?subject=Invoice ${inv.invoice_number} from Mesh Media&body=Please find attached your invoice ${inv.invoice_number} for AED ${inv.total}. View here: ${window?.location?.origin}/invoice/${inv.id}`}
-                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Send via Email">
-                          <Send className="w-3.5 h-3.5" />
-                        </a>
+                        <button onClick={() => sendEmail(inv.id)} disabled={sending === inv.id}
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50" title="Send via Email (Resend)">
+                          {sending === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </button>
                       )}
                       <button onClick={() => openEdit(inv)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
@@ -157,10 +179,6 @@ export default function InvoicesPage() {
           </table>
         )}
       </div>
-
-      {statusDropdown && (
-        <div className="fixed inset-0 z-10" onClick={() => setStatusDropdown(null)} />
-      )}
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Invoice ${editing.invoice_number}` : 'New Invoice'} size="xl">
         <InvoiceForm

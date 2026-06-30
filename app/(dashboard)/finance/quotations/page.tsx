@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import QuotationForm from '@/components/forms/QuotationForm'
@@ -16,6 +16,8 @@ export default function QuotationsPage() {
   const [editing, setEditing] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null)
+  const [sending, setSending] = useState<string | null>(null)
+  const [sendMsg, setSendMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null)
 
   const fetchData = useCallback(async () => {
     const [qRes, cRes] = await Promise.all([fetch('/api/quotations'), fetch('/api/clients')])
@@ -29,8 +31,22 @@ export default function QuotationsPage() {
 
   const updateStatus = async (id: string, status: string) => {
     setStatusDropdown(null)
-    await fetch(`/api/quotations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    const res = await fetch(`/api/quotations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (!res.ok) {
+      const d = await res.json()
+      alert(`Status update failed: ${d.error ?? 'Unknown error'}`)
+    }
     fetchData()
+  }
+
+  const sendEmail = async (id: string) => {
+    setSending(id); setSendMsg(null)
+    const res = await fetch(`/api/quotations/${id}/send`, { method: 'POST' })
+    const d = await res.json()
+    setSending(null)
+    setSendMsg({ id, msg: res.ok ? `Sent to ${d.to}` : (d.error ?? 'Send failed'), ok: res.ok })
+    if (res.ok) fetchData()
+    setTimeout(() => setSendMsg(null), 4000)
   }
 
   const deleteQuote = async (id: string) => {
@@ -63,6 +79,13 @@ export default function QuotationsPage() {
         </button>
       </div>
 
+      {sendMsg && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${sendMsg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {sendMsg.ok && <CheckCircle className="w-4 h-4" />}
+          {sendMsg.msg}
+        </div>
+      )}
+
       <div className="flex gap-3 mb-6 flex-wrap">
         {['draft', 'sent', 'accepted', 'declined', 'expired'].map(s => {
           const count = quotes.filter(q => q.status === s).length
@@ -74,7 +97,7 @@ export default function QuotationsPage() {
         })}
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-visible">
         {loading ? (
           <div className="px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
         ) : (
@@ -93,7 +116,7 @@ export default function QuotationsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {quotes.length > 0 ? quotes.map((q) => (
-                <tr key={q.id} className="table-row">
+                <tr key={q.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3 font-medium text-brand-600">{q.quote_number}</td>
                   <td className="px-5 py-3 text-gray-700">{q.client?.company_name ?? '—'}</td>
                   <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{q.subject ?? '—'}</td>
@@ -101,22 +124,25 @@ export default function QuotationsPage() {
                   <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(q.issue_date)}</td>
                   <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(q.expiry_date)}</td>
                   <td className="px-5 py-3">
-                    <div className="relative">
+                    <div className="relative inline-block">
                       <button
-                        onClick={() => setStatusDropdown(statusDropdown === q.id ? null : q.id)}
+                        onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === q.id ? null : q.id) }}
                         className={`badge ${statusColor(q.status)} cursor-pointer flex items-center gap-1`}
                       >
                         {statusLabel(q.status)} <ChevronDown className="w-3 h-3" />
                       </button>
                       {statusDropdown === q.id && (
-                        <div className="absolute left-0 top-7 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-                          {STATUS_FLOW.map(s => (
-                            <button key={s} onClick={() => updateStatus(q.id, s)}
-                              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${q.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
-                              {statusLabel(s)}
-                            </button>
-                          ))}
-                        </div>
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
+                          <div className="absolute left-0 top-7 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                            {STATUS_FLOW.map(s => (
+                              <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(q.id, s) }}
+                                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${q.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
+                                {statusLabel(s)}
+                              </button>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   </td>
@@ -127,10 +153,10 @@ export default function QuotationsPage() {
                         <Eye className="w-3.5 h-3.5" />
                       </a>
                       {q.client?.email && (
-                        <a href={`mailto:${q.client.email}?subject=Quotation ${q.quote_number} from Mesh Media`}
-                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Send via Email">
-                          <Send className="w-3.5 h-3.5" />
-                        </a>
+                        <button onClick={() => sendEmail(q.id)} disabled={sending === q.id}
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50" title="Send via Email">
+                          {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </button>
                       )}
                       <button onClick={() => openEdit(q)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
@@ -148,8 +174,6 @@ export default function QuotationsPage() {
           </table>
         )}
       </div>
-
-      {statusDropdown && <div className="fixed inset-0 z-10" onClick={() => setStatusDropdown(null)} />}
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Quote ${editing.quote_number}` : 'New Quotation'} size="xl">
         <QuotationForm
