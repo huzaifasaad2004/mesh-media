@@ -131,12 +131,12 @@ export default function InvoicesPage() {
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1 justify-end">
-                      <a href={`/print/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer"
+                      <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer"
                         className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View / Print PDF">
                         <Eye className="w-3.5 h-3.5" />
                       </a>
                       {inv.client?.email && (
-                        <a href={`mailto:${inv.client.email}?subject=Invoice ${inv.invoice_number} from Mesh Media&body=Please find attached your invoice ${inv.invoice_number} for AED ${inv.total}. View here: ${window?.location?.origin}/print/invoice/${inv.id}`}
+                        <a href={`mailto:${inv.client.email}?subject=Invoice ${inv.invoice_number} from Mesh Media&body=Please find attached your invoice ${inv.invoice_number} for AED ${inv.total}. View here: ${window?.location?.origin}/invoice/${inv.id}`}
                           className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Send via Email">
                           <Send className="w-3.5 h-3.5" />
                         </a>

@@ -122,7 +122,7 @@ export default function QuotationsPage() {
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1 justify-end">
-                      <a href={`/print/quotation/${q.id}`} target="_blank" rel="noopener noreferrer"
+                      <a href={`/quotation/${q.id}`} target="_blank" rel="noopener noreferrer"
                         className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View / Print PDF">
                         <Eye className="w-3.5 h-3.5" />
                       </a>
