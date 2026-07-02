@@ -12,12 +12,14 @@ export default async function DashboardPage() {
     { data: tasks },
     { count: tasksDueToday },
     { data: recentInvoices },
+    { count: invoiceCount },
   ] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     supabase.from('clients').select('id, company_name, status').order('created_at', { ascending: false }).limit(5),
     supabase.from('tasks').select('id, title, status, priority, due_date, client:clients(company_name)').neq('status', 'done').order('due_date', { ascending: true }).limit(8),
     supabase.from('tasks').select('*', { count: 'exact', head: true }).neq('status', 'done').lte('due_date', new Date().toISOString().split('T')[0]),
     supabase.from('invoices').select('id, invoice_number, total, status, client:clients(company_name)').order('created_at', { ascending: false }).limit(5),
+    supabase.from('invoices').select('*', { count: 'exact', head: true }),
   ])
 
   const { data: revenueData } = await supabase
@@ -34,12 +36,12 @@ export default async function DashboardPage() {
   const totalExpenses = expenseData?.reduce((sum, e) => sum + (e.amount || 0), 0) ?? 0
 
   const stats = [
-    { label: 'Active Clients', value: clientCount ?? 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', href: '/clients' },
-    { label: 'Open Tasks', value: (tasks?.length ?? 0), icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-50', href: '/tasks' },
-    { label: 'Due Today', value: tasksDueToday ?? 0, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50', href: '/tasks' },
-    { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50', href: '/finance' },
-    { label: 'Expenses', value: formatCurrency(totalExpenses), icon: TrendingUp, color: 'text-red-600', bg: 'bg-red-50', href: '/finance' },
-    { label: 'Invoices', value: recentInvoices?.length ?? 0, icon: FileText, color: 'text-brand-600', bg: 'bg-brand-50', href: '/contracts' },
+    { label: 'Active Clients', value: clientCount ?? 0, icon: Users, color: 'text-brand-600', bg: 'bg-brand-50', href: '/clients' },
+    { label: 'Open Tasks', value: (tasks?.length ?? 0), icon: CheckSquare, color: 'text-umber-700', bg: 'bg-paper-200', href: '/tasks' },
+    { label: 'Due Today', value: tasksDueToday ?? 0, icon: Clock, color: 'text-[#B8801F]', bg: 'bg-[#F6ECD6]', href: '/tasks' },
+    { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: DollarSign, color: 'text-[#4F7A4A]', bg: 'bg-[#E7EFE3]', href: '/finance' },
+    { label: 'Expenses', value: formatCurrency(totalExpenses), icon: TrendingUp, color: 'text-[#B23A2E]', bg: 'bg-[#F4E0DC]', href: '/finance' },
+    { label: 'Invoices', value: invoiceCount ?? 0, icon: FileText, color: 'text-brand-600', bg: 'bg-brand-50', href: '/finance/invoices' },
   ]
 
   return (
@@ -59,8 +61,8 @@ export default async function DashboardPage() {
               <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center mb-2`}>
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
-              <p className="text-xl font-bold text-gray-900">{value}</p>
-              <p className="text-xs text-gray-500">{label}</p>
+              <p className="stat-number text-ink">{value}</p>
+              <p className="text-xs text-taupe-600">{label}</p>
             </div>
           </Link>
         ))}

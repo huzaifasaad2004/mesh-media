@@ -166,7 +166,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
                   onChange={e => setItem(idx, 'description', e.target.value)} required />
                 <button type="button" title="AI suggest description"
                   onClick={() => suggestDescription(idx)} disabled={aiLoading === idx}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-purple-400 hover:text-purple-600 disabled:opacity-50 transition-colors">
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-brand-400 hover:text-brand-600 disabled:opacity-50 transition-colors">
                   {aiLoading === idx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 </button>
               </div>

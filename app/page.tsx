@@ -6,12 +6,10 @@ export default function RootPage() {
   const router = useRouter()
   useEffect(() => { router.replace('/dashboard') }, [router])
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-paper-0">
       <div className="text-center">
-        <div className="w-10 h-10 bg-brand-600 rounded-xl mx-auto mb-3 flex items-center justify-center">
-          <span className="text-white font-bold text-lg">M</span>
-        </div>
-        <p className="text-sm text-gray-400">Loading Mesh Media…</p>
+        <img src="/brand/mm_mark_maroon.png" alt="Mesh Media" className="w-10 h-12 object-contain mx-auto mb-3" />
+        <p className="text-sm text-taupe-500">Loading Mesh Media…</p>
       </div>
     </div>
   )

@@ -154,7 +154,7 @@ export default function QuotationsPage() {
                       </a>
                       {q.client?.email && (
                         <button onClick={() => sendEmail(q.id)} disabled={sending === q.id}
-                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50" title="Send via Email">
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" title="Send via Email">
                           {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                         </button>
                       )}

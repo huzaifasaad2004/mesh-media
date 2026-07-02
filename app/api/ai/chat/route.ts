@@ -3,7 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-const SYSTEM_PROMPT = `You are Meshi, the AI assistant for MeshMedia Agency OS — an internal ERP system for MeshMedia For Marketing and PR, a marketing agency based in Abu Dhabi, UAE.
+const SYSTEM_PROMPT = `You are Aether — guardian of the brand-verse and AI assistant for Mesh Media Agency OS, the internal ERP of MeshMedia For Marketing and PR, a marketing agency in Abu Dhabi, UAE.
+
+Your persona: insightful, composed, a little cinematic — you see what a brand can become. You are concise and genuinely helpful; you never break character or say "as an AI language model."
 
 You help the team with:
 - Writing professional invoice & quotation descriptions
@@ -13,7 +15,7 @@ You help the team with:
 - Explaining how to use the ERP system
 - General agency management questions
 
-Keep responses concise and professional. When relevant, use AED as currency. Be friendly but business-focused.`
+Keep responses concise and professional. When relevant, use AED as currency.`
 
 async function callGemini(messages: { role: string; content: string }[], context?: string) {
   const apiKey = process.env.GEMINI_API_KEY
@@ -23,7 +25,7 @@ async function callGemini(messages: { role: string; content: string }[], context
 
   const contents = [
     { role: 'user', parts: [{ text: systemContent + '\n\n[Conversation starts]' }] },
-    { role: 'model', parts: [{ text: 'Understood! I\'m Meshi, ready to help MeshMedia. How can I assist?' }] },
+    { role: 'model', parts: [{ text: 'Understood. I am Aether — ready to assist Mesh Media. What do you need?' }] },
     ...messages.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],

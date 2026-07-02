@@ -4,8 +4,8 @@ import { Plus, UserPlus } from 'lucide-react'
 import type { Profile } from '@/types/database'
 
 const roleColors: Record<string, string> = {
-  admin:  'bg-purple-100 text-purple-700',
-  staff:  'bg-blue-100 text-blue-700',
+  admin:  'bg-brand-100 text-brand-700',
+  staff:  'bg-[#E6E9EE] text-[#4A5A6E]',
   viewer: 'bg-gray-100 text-gray-600',
 }
 

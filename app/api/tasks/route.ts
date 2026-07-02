@@ -6,7 +6,7 @@ const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.
 export async function GET() {
   const { data, error } = await admin()
     .from('tasks')
-    .select('*, assignee:profiles(full_name, avatar_url, email), client:clients(company_name)')
+    .select('*, assignee:profiles!tasks_assigned_to_fkey(full_name, avatar_url, email), client:clients(company_name)')
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)

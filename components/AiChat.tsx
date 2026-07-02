@@ -1,21 +1,23 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { X, Send, Sparkles, Loader2, ChevronDown } from 'lucide-react'
+import { X, Send, Loader2, ChevronDown } from 'lucide-react'
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
 const STARTERS = [
   'How much revenue this month?',
-  'Write a description for social media management',
   'Which invoices are overdue?',
   'Draft a follow-up email for a late payment',
+  'Write a description for social media management',
 ]
+
+const CYAN = '#2BD6D6' // Aether-only accent — never on general UI
 
 export default function AiChat() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm **Meshi**, your MeshMedia AI assistant. I can help you write descriptions, check financials, draft emails, and more. What do you need?" }
+    { role: 'assistant', content: "I'm **Aether** — guardian of the Mesh Media brand-verse. Ask me about your finances, clients, or let me draft something for you." }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -48,7 +50,7 @@ export default function AiChat() {
       if (!res.ok) throw new Error(data.error ?? 'AI unavailable')
       setMessages(p => [...p, { role: 'assistant', content: data.reply }])
     } catch (e: any) {
-      setError(e.message.includes('GEMINI_API_KEY') ? 'Add GEMINI_API_KEY to Vercel env vars to enable AI.' : e.message)
+      setError(e.message.includes('GEMINI_API_KEY') ? 'Add GEMINI_API_KEY to Vercel env vars to enable Aether.' : e.message)
     } finally {
       setLoading(false)
     }
@@ -63,34 +65,36 @@ export default function AiChat() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating launcher — Aether avatar with cyan ring */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-6 right-6 z-50 w-13 h-13 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-        style={{ width: 52, height: 52, background: '#6E1318' }}
-        title="Meshi AI Assistant"
+        className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95"
+        style={{ width: 52, height: 52 }}
+        title="Aether — Mesh Media AI"
+        aria-label="Open Aether assistant"
       >
-        {open
-          ? <ChevronDown className="w-5 h-5 text-white" />
-          : <Sparkles className="w-5 h-5 text-white" />
-        }
+        {open ? (
+          <span className="w-full h-full rounded-full flex items-center justify-center" style={{ background: '#151312', border: `1.5px solid ${CYAN}` }}>
+            <ChevronDown className="w-5 h-5" style={{ color: CYAN }} />
+          </span>
+        ) : (
+          <img src="/brand/aether_avatar_128.png" alt="Aether" className="w-full h-full rounded-full object-cover" />
+        )}
       </button>
 
-      {/* Chat panel */}
+      {/* Chat panel — dark espresso with cyan chrome (Aether-only) */}
       {open && (
-        <div className="fixed bottom-20 right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
-          style={{ height: 460 }}>
+        <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          style={{ height: 480, background: '#151312', border: '1px solid #3A332C' }}>
 
           {/* Header */}
-          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100" style={{ background: '#6E1318' }}>
-            <div className="w-7 h-7 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-white" />
-            </div>
+          <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid #2A2420' }}>
+            <img src="/brand/aether_avatar_64.png" alt="Aether" className="w-9 h-9 rounded-full object-cover" />
             <div className="flex-1">
-              <p className="text-white font-semibold text-sm">Meshi</p>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>MeshMedia AI Assistant</p>
+              <p className="font-semibold" style={{ color: '#F7F2E9', fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: 17 }}>Aether</p>
+              <p className="text-xs" style={{ color: CYAN }}>Your brand concierge</p>
             </div>
-            <button onClick={() => setOpen(false)} className="text-white opacity-60 hover:opacity-100">
+            <button onClick={() => setOpen(false)} className="opacity-60 hover:opacity-100" style={{ color: '#F3EEE6' }} aria-label="Close">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -100,24 +104,22 @@ export default function AiChat() {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
-                    m.role === 'user'
-                      ? 'text-white rounded-br-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                  }`}
-                  style={m.role === 'user' ? { background: '#6E1318' } : {}}
+                  className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${m.role === 'user' ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                  style={m.role === 'user'
+                    ? { background: '#2A2420', color: '#E0D6C4' }
+                    : { background: '#1C1815', color: '#C8BCA8', border: '1px solid #2A2420' }}
                   dangerouslySetInnerHTML={{ __html: renderContent(m.content) }}
                 />
               </div>
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 px-3 py-2 rounded-xl rounded-bl-sm">
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                <div className="px-3 py-2 rounded-xl rounded-bl-sm" style={{ background: '#1C1815' }}>
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: CYAN }} />
                 </div>
               </div>
             )}
-            {error && <p className="text-xs text-red-500 text-center px-2">{error}</p>}
+            {error && <p className="text-xs text-center px-2" style={{ color: '#D98A8E' }}>{error}</p>}
             <div ref={bottomRef} />
           </div>
 
@@ -126,7 +128,8 @@ export default function AiChat() {
             <div className="px-3 pb-2 flex flex-wrap gap-1.5">
               {STARTERS.map(s => (
                 <button key={s} onClick={() => send(s)}
-                  className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-600 hover:border-brand-400 hover:text-brand-600 transition-colors bg-white">
+                  className="text-xs px-2.5 py-1 rounded-full transition-colors"
+                  style={{ border: '1px solid #3A332C', color: '#9C9384', background: 'transparent' }}>
                   {s}
                 </button>
               ))}
@@ -135,23 +138,23 @@ export default function AiChat() {
 
           {/* Input */}
           <div className="px-3 pb-3">
-            <div className="flex gap-2 items-center bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+            <div className="flex gap-2 items-center rounded-xl px-3 py-2" style={{ background: '#1C1815', border: '1px solid #3A332C' }}>
               <input
                 ref={inputRef}
-                className="flex-1 bg-transparent text-sm outline-none placeholder-gray-400"
-                placeholder="Ask Meshi anything…"
+                className="flex-1 bg-transparent text-sm outline-none"
+                style={{ color: '#F3EEE6' }}
+                placeholder="Ask Aether anything…"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
                 disabled={loading}
               />
               <button onClick={() => send()} disabled={!input.trim() || loading}
-                className="text-white w-7 h-7 rounded-lg flex items-center justify-center transition-opacity disabled:opacity-40"
-                style={{ background: '#6E1318' }}>
-                <Send className="w-3.5 h-3.5" />
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-opacity disabled:opacity-40"
+                aria-label="Send">
+                <Send className="w-4 h-4" style={{ color: CYAN }} />
               </button>
             </div>
-            <p className="text-center text-xs text-gray-400 mt-1.5">Powered by Google Gemini · Free</p>
           </div>
         </div>
       )}

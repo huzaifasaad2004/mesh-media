@@ -11,9 +11,9 @@ const fileIcon = (type: string | null) => {
 }
 
 const categoryColors: Record<string, string> = {
-  contract:  'bg-purple-100 text-purple-700',
+  contract:  'bg-brand-100 text-brand-700',
   creative:  'bg-pink-100 text-pink-700',
-  report:    'bg-blue-100 text-blue-700',
+  report:    'bg-[#E6E9EE] text-[#4A5A6E]',
   invoice:   'bg-green-100 text-green-700',
   other:     'bg-gray-100 text-gray-600',
 }

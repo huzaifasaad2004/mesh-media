@@ -97,8 +97,8 @@ export default function ContractsPage() {
                 <tr key={contract.id} className="table-row">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <FileSignature className="w-4 h-4 text-purple-500" />
+                      <div className="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileSignature className="w-4 h-4 text-brand-600" />
                       </div>
                       <span className="font-medium text-gray-900">{contract.title}</span>
                     </div>

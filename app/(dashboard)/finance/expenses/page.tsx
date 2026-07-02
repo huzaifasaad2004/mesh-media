@@ -105,7 +105,7 @@ export default function ExpensesPage() {
                 <tr key={exp.id} className="table-row">
                   <td className="px-5 py-3 text-gray-900">
                     <div className="flex items-center gap-2">
-                      {exp.is_recurring && <span title="Recurring"><RefreshCw className="w-3 h-3 text-blue-500 flex-shrink-0" /></span>}
+                      {exp.is_recurring && <span title="Recurring"><RefreshCw className="w-3 h-3 text-taupe-500 flex-shrink-0" /></span>}
                       {exp.description}
                     </div>
                   </td>
