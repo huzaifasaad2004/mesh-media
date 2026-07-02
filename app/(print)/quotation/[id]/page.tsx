@@ -125,6 +125,16 @@ export default function QuotationPrintPage() {
         </button>
       </div>
 
+      {emailState === 'error' && (
+        <div className="no-print" style={{
+          position: 'fixed', top: 48, left: 0, right: 0, zIndex: 99,
+          background: '#c0392b', color: 'white', padding: '8px 20px',
+          fontSize: 12, fontFamily: 'Inter, sans-serif',
+        }}>
+          Email failed: {emailMsg}
+        </div>
+      )}
+
       <div style={{ paddingTop: 60, background: '#f0ede8', minHeight: '100vh' }}>
         <div style={{ paddingBottom: 40 }}>
           <DocumentTemplate
