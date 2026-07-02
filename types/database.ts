@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'staff' | 'viewer'
+export type UserRole = 'owner' | 'admin' | 'manager' | 'member' | 'viewer' | 'client'
 export type ClientStatus = 'lead' | 'onboarding' | 'active' | 'paused' | 'churned'
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'

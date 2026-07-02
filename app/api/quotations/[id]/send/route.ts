@@ -74,7 +74,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (sendError) return NextResponse.json({ error: sendError.message }, { status: 500 })
 
-  await admin().from('quotations').update({ status: 'sent' }).eq('id', params.id)
+  const db = admin()
+  await db.from('quotations').update({ status: 'sent' }).eq('id', params.id)
+
+  // Notify admins in-app
+  const { data: admins } = await db.from('profiles').select('id').in('role', ['owner', 'admin'])
+  if (admins?.length) {
+    await db.from('notifications').insert(admins.map(a => ({
+      user_id: a.id,
+      title: `Quotation ${q.quote_number} emailed`,
+      body: `Sent to ${q.client.email} · AED ${Number(q.total).toLocaleString()}`,
+      href: '/finance/quotations',
+    })))
+  }
 
   return NextResponse.json({ success: true, to: q.client.email })
 }

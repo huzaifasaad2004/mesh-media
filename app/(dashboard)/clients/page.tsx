@@ -3,6 +3,7 @@ import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
 import { Plus, Search, ExternalLink } from 'lucide-react'
 import type { Client } from '@/types/database'
+import InvitePortalButton from '@/components/clients/InvitePortalButton'
 
 export default async function ClientsPage() {
   const supabase = createClient()
@@ -80,6 +81,7 @@ export default async function ClientsPage() {
                         <ExternalLink className="w-3 h-3" /> Drive
                       </a>
                     )}
+                    <InvitePortalButton clientId={client.id} disabled={!client.email} />
                     <Link href={`/clients/${client.id}`} className="btn-secondary btn-sm">View</Link>
                     <Link href={`/clients/${client.id}/edit`} className="btn-ghost btn-sm">Edit</Link>
                   </div>

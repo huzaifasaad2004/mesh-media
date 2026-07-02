@@ -16,6 +16,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
+  // Client-portal users never see the staff dashboard
+  if (profile?.role === 'client') redirect('/portal')
+
   return (
     <div className="flex min-h-screen">
       <Sidebar profile={profile as Profile | null} />

@@ -1,19 +1,22 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
-import { Plus, UserPlus } from 'lucide-react'
 import type { Profile } from '@/types/database'
+import InviteMember from '@/components/team/InviteMember'
 
 const roleColors: Record<string, string> = {
-  admin:  'bg-brand-100 text-brand-700',
-  staff:  'bg-[#E6E9EE] text-[#4A5A6E]',
-  viewer: 'bg-gray-100 text-gray-600',
+  owner:   'bg-brand-600 text-paper-100',
+  admin:   'bg-brand-100 text-brand-700',
+  manager: 'bg-[#F6ECD6] text-[#8a6116]',
+  member:  'bg-[#E6E9EE] text-[#4A5A6E]',
+  viewer:  'bg-gray-100 text-gray-600',
+  client:  'bg-paper-200 text-umber-700',
 }
 
 export default async function TeamPage() {
   const supabase = createClient()
 
   const [{ data: profiles }, { data: salaries }, { data: taskCounts }] = await Promise.all([
-    supabase.from('profiles').select('*').order('created_at'),
+    supabase.from('profiles').select('*').neq('role', 'client').order('created_at'),
     supabase.from('salaries').select('*, profile:profiles(id)').is('effective_to', null),
     supabase.from('tasks').select('assigned_to').neq('status', 'done'),
   ])
@@ -35,14 +38,12 @@ export default async function TeamPage() {
           <h1>Team</h1>
           <p className="text-gray-500 text-sm mt-0.5">{profiles?.length ?? 0} team members</p>
         </div>
-        <button className="btn-primary">
-          <UserPlus className="w-4 h-4" /> Invite Member
-        </button>
+        <InviteMember />
       </div>
 
       {/* Role overview */}
-      <div className="flex gap-3 mb-6">
-        {['admin', 'staff', 'viewer'].map((role) => (
+      <div className="flex gap-3 mb-6 flex-wrap">
+        {['owner', 'admin', 'manager', 'member', 'viewer'].map((role) => (
           <div key={role} className="card px-4 py-2.5 flex items-center gap-2.5">
             <span className={`badge ${roleColors[role]}`}>{role}</span>
             <span className="text-sm font-semibold text-gray-800">
@@ -102,13 +103,7 @@ export default async function TeamPage() {
         })}
 
         {/* Invite card */}
-        <div className="card p-5 border-dashed border-2 border-gray-200 bg-gray-50 flex flex-col items-center justify-center text-center min-h-[180px] hover:border-brand-300 hover:bg-brand-50 transition-colors cursor-pointer">
-          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mb-3">
-            <Plus className="w-5 h-5 text-gray-400" />
-          </div>
-          <p className="text-sm font-medium text-gray-500">Invite team member</p>
-          <p className="text-xs text-gray-400 mt-1">Send an email invite</p>
-        </div>
+        <InviteMember variant="card" />
       </div>
     </div>
   )

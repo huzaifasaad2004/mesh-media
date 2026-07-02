@@ -29,6 +29,7 @@ export async function middleware(request: NextRequest) {
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isPublicPath = request.nextUrl.pathname === '/'
+    || request.nextUrl.pathname.startsWith('/auth/')
 
   if (!user && !isAuthPage && !isPublicPath) {
     const url = request.nextUrl.clone()

@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, getInitials } from '@/lib/utils'
+import { navVisible } from '@/lib/roles'
 import type { Profile } from '@/types/database'
+import NotificationBell from '@/components/NotificationBell'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings
@@ -41,15 +43,16 @@ export function Sidebar({ profile }: SidebarProps) {
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sand-300">
         <img src="/brand/mm_mark_maroon.png" alt="Mesh Media" className="w-8 h-9 object-contain flex-shrink-0" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-lg font-semibold text-ink truncate" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>Mesh Media</p>
           <p className="text-xs text-taupe-500 truncate">Agency OS</p>
         </div>
+        <NotificationBell />
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.filter(({ href }) => navVisible(profile?.role, href)).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
