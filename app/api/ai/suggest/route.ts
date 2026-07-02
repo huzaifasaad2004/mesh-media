@@ -51,7 +51,7 @@ Reply with ONLY the description text.`
 
     let result = await callGemini(prompt)
     // Strip wrapping quotes/markdown the model sometimes adds
-    result = result.replace(/^["'`*\s]+|["'`*\s]+$/g, '').replace(/\n.*$/s, '')
+    result = result.split('\n')[0].replace(/^["'`*\s]+|["'`*\s]+$/g, '')
     return NextResponse.json({ result })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
