@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent'
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1'
@@ -15,15 +15,21 @@ interface TaskFormProps {
 export default function TaskForm({ onSuccess, clients, profiles, initialData }: TaskFormProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [projects, setProjects] = useState<{ id: string; name: string; client_id: string | null }[]>([])
   const [form, setForm] = useState({
     title: (initialData?.title as string) ?? '',
     description: (initialData?.description as string) ?? '',
     client_id: (initialData?.client_id as string) ?? '',
+    project_id: (initialData?.project_id as string) ?? '',
     assigned_to: (initialData?.assigned_to as string) ?? '',
     priority: (initialData?.priority as string) ?? 'medium',
     status: (initialData?.status as string) ?? 'todo',
     due_date: (initialData?.due_date as string) ?? '',
   })
+
+  useEffect(() => {
+    fetch('/api/projects').then(r => r.json()).then(d => setProjects(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -35,6 +41,7 @@ export default function TaskForm({ onSuccess, clients, profiles, initialData }: 
     const payload = {
       ...form,
       client_id: form.client_id || null,
+      project_id: form.project_id || null,
       assigned_to: form.assigned_to || null,
       due_date: form.due_date || null,
       description: form.description || null,
@@ -71,6 +78,18 @@ export default function TaskForm({ onSuccess, clients, profiles, initialData }: 
             ))}
           </select>
         </div>
+        <div>
+          <label className={labelClass}>Project</label>
+          <select className={inputClass} value={form.project_id} onChange={set('project_id')}>
+            <option value="">None</option>
+            {(form.client_id ? projects.filter(p => !p.client_id || p.client_id === form.client_id) : projects).map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Assigned To</label>
           <select className={inputClass} value={form.assigned_to} onChange={set('assigned_to')}>

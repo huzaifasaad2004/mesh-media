@@ -9,12 +9,13 @@ import type { Profile } from '@/types/database'
 import NotificationBell from '@/components/NotificationBell'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
-  FileText, DollarSign, UserCog, LogOut, Settings
+  FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban
 } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
   { href: '/clients',    label: 'Clients',     icon: Users },
+  { href: '/projects',   label: 'Projects',    icon: FolderKanban },
   { href: '/tasks',      label: 'Tasks',       icon: CheckSquare },
   { href: '/files',      label: 'Files',       icon: FolderOpen },
   { href: '/contracts',  label: 'Contracts',   icon: FileText },
