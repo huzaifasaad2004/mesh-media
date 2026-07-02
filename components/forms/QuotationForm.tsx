@@ -38,7 +38,12 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
       const res = await fetch('/api/ai/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'description', context: 'quotation for marketing agency services', existing }),
+        body: JSON.stringify({
+          brief: items[idx]?.description ?? '',
+          docType: 'quotation',
+          subject: form.subject,
+          existing,
+        }),
       })
       const data = await res.json()
       if (data.result) setItems(p => p.map((item, i) => i === idx ? { ...item, description: data.result } : item))

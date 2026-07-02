@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import DocumentTemplate from '@/components/DocumentTemplate'
-import { Printer, Download, Mail, MessageCircle, ArrowLeft } from 'lucide-react'
+import { Printer, Download, Mail, MessageCircle, ArrowLeft, Loader2, Check } from 'lucide-react'
 import { COMPANY } from '@/lib/company'
 
 const BRAND = '#6E1318'
@@ -12,6 +12,22 @@ export default function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
   const [invoice, setInvoice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [emailMsg, setEmailMsg] = useState('')
+
+  const sendEmail = async () => {
+    setEmailState('sending')
+    try {
+      const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Send failed')
+      setEmailState('sent'); setEmailMsg(`Sent to ${d.to}`)
+      setTimeout(() => setEmailState('idle'), 5000)
+    } catch (e: any) {
+      setEmailState('error'); setEmailMsg(e.message)
+      setTimeout(() => setEmailState('idle'), 5000)
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/invoices/${id}`)
@@ -41,10 +57,6 @@ export default function InvoicePrintPage() {
   const client = invoice.client ?? { company_name: 'Unknown' }
 
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
-  const emailSubject = encodeURIComponent(`Invoice ${invoice.invoice_number} from MeshMedia`)
-  const emailBody = encodeURIComponent(
-    `Dear ${client.company_name},\n\nPlease find your invoice ${invoice.invoice_number} for AED ${total.toLocaleString()}.\n\nView & download: ${pageUrl}\n\nThank you for your business.\n\nMeshMedia\n${COMPANY.phone}`
-  )
   const waText = encodeURIComponent(
     `Hello ${client.company_name}, please find your invoice *${invoice.invoice_number}* for *AED ${total.toLocaleString()}*.\n\nView & download here: ${pageUrl}`
   )
@@ -74,12 +86,22 @@ export default function InvoicePrintPage() {
           Invoice #{invoice.invoice_number} · {client.company_name}
         </span>
 
-        {/* Email */}
+        {/* Email — sends directly through the software via Resend */}
         {client.email && (
-          <a href={`mailto:${client.email}?subject=${emailSubject}&body=${emailBody}`}
-            style={btnStyle('rgba(255,255,255,0.15)', 'white')}>
-            <Mail size={13} /> Email
-          </a>
+          <button onClick={sendEmail} disabled={emailState === 'sending'}
+            style={btnStyle(
+              emailState === 'sent' ? '#25a05a' : emailState === 'error' ? '#c0392b' : 'rgba(255,255,255,0.15)',
+              'white'
+            )}
+            title={emailState === 'error' ? emailMsg : `Email this invoice to ${client.email}`}>
+            {emailState === 'sending' ? <Loader2 size={13} className="animate-spin" />
+              : emailState === 'sent' ? <Check size={13} />
+              : <Mail size={13} />}
+            {emailState === 'sending' ? 'Sending…'
+              : emailState === 'sent' ? emailMsg
+              : emailState === 'error' ? 'Failed — retry'
+              : 'Send Email'}
+          </button>
         )}
 
         {/* WhatsApp */}
