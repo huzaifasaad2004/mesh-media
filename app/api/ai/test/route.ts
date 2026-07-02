@@ -9,7 +9,7 @@ export async function GET() {
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -20,7 +20,7 @@ export async function GET() {
     )
     const data = await res.json()
     if (!res.ok) return NextResponse.json({ error: 'Gemini API error', detail: data }, { status: 500 })
-    return NextResponse.json({ success: true, reply: data.candidates?.[0]?.content?.parts?.[0]?.text, keyPrefix: apiKey.slice(0, 8) + '...' })
+    return NextResponse.json({ success: true, reply: data.candidates?.[0]?.content?.parts?.[0]?.text })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
