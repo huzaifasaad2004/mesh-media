@@ -9,7 +9,7 @@ import type { Profile } from '@/types/database'
 import NotificationBell from '@/components/NotificationBell'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
-  FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock
+  FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet
 } from 'lucide-react'
 
 const navItems = [
@@ -18,7 +18,9 @@ const navItems = [
   { href: '/projects',   label: 'Projects',    icon: FolderKanban },
   { href: '/tasks',      label: 'Tasks',       icon: CheckSquare },
   { href: '/time',       label: 'Time',        icon: Clock },
+  { href: '/approvals',  label: 'Approvals',   icon: CheckCircle2 },
   { href: '/requests',   label: 'Requests',    icon: Inbox },
+  { href: '/my-pay',     label: 'My Pay',      icon: Wallet },
   { href: '/files',      label: 'Files',       icon: FolderOpen },
   { href: '/contracts',  label: 'Contracts',   icon: FileText },
   { href: '/finance',    label: 'Finance',     icon: DollarSign },

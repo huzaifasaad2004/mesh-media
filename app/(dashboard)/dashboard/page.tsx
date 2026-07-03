@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
 import { Users, CheckSquare, FileText, DollarSign, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
+import WorkloadPanel from '@/components/WorkloadPanel'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -67,6 +68,9 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* Manager-only team workload (self-hides for others) */}
+      <WorkloadPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Open Tasks */}
