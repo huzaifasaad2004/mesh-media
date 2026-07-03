@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Wallet } from 'lucide-react'
+import { Wallet, Eye } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 export default function MyPayPage() {
@@ -14,6 +14,7 @@ export default function MyPayPage() {
 
   const salary = data?.salary
   const payments = data?.payments ?? []
+  const currency = salary?.currency ?? 'AED'
   const paidYTD = payments
     .filter(p => new Date(p.payment_date).getFullYear() === new Date().getFullYear())
     .reduce((s, p) => s + Number(p.amount), 0)
@@ -34,12 +35,12 @@ export default function MyPayPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="stat-card">
               <p className="text-xs text-taupe-600">Current salary</p>
-              <p className="stat-number text-ink">{salary ? formatCurrency(salary.amount) : '—'}</p>
+              <p className="stat-number text-ink">{salary ? formatCurrency(salary.amount, salary.currency) : '—'}</p>
               <p className="text-xs text-taupe-500">{salary ? `per ${salary.pay_period.replace('ly', '')}` : 'Not set'}</p>
             </div>
             <div className="stat-card">
               <p className="text-xs text-taupe-600">Paid this year</p>
-              <p className="stat-number text-ink">{formatCurrency(paidYTD)}</p>
+              <p className="stat-number text-ink">{formatCurrency(paidYTD, currency)}</p>
               <p className="text-xs text-taupe-500">{payments.length} payment{payments.length === 1 ? '' : 's'}</p>
             </div>
             <div className="stat-card">
@@ -60,14 +61,20 @@ export default function MyPayPage() {
                     <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Date</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Amount</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Notes</th>
+                    <th className="px-5 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-paper-200">
                   {payments.map(p => (
                     <tr key={p.id} className="hover:bg-paper-50">
                       <td className="px-5 py-3 text-umber-700">{formatDate(p.payment_date)}</td>
-                      <td className="px-5 py-3 font-semibold">{formatCurrency(p.amount)}</td>
+                      <td className="px-5 py-3 font-semibold">{formatCurrency(p.amount, currency)}</td>
                       <td className="px-5 py-3 text-taupe-600">{p.notes ?? '—'}</td>
+                      <td className="px-5 py-3 text-right">
+                        <a href={`/payslip/${p.id}`} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline inline-flex items-center gap-1 text-xs">
+                          <Eye className="w-3 h-3" /> View
+                        </a>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

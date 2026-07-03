@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
 import AiChat from '@/components/AiChat'
+import { getEffectivePermissions } from '@/lib/permissions'
 import type { Profile } from '@/types/database'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,15 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (profile?.role === 'client') redirect('/portal')
 
   // Effective permissions = role defaults with any per-person overrides applied
-  const [{ data: rolePerms }, { data: overrides }] = await Promise.all([
-    supabase.from('role_permissions').select('permission').eq('role', profile?.role ?? ''),
-    supabase.from('user_permissions').select('permission, granted').eq('user_id', user.id),
-  ])
-  const effective = new Set((rolePerms ?? []).map(r => r.permission))
-  for (const o of overrides ?? []) {
-    if (o.granted) effective.add(o.permission)
-    else effective.delete(o.permission)
-  }
+  const effective = await getEffectivePermissions(supabase, user.id, profile?.role ?? '')
 
   return (
     <div className="flex min-h-screen">
