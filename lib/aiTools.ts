@@ -107,6 +107,21 @@ export const toolDeclarations = [
       required: ['company_name'],
     },
   },
+  {
+    name: 'create_expense',
+    description: 'Log a business expense. Use when the user tells you about money the agency spent, e.g. "log an expense of 500 AED for Facebook ads today".',
+    parameters: {
+      type: 'object',
+      properties: {
+        description: { type: 'string' },
+        amount: { type: 'number' },
+        category: { type: 'string', enum: ['software', 'ads', 'freelancer', 'office', 'travel', 'other'] },
+        date: { type: 'string', description: 'YYYY-MM-DD, defaults to today if not stated' },
+        client_name: { type: 'string', description: 'Optional — if this expense is billable to a specific client' },
+      },
+      required: ['description', 'amount'],
+    },
+  },
 ]
 
 // ─── Executors ─────────────────────────────────────────────────
@@ -289,10 +304,29 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
       return { created: true, client_id: data.id, company_name: data.company_name }
     }
 
+    case 'create_expense': {
+      if (!canWriteOps(role)) return { error: 'You do not have permission to log expenses.' }
+      let client_id = null
+      const notes: string[] = []
+      if (args.client_name) {
+        const { data } = await db.from('clients').select('id').ilike('company_name', `%${args.client_name}%`).limit(1).maybeSingle()
+        if (data) client_id = data.id; else notes.push(`client "${args.client_name}" not found`)
+      }
+      const { data, error } = await db.from('expenses').insert({
+        description: args.description,
+        amount: Number(args.amount),
+        category: ['software', 'ads', 'freelancer', 'office', 'travel', 'other'].includes(args.category) ? args.category : 'other',
+        date: args.date || today(),
+        client_id,
+      }).select('id, description, amount').single()
+      if (error) return { error: error.message }
+      return { created: true, expense_id: data.id, description: data.description, amount: data.amount, notes }
+    }
+
     default:
       return { error: `Unknown tool: ${name}` }
   }
 }
 
 // Tools that change data — used by the UI to know when to suggest a refresh
-export const WRITE_TOOLS = ['create_task', 'create_client']
+export const WRITE_TOOLS = ['create_task', 'create_client', 'create_expense']

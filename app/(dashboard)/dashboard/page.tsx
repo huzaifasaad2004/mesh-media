@@ -3,6 +3,7 @@ import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
 import { Users, CheckSquare, FileText, DollarSign, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
 import WorkloadPanel from '@/components/WorkloadPanel'
+import QuickExpense from '@/components/QuickExpense'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -52,6 +53,7 @@ export default async function DashboardPage() {
           <h1>Dashboard</h1>
           <p className="text-gray-500 text-sm mt-0.5">Welcome back to Mesh Media</p>
         </div>
+        <QuickExpense />
       </div>
 
       {/* Stats */}
