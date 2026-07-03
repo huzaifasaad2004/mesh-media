@@ -29,6 +29,7 @@ interface DocumentTemplateProps {
   }
   items: LineItem[]
   subtotal: number
+  discountAmount?: number
   taxRate?: number
   taxAmount?: number
   total: number
@@ -47,7 +48,7 @@ function fmtDate(s?: string | null) {
 
 export default function DocumentTemplate({
   type, number, issueDate, dueOrExpiryDate, dueOrExpiryLabel,
-  subject, client, items, subtotal, taxRate = 0, taxAmount = 0, total, notes, terms,
+  subject, client, items, subtotal, discountAmount = 0, taxRate = 0, taxAmount = 0, total, notes, terms,
 }: DocumentTemplateProps) {
   const isInvoice = type === 'invoice'
   const docLabel = isInvoice ? 'INVOICE' : 'QUOTATION'
@@ -189,6 +190,12 @@ export default function DocumentTemplate({
               <td style={{ padding: '3px 20px 3px 0', color: '#888', fontSize: 11.5 }}>Sub Total</td>
               <td style={{ padding: '3px 0', textAlign: 'right', fontSize: 11.5 }}>AED {fmt(subtotal)}</td>
             </tr>
+            {discountAmount > 0 && (
+              <tr>
+                <td style={{ padding: '3px 20px 3px 0', color: '#888', fontSize: 11.5 }}>Discount</td>
+                <td style={{ padding: '3px 0', textAlign: 'right', fontSize: 11.5, color: '#b23a2e' }}>−AED {fmt(discountAmount)}</td>
+              </tr>
+            )}
             {taxRate > 0 && (
               <tr>
                 <td style={{ padding: '3px 20px 3px 0', color: '#888', fontSize: 11.5 }}>VAT ({taxRate}%)</td>

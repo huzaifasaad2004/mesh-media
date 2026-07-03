@@ -53,6 +53,8 @@ export default function QuotationPrintPage() {
     amount: Number(i.amount),
   }))
   const subtotal = items.reduce((s: number, i: any) => s + i.amount, 0)
+  const discountAmount = quote.discount_type === 'percent' ? subtotal * (Number(quote.discount_value ?? 0) / 100)
+    : quote.discount_type === 'flat' ? Number(quote.discount_value ?? 0) : 0
   const total = Number(quote.total ?? 0)
   const client = quote.client ?? { company_name: 'Unknown' }
 
@@ -147,6 +149,7 @@ export default function QuotationPrintPage() {
             client={client}
             items={items}
             subtotal={subtotal}
+            discountAmount={discountAmount}
             taxRate={Number(quote.tax_rate ?? 0)}
             taxAmount={Number(quote.tax_amount ?? 0)}
             total={total}

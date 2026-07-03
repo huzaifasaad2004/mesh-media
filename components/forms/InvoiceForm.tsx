@@ -54,6 +54,9 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
     subject: (initialData?.subject as string) ?? '',
     notes: (initialData?.notes as string) ?? '',
     terms: (initialData?.terms as string) ?? '',
+    discount_type: (initialData?.discount_type as string) ?? 'none',
+    discount_value: (initialData?.discount_value as number)?.toString() ?? '0',
+    tax_rate: (initialData?.tax_rate as number)?.toString() ?? '0',
   })
 
   useEffect(() => {
@@ -63,6 +66,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
         ...f,
         notes: f.notes || s.default_invoice_notes || DEFAULT_INVOICE_NOTES,
         terms: f.terms || s.default_terms || DEFAULT_TERMS,
+        tax_rate: s.vat_rate ?? f.tax_rate,
       }))
       setShowTerms(true)
     }
@@ -81,7 +85,13 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
   const setItem = (idx: number, field: keyof LineItem, value: string) =>
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: field === 'description' ? value : parseFloat(value) || 0 } : item))
 
-  const grandTotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0)
+  const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0)
+  const discountValue = parseFloat(form.discount_value) || 0
+  const discountAmount = form.discount_type === 'percent' ? subtotal * (discountValue / 100) : form.discount_type === 'flat' ? discountValue : 0
+  const taxable = Math.max(0, subtotal - discountAmount)
+  const taxRate = parseFloat(form.tax_rate) || 0
+  const taxAmount = taxable * (taxRate / 100)
+  const grandTotal = taxable + taxAmount
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -92,6 +102,8 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
       subject: form.subject || null,
       notes: form.notes || null,
       terms: showTerms ? (form.terms || null) : null,
+      discount_value: discountValue,
+      tax_rate: taxRate,
       items,
     }
     const id = initialData?.id as string | undefined
@@ -189,10 +201,46 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
             </div>
           ))}
         </div>
-        <div className="flex justify-end pt-3 mt-2 border-t border-gray-100">
-          <div className="text-right">
-            <span className="text-sm text-gray-500 mr-4">Grand Total</span>
-            <span className="text-xl font-bold text-gray-900">AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+        {/* Discount + VAT + totals breakdown */}
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+          <div className="flex justify-end">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Discount</span>
+              <select className={inputClass} style={{ width: 90 }} value={form.discount_type} onChange={set('discount_type')}>
+                <option value="none">None</option>
+                <option value="percent">%</option>
+                <option value="flat">AED</option>
+              </select>
+              {form.discount_type !== 'none' && (
+                <input className={inputClass} style={{ width: 90 }} type="number" min="0" step="0.01"
+                  value={form.discount_value} onChange={set('discount_value')} />
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">VAT</span>
+              <select className={inputClass} style={{ width: 110 }} value={form.tax_rate} onChange={set('tax_rate')}>
+                <option value="0">0% (No VAT)</option>
+                <option value="5">5% (UAE VAT)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <table className="text-sm">
+              <tbody>
+                <tr><td className="text-gray-500 pr-4 text-right">Subtotal</td><td className="text-right font-medium">AED {subtotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                {discountAmount > 0 && (
+                  <tr><td className="text-gray-500 pr-4 text-right">Discount</td><td className="text-right font-medium text-red-600">−AED {discountAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                )}
+                {taxRate > 0 && (
+                  <tr><td className="text-gray-500 pr-4 text-right">VAT ({taxRate}%)</td><td className="text-right font-medium">AED {taxAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                )}
+                <tr><td className="text-gray-700 pr-4 text-right font-semibold pt-1">Grand Total</td><td className="text-right text-xl font-bold text-gray-900 pt-1">AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

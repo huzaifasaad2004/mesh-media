@@ -9,9 +9,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-  const { decision } = await req.json()
+  const { decision, reason } = await req.json()
   const status = decision === 'accept' ? 'accepted' : decision === 'decline' ? 'declined' : null
   if (!status) return NextResponse.json({ error: 'Invalid decision' }, { status: 400 })
+  if (status === 'declined' && !reason?.trim()) {
+    return NextResponse.json({ error: 'Please tell us why so we can follow up appropriately' }, { status: 400 })
+  }
 
   const db = admin()
 
@@ -35,16 +38,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: `This quotation is already ${quote.status}` }, { status: 400 })
   }
 
-  await db.from('quotations').update({ status }).eq('id', params.id)
+  await db.from('quotations').update({
+    status,
+    decided_at: new Date().toISOString(),
+    decline_reason: status === 'declined' ? reason.trim() : null,
+  }).eq('id', params.id)
 
   // Notify admins/managers in-app
   const { data: staff } = await db.from('profiles').select('id').in('role', ['owner', 'admin', 'manager'])
   if (staff?.length) {
     const company = (quote as any).client?.company_name ?? 'A client'
+    const body = status === 'declined'
+      ? `${company} declined · AED ${Number(quote.total).toLocaleString()} · Reason: ${reason.trim()}`
+      : `${company} accepted the quotation · AED ${Number(quote.total).toLocaleString()}`
     await db.from('notifications').insert(staff.map(s => ({
       user_id: s.id,
       title: `Quotation ${quote.quote_number} ${status}`,
-      body: `${company} ${status} the quotation · AED ${Number(quote.total).toLocaleString()}`,
+      body,
       href: '/finance/quotations',
     })))
   }

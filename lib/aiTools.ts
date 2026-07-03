@@ -132,7 +132,8 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
       const period: ReportPeriod = ALL_PERIODS.includes(args.period) ? args.period : 'this_month'
       const { start, end } = resolvePeriod(period)
 
-      let paidQuery = db.from('invoices').select('total').eq('status', 'paid')
+      // Revenue is pre-VAT (total minus tax_amount) — VAT collected isn't agency income.
+      let paidQuery = db.from('invoices').select('total, tax_amount').eq('status', 'paid')
       if (start) paidQuery = paidQuery.gte('paid_date', start)
       if (end) paidQuery = paidQuery.lte('paid_date', end)
       let expenseQuery = db.from('expenses').select('amount')
@@ -145,7 +146,7 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
         db.from('clients').select('status'),
         expenseQuery,
       ])
-      const paid = (paidInvoices ?? []).reduce((s, i) => s + Number(i.total), 0)
+      const paid = (paidInvoices ?? []).reduce((s, i) => s + (Number(i.total) - Number(i.tax_amount ?? 0)), 0)
       const outstanding = (allInvoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i: any) => s + Number(i.total ?? 0), 0)
       const totalExp = (expenses ?? []).reduce((s, e) => s + Number(e.amount), 0)
       return {
@@ -163,14 +164,14 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
     case 'top_clients_by_revenue': {
       const period: ReportPeriod = ALL_PERIODS.includes(args.period) ? args.period : 'this_month'
       const { start, end } = resolvePeriod(period)
-      let q = db.from('invoices').select('total, client:clients(company_name)').eq('status', 'paid')
+      let q = db.from('invoices').select('total, tax_amount, client:clients(company_name)').eq('status', 'paid')
       if (start) q = q.gte('paid_date', start)
       if (end) q = q.lte('paid_date', end)
       const { data } = await q
       const byClient = new Map<string, number>()
       for (const inv of data ?? []) {
         const name = (inv as any).client?.company_name ?? 'Unknown'
-        byClient.set(name, (byClient.get(name) ?? 0) + Number(inv.total))
+        byClient.set(name, (byClient.get(name) ?? 0) + (Number(inv.total) - Number(inv.tax_amount ?? 0)))
       }
       const limit = Number(args.limit) || 5
       return {

@@ -53,6 +53,8 @@ export default function InvoicePrintPage() {
     amount: Number(i.amount),
   }))
   const subtotal = items.reduce((s: number, i: any) => s + i.amount, 0)
+  const discountAmount = invoice.discount_type === 'percent' ? subtotal * (Number(invoice.discount_value ?? 0) / 100)
+    : invoice.discount_type === 'flat' ? Number(invoice.discount_value ?? 0) : 0
   const total = Number(invoice.total ?? 0)
   const client = invoice.client ?? { company_name: 'Unknown' }
 
@@ -151,6 +153,7 @@ export default function InvoicePrintPage() {
             client={client}
             items={items}
             subtotal={subtotal}
+            discountAmount={discountAmount}
             taxRate={Number(invoice.tax_rate ?? 0)}
             taxAmount={Number(invoice.tax_amount ?? 0)}
             total={total}

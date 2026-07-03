@@ -26,10 +26,11 @@ export default async function DashboardPage() {
 
   const { data: revenueData } = await supabase
     .from('invoices')
-    .select('total')
+    .select('total, tax_amount')
     .eq('status', 'paid')
 
-  const totalRevenue = revenueData?.reduce((sum, inv) => sum + (inv.total || 0), 0) ?? 0
+  // Revenue is pre-VAT — tax_amount is 0 today since VAT isn't in use
+  const totalRevenue = revenueData?.reduce((sum, inv) => sum + ((inv.total || 0) - (inv.tax_amount || 0)), 0) ?? 0
 
   const { data: expenseData } = await supabase
     .from('expenses')

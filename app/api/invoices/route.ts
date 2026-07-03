@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { computeTotals } from '@/lib/documentTotals'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -15,7 +16,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { items, ...invoiceData } = body
-  const total = (items ?? []).reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
+  const { subtotal, taxAmount, total } = computeTotals(items ?? [], invoiceData.discount_type, invoiceData.discount_value, invoiceData.tax_rate)
+  invoiceData.subtotal = subtotal
+  invoiceData.tax_amount = taxAmount
   // If someone records a historical invoice as already paid, stamp paid_date immediately
   if (invoiceData.status === 'paid' && !invoiceData.paid_date) {
     invoiceData.paid_date = new Date().toISOString().split('T')[0]

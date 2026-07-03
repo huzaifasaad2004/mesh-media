@@ -125,12 +125,16 @@ export default function QuotationsPage() {
                   <span className="font-semibold flex-shrink-0">{formatCurrency(q.total)}</span>
                 </div>
                 {q.subject && <p className="text-xs text-gray-500 mt-1.5 truncate">{q.subject}</p>}
+                {q.status === 'declined' && q.decline_reason && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--danger)' }}>Reason: {q.decline_reason}</p>
+                )}
                 <div className="flex items-center justify-between mt-3">
                   <div className="relative inline-block">
                     <button
                       onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === q.id ? null : q.id) }}
                       className={`badge ${statusColor(q.status)} cursor-pointer flex items-center gap-1`}
                       style={{ minHeight: 32 }}
+                      title={q.status === 'declined' && q.decline_reason ? q.decline_reason : undefined}
                     >
                       {statusLabel(q.status)} <ChevronDown className="w-3 h-3" />
                     </button>
@@ -213,6 +217,7 @@ export default function QuotationsPage() {
                         <button
                           onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === q.id ? null : q.id) }}
                           className={`badge ${statusColor(q.status)} cursor-pointer flex items-center gap-1`}
+                          title={q.status === 'declined' && q.decline_reason ? `Reason: ${q.decline_reason}` : undefined}
                         >
                           {statusLabel(q.status)} <ChevronDown className="w-3 h-3" />
                         </button>

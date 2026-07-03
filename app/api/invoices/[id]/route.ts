@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { emitCelineEvent } from '@/lib/celine/events'
+import { computeTotals } from '@/lib/documentTotals'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -50,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   if (items) {
-    const total = items.reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
+    const { subtotal, taxAmount, total } = computeTotals(items, invoiceData.discount_type, invoiceData.discount_value, invoiceData.tax_rate)
     await admin().from('invoice_items').delete().eq('invoice_id', params.id)
     await admin().from('invoice_items').insert(
       items.map((item: { description: string; quantity: number; unit_price: number }, idx: number) => ({
@@ -62,7 +63,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         sort_order: idx,
       }))
     )
-    invoiceData.subtotal = total
+    invoiceData.subtotal = subtotal
+    invoiceData.tax_amount = taxAmount
     invoiceData.total = total
   }
 

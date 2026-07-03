@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { computeTotals } from '@/lib/documentTotals'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+const CLIENT_DECIDED_STATUSES = ['accepted', 'declined']
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { data, error } = await admin()
@@ -14,11 +18,32 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (!me || !['owner', 'admin', 'manager', 'member'].includes(me.role)) {
+    return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  }
+
   const body = await req.json()
   const { items, ...quoteData } = body
 
+  // Once a client has formally accepted or declined a quotation, that's a
+  // meaningful business record — only an admin/owner may override it
+  // (e.g. the client changed their mind by phone/email), not any teammate
+  // casually re-clicking the status dropdown.
+  if (quoteData.status) {
+    const { data: existing } = await admin().from('quotations').select('status').eq('id', params.id).single()
+    if (existing && CLIENT_DECIDED_STATUSES.includes(existing.status) && existing.status !== quoteData.status) {
+      if (!['owner', 'admin'].includes(me.role)) {
+        return NextResponse.json({ error: `Only an admin can change a quotation the client already ${existing.status}` }, { status: 403 })
+      }
+    }
+  }
+
   if (items) {
-    const total = items.reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
+    const { subtotal, taxAmount, total } = computeTotals(items, quoteData.discount_type, quoteData.discount_value, quoteData.tax_rate)
     await admin().from('quotation_items').delete().eq('quotation_id', params.id)
     await admin().from('quotation_items').insert(
       items.map((item: { description: string; quantity: number; unit_price: number }, idx: number) => ({
@@ -30,7 +55,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         sort_order: idx,
       }))
     )
-    quoteData.subtotal = total
+    quoteData.subtotal = subtotal
+    quoteData.tax_amount = taxAmount
     quoteData.total = total
   }
 

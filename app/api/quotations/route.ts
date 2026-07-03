@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { computeTotals } from '@/lib/documentTotals'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -15,11 +16,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { items, ...quoteData } = body
-  const total = (items ?? []).reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
+  const { subtotal, taxAmount, total } = computeTotals(items ?? [], quoteData.discount_type, quoteData.discount_value, quoteData.tax_rate)
 
   const { data: quote, error } = await admin()
     .from('quotations')
-    .insert({ ...quoteData, subtotal: total, total })
+    .insert({ ...quoteData, subtotal, tax_amount: taxAmount, total })
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
