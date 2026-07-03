@@ -1,23 +1,25 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { X, Send, Loader2, ChevronDown } from 'lucide-react'
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
 const STARTERS = [
-  'How much revenue this month?',
-  'Which invoices are overdue?',
-  'Draft a follow-up email for a late payment',
-  'Write a description for social media management',
+  'What\'s my net profit right now?',
+  'Which invoices are overdue and who do I chase?',
+  'Create a task to redesign the homepage due Friday',
+  'Show me active projects and their progress',
 ]
 
 const CYAN = '#2BD6D6' // Aether-only accent — never on general UI
 
 export default function AiChat() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "I'm **Aether** — guardian of the Mesh Media brand-verse. Ask me about your finances, clients, or let me draft something for you." }
+    { role: 'assistant', content: "I'm **Aether**. I can see your live financials, clients, projects and tasks — and I can create tasks and clients for you. What do you need?" }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,6 +51,10 @@ export default function AiChat() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'AI unavailable')
       setMessages(p => [...p, { role: 'assistant', content: data.reply }])
+      // Aether changed data (created a task/client) — refresh the page so it shows
+      if (data.didWrite) {
+        setTimeout(() => router.refresh(), 600)
+      }
     } catch (e: any) {
       setError(e.message.includes('GEMINI_API_KEY') ? 'Add GEMINI_API_KEY to Vercel env vars to enable Aether.' : e.message)
     } finally {
