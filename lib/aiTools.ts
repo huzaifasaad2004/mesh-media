@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolvePeriod, ALL_PERIODS, type ReportPeriod } from '@/lib/reportPeriods'
 
 export interface ToolContext {
   db: SupabaseClient
@@ -15,8 +16,33 @@ const today = () => new Date().toISOString().split('T')[0]
 export const toolDeclarations = [
   {
     name: 'get_financials',
-    description: 'Get a live financial summary: revenue collected (paid invoices), outstanding (sent/overdue), total expenses, net profit, active client count, and number of overdue invoices. Use for any money/revenue/profit question.',
-    parameters: { type: 'object', properties: {} },
+    description: 'Get a live financial summary for a time period: revenue COLLECTED (paid invoices, counted on the date they were paid — not issued), outstanding balance (sent/overdue, all-time), total expenses in the period, net profit, active client count, and number of overdue invoices. Always pass a period — never assume "all time" unless the user says "ever" or "all time".',
+    parameters: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ALL_PERIODS, description: 'this_week, this_month, last_month, this_quarter, this_year, or all_time. Default to this_month if the user does not specify.' },
+      },
+    },
+  },
+  {
+    name: 'top_clients_by_revenue',
+    description: 'Rank clients by how much paid revenue they generated in a given period. Use for "highest paying clients", "best clients", "who pays us the most" style questions.',
+    parameters: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ALL_PERIODS, description: 'Defaults to this_month if not specified.' },
+        limit: { type: 'number', description: 'How many clients to return, default 5' },
+      },
+    },
+  },
+  {
+    name: 'get_client_statement',
+    description: 'Get a client\'s full account statement: total invoiced, total paid, outstanding balance, and every invoice with its status and dates. Use for "account statement", "how much has X paid us", "does X owe us money".',
+    parameters: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'Client company name, partial match ok' } },
+      required: ['name'],
+    },
   },
   {
     name: 'list_overdue_invoices',
@@ -88,22 +114,73 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
   const { db, role } = ctx
   switch (name) {
     case 'get_financials': {
-      const [{ data: invoices }, { data: clients }, { data: expenses }] = await Promise.all([
-        db.from('invoices').select('total, status'),
+      const period: ReportPeriod = ALL_PERIODS.includes(args.period) ? args.period : 'this_month'
+      const { start, end } = resolvePeriod(period)
+
+      let paidQuery = db.from('invoices').select('total').eq('status', 'paid')
+      if (start) paidQuery = paidQuery.gte('paid_date', start)
+      if (end) paidQuery = paidQuery.lte('paid_date', end)
+      let expenseQuery = db.from('expenses').select('amount')
+      if (start) expenseQuery = expenseQuery.gte('date', start)
+      if (end) expenseQuery = expenseQuery.lte('date', end)
+
+      const [{ data: paidInvoices }, { data: allInvoices }, { data: clients }, { data: expenses }] = await Promise.all([
+        paidQuery,
+        db.from('invoices').select('status'),
         db.from('clients').select('status'),
-        db.from('expenses').select('amount'),
+        expenseQuery,
       ])
-      const paid = (invoices ?? []).filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total), 0)
-      const outstanding = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0)
+      const paid = (paidInvoices ?? []).reduce((s, i) => s + Number(i.total), 0)
+      const outstanding = (allInvoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i: any) => s + Number(i.total ?? 0), 0)
       const totalExp = (expenses ?? []).reduce((s, e) => s + Number(e.amount), 0)
       return {
+        period,
         revenue_collected: paid,
-        outstanding,
-        total_expenses: totalExp,
-        net_profit: paid - totalExp,
+        outstanding_all_time: outstanding,
+        expenses_in_period: totalExp,
+        net_profit_for_period: paid - totalExp,
         active_clients: (clients ?? []).filter(c => c.status === 'active').length,
-        overdue_invoices: (invoices ?? []).filter(i => i.status === 'overdue').length,
+        overdue_invoices: (allInvoices ?? []).filter(i => i.status === 'overdue').length,
         currency: 'AED',
+      }
+    }
+
+    case 'top_clients_by_revenue': {
+      const period: ReportPeriod = ALL_PERIODS.includes(args.period) ? args.period : 'this_month'
+      const { start, end } = resolvePeriod(period)
+      let q = db.from('invoices').select('total, client:clients(company_name)').eq('status', 'paid')
+      if (start) q = q.gte('paid_date', start)
+      if (end) q = q.lte('paid_date', end)
+      const { data } = await q
+      const byClient = new Map<string, number>()
+      for (const inv of data ?? []) {
+        const name = (inv as any).client?.company_name ?? 'Unknown'
+        byClient.set(name, (byClient.get(name) ?? 0) + Number(inv.total))
+      }
+      const limit = Number(args.limit) || 5
+      return {
+        period,
+        top_clients: Array.from(byClient.entries())
+          .map(([name, total]) => ({ client: name, revenue: total }))
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, limit),
+      }
+    }
+
+    case 'get_client_statement': {
+      const { data: client } = await db.from('clients').select('id, company_name').ilike('company_name', `%${args.name}%`).limit(1).maybeSingle()
+      if (!client) return { found: false, message: `No client matching "${args.name}"` }
+      const { data: invoices } = await db.from('invoices').select('invoice_number, status, total, issue_date, due_date, paid_date').eq('client_id', client.id).order('issue_date', { ascending: false })
+      const totalInvoiced = (invoices ?? []).reduce((s, i) => s + Number(i.total), 0)
+      const totalPaid = (invoices ?? []).filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total), 0)
+      const outstandingBalance = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0)
+      return {
+        found: true,
+        company_name: client.company_name,
+        total_invoiced: totalInvoiced,
+        total_paid: totalPaid,
+        outstanding_balance: outstandingBalance,
+        invoices: invoices ?? [],
       }
     }
 

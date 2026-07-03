@@ -39,6 +39,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const body = await req.json()
   const { items, ...invoiceData } = body
 
+  // Revenue reporting is keyed off paid_date, not status — stamp it the
+  // moment an invoice is marked paid (unless already set / explicitly
+  // provided), and clear it if the status is reverted away from paid.
+  if (invoiceData.status === 'paid' && !invoiceData.paid_date) {
+    const { data: existing } = await admin().from('invoices').select('paid_date').eq('id', params.id).single()
+    if (!existing?.paid_date) invoiceData.paid_date = new Date().toISOString().split('T')[0]
+  } else if (invoiceData.status && invoiceData.status !== 'paid') {
+    invoiceData.paid_date = null
+  }
+
   if (items) {
     const total = items.reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
     await admin().from('invoice_items').delete().eq('invoice_id', params.id)

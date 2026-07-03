@@ -15,6 +15,11 @@ export default function PrintLayout({ children }: { children: React.ReactNode })
             @page { margin: 0; size: A4; }
             .no-print { display: none !important; }
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            /* The toolbar-clearance padding + gray backdrop only make sense
+               on screen — without this, they print as blank space + a gray
+               background above/around the document, pushing it toward a
+               second page. */
+            .print-page-wrap { padding: 0 !important; background: white !important; }
           }
           body { background: #f5f5f5; margin: 0; font-family: 'Inter', sans-serif; }
         `}</style>

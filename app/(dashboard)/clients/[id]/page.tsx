@@ -23,7 +23,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     supabase.from('onboarding_steps').select('*').eq('client_id', params.id).order('sort_order'),
     supabase.from('tasks').select('id, title, status, priority, due_date').eq('client_id', params.id).neq('status', 'done').limit(5),
     supabase.from('contracts').select('id, title, status, value, start_date, end_date').eq('client_id', params.id).order('created_at', { ascending: false }).limit(3),
-    supabase.from('invoices').select('id, invoice_number, total, status, due_date').eq('client_id', params.id).order('created_at', { ascending: false }).limit(5),
+    supabase.from('invoices').select('id, invoice_number, total, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
     supabase.from('files').select('id, name, file_type, category, created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
   ])
 
@@ -31,6 +31,10 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
   const completedSteps = onboarding?.filter((s: any) => s.is_completed).length ?? 0
   const totalSteps = onboarding?.length ?? 0
+
+  const totalInvoiced = (invoices ?? []).reduce((s, i: any) => s + Number(i.total), 0)
+  const totalPaid = (invoices ?? []).filter((i: any) => i.status === 'paid').reduce((s, i: any) => s + Number(i.total), 0)
+  const outstandingBalance = (invoices ?? []).filter((i: any) => ['sent', 'overdue'].includes(i.status)).reduce((s, i: any) => s + Number(i.total), 0)
 
   return (
     <div>
@@ -197,25 +201,53 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             )}
           </div>
 
-          {/* Invoices */}
+          {/* Account Statement */}
           <div className="card">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3>Invoices</h3>
-              <Link href="/finance" className="text-xs text-brand-600 hover:underline">View all</Link>
+              <h3>Account Statement</h3>
+              <Link href="/finance/invoices" className="text-xs text-brand-600 hover:underline">All invoices</Link>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+              <div className="px-5 py-3 text-center">
+                <p className="text-lg font-bold text-gray-900">{formatCurrency(totalInvoiced)}</p>
+                <p className="text-xs text-gray-500">Total Invoiced</p>
+              </div>
+              <div className="px-5 py-3 text-center">
+                <p className="text-lg font-bold text-green-700">{formatCurrency(totalPaid)}</p>
+                <p className="text-xs text-gray-500">Total Paid</p>
+              </div>
+              <div className="px-5 py-3 text-center">
+                <p className={`text-lg font-bold ${outstandingBalance > 0 ? 'text-orange-600' : 'text-gray-900'}`}>{formatCurrency(outstandingBalance)}</p>
+                <p className="text-xs text-gray-500">Balance Due</p>
+              </div>
             </div>
             {invoices && invoices.length > 0 ? (
-              <table className="w-full text-sm">
-                <tbody className="divide-y divide-gray-50">
-                  {invoices.map((inv: any) => (
-                    <tr key={inv.id}>
-                      <td className="px-5 py-3 font-medium text-brand-600">{inv.invoice_number}</td>
-                      <td className="px-5 py-3 text-gray-500">Due {formatDate(inv.due_date)}</td>
-                      <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
-                      <td className="px-5 py-3"><span className={`badge ${statusColor(inv.status)}`}>{statusLabel(inv.status)}</span></td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Invoice</th>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Issued</th>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Paid</th>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Amount</th>
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {invoices.map((inv: any) => (
+                      <tr key={inv.id}>
+                        <td className="px-5 py-3 font-medium text-brand-600">
+                          <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{inv.invoice_number}</a>
+                        </td>
+                        <td className="px-5 py-3 text-gray-500">{formatDate(inv.issue_date)}</td>
+                        <td className="px-5 py-3 text-gray-500">{inv.paid_date ? formatDate(inv.paid_date) : '—'}</td>
+                        <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
+                        <td className="px-5 py-3"><span className={`badge ${statusColor(inv.status)}`}>{statusLabel(inv.status)}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p className="px-5 py-6 text-sm text-gray-400">No invoices yet</p>
             )}

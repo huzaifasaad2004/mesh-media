@@ -135,7 +135,7 @@ export default function QuotationPrintPage() {
         </div>
       )}
 
-      <div style={{ paddingTop: 60, background: '#f0ede8', minHeight: '100vh' }}>
+      <div className="print-page-wrap" style={{ paddingTop: 60, background: '#f0ede8', minHeight: '100vh' }}>
         <div style={{ paddingBottom: 40 }}>
           <DocumentTemplate
             type="quotation"

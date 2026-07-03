@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { items, ...invoiceData } = body
   const total = (items ?? []).reduce((s: number, i: { quantity: number; unit_price: number }) => s + i.quantity * i.unit_price, 0)
+  // If someone records a historical invoice as already paid, stamp paid_date immediately
+  if (invoiceData.status === 'paid' && !invoiceData.paid_date) {
+    invoiceData.paid_date = new Date().toISOString().split('T')[0]
+  }
   const { data: invoice, error } = await admin()
     .from('invoices')
     .insert({ ...invoiceData, total })

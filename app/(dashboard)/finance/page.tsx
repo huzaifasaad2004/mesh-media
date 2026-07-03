@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
-import { FileText, Receipt, FileSpreadsheet, Users, TrendingUp, TrendingDown, DollarSign, AlertCircle } from 'lucide-react'
+import { FileText, Receipt, FileSpreadsheet, Users } from 'lucide-react'
+import FinanceReportPanel from '@/components/finance/FinanceReportPanel'
 
 export default async function FinancePage() {
   const supabase = createClient()
@@ -19,12 +20,10 @@ export default async function FinancePage() {
     supabase.from('salaries').select('amount').is('effective_to', null),
   ])
 
-  const totalRevenue = (invoices ?? []).filter(i => i.status === 'paid').reduce((s, i) => s + (i.total ?? 0), 0)
   const outstanding = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0)
   const overdueCount = (invoices ?? []).filter(i => i.status === 'overdue' || (i.status === 'sent' && i.due_date && i.due_date < today)).length
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
   const totalSalaries = (salaries ?? []).reduce((s, sal) => s + (sal.amount ?? 0), 0)
-  const netProfit = totalRevenue - totalExpenses - totalSalaries
 
   const modules = [
     {
@@ -74,23 +73,8 @@ export default async function FinancePage() {
         </div>
       </div>
 
-      {/* P&L summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Revenue Collected', value: formatCurrency(totalRevenue), icon: DollarSign, color: 'text-green-700', bg: 'bg-green-50' },
-          { label: 'Outstanding', value: formatCurrency(outstanding), icon: AlertCircle, color: overdueCount > 0 ? 'text-red-600' : 'text-orange-600', bg: overdueCount > 0 ? 'bg-red-50' : 'bg-orange-50' },
-          { label: 'Total Expenses', value: formatCurrency(totalExpenses + totalSalaries), icon: TrendingDown, color: 'text-red-600', bg: 'bg-red-50' },
-          { label: 'Net Profit', value: formatCurrency(netProfit), icon: TrendingUp, color: netProfit >= 0 ? 'text-green-700' : 'text-red-600', bg: netProfit >= 0 ? 'bg-green-50' : 'bg-red-50' },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="stat-card">
-            <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center mb-2`}>
-              <Icon className={`w-4 h-4 ${color}`} />
-            </div>
-            <p className={`text-xl font-bold ${color}`}>{value}</p>
-            <p className="text-xs text-gray-500">{label}</p>
-          </div>
-        ))}
-      </div>
+      {/* Period-aware P&L, revenue trend, and top clients */}
+      <FinanceReportPanel />
 
       {/* Module cards */}
       <div className="grid grid-cols-2 gap-5">
