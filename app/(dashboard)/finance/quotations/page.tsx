@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, CheckCircle } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, CheckCircle, FileOutput } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import QuotationForm from '@/components/forms/QuotationForm'
@@ -47,6 +47,17 @@ export default function QuotationsPage() {
     setSendMsg({ id, msg: res.ok ? `Sent to ${d.to}` : (d.error ?? 'Send failed'), ok: res.ok })
     if (res.ok) fetchData()
     setTimeout(() => setSendMsg(null), 4000)
+  }
+
+  const convertToInvoice = async (id: string) => {
+    if (!confirm('Create an invoice from this accepted quotation?')) return
+    setSending(id); setSendMsg(null)
+    const res = await fetch(`/api/quotations/${id}/convert`, { method: 'POST' })
+    const d = await res.json()
+    setSending(null)
+    setSendMsg({ id, msg: res.ok ? `Created invoice ${d.invoice_number}` : (d.error ?? 'Convert failed'), ok: res.ok })
+    if (res.ok) fetchData()
+    setTimeout(() => setSendMsg(null), 5000)
   }
 
   const deleteQuote = async (id: string) => {
@@ -157,6 +168,18 @@ export default function QuotationsPage() {
                           className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" title="Send via Email">
                           {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                         </button>
+                      )}
+                      {q.status === 'accepted' && !q.converted_invoice_id && (
+                        <button onClick={() => convertToInvoice(q.id)} disabled={sending === q.id}
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50" title="Convert to invoice">
+                          {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileOutput className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                      {q.converted_invoice_id && (
+                        <a href={`/invoice/${q.converted_invoice_id}`} target="_blank" rel="noopener noreferrer"
+                          className="w-7 h-7 flex items-center justify-center rounded text-green-600 hover:bg-green-50 transition-colors" title="View converted invoice">
+                          <FileOutput className="w-3.5 h-3.5" />
+                        </a>
                       )}
                       <button onClick={() => openEdit(q)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />

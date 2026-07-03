@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
-import { FileText, FolderOpen, Eye } from 'lucide-react'
+import { FileText, FolderOpen } from 'lucide-react'
+import PortalQuoteActions from '@/components/portal/PortalQuoteActions'
+import PortalRequests from '@/components/portal/PortalRequests'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +22,9 @@ export default async function PortalPage() {
 
   const companyName = clients?.[0]?.company_name ?? user?.email ?? 'there'
   const openInvoices = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status))
-  const pendingQuotes = (quotations ?? []).filter(q => q.status === 'sent')
+  // Show quotes needing a decision, plus recently decided ones
+  const portalQuotes = (quotations ?? []).filter(q => ['sent', 'draft', 'accepted', 'declined'].includes(q.status))
+  const pendingQuotes = portalQuotes.filter(q => ['sent', 'draft'].includes(q.status))
 
   return (
     <div>
@@ -51,25 +55,25 @@ export default async function PortalPage() {
           )}
         </div>
 
-        {/* Pending quotations */}
+        {/* Quotations — approve / decline right here */}
         <div className="card p-5" style={pendingQuotes.length > 0 ? { borderColor: '#D98A8E' } : {}}>
           <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>
             {pendingQuotes.length > 0 ? 'Awaiting your review' : 'Quotations'}
           </h2>
-          {pendingQuotes.length > 0 ? (
-            <div className="space-y-3 mt-3">
-              {pendingQuotes.map((q: any) => (
-                <div key={q.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{q.quote_number}</p>
-                    <p className="text-xs text-taupe-600">{formatCurrency(q.total)}{q.expiry_date ? ` · valid until ${formatDate(q.expiry_date)}` : ''}</p>
+          {portalQuotes.length > 0 ? (
+            <div className="divide-y divide-paper-200 mt-2">
+              {portalQuotes.map((q: any) => (
+                <div key={q.id} className="py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-ink">{q.quote_number}</p>
+                      <p className="text-xs text-taupe-600">{formatCurrency(q.total)}{q.expiry_date ? ` · valid until ${formatDate(q.expiry_date)}` : ''}</p>
+                    </div>
+                    {q.subject && <span className="text-xs text-taupe-500 text-right max-w-[45%] truncate">{q.subject}</span>}
                   </div>
-                  <a href={`/quotation/${q.id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
-                    <Eye className="w-3 h-3" /> View
-                  </a>
+                  <PortalQuoteActions quoteId={q.id} quoteStatus={q.status} />
                 </div>
               ))}
-              <p className="text-xs text-taupe-500 pt-1">To approve a quotation, reply to the email or contact us directly.</p>
             </div>
           ) : (
             <p className="text-sm text-taupe-500 py-4">Nothing awaiting your review.</p>
@@ -123,6 +127,11 @@ export default async function PortalPage() {
           ) : (
             <p className="text-sm text-taupe-500 py-4">No files shared yet.</p>
           )}
+        </div>
+
+        {/* Requests inbox */}
+        <div className="md:col-span-2">
+          <PortalRequests />
         </div>
       </div>
     </div>
