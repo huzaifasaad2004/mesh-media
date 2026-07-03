@@ -104,81 +104,144 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      <div className="card overflow-visible">
-        {loading ? (
-          <div className="px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Invoice #</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Client</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Subject</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Amount</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Date</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {invoices.length > 0 ? invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-brand-600">{inv.invoice_number}</td>
-                  <td className="px-5 py-3 text-gray-700">{inv.client?.company_name ?? '—'}</td>
-                  <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{inv.subject ?? inv.notes ?? '—'}</td>
-                  <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
-                  <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(inv.issue_date)}</td>
-                  <td className="px-5 py-3">
-                    <div className="relative inline-block">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === inv.id ? null : inv.id) }}
-                        className={`badge ${statusColor(inv.status)} cursor-pointer flex items-center gap-1`}
-                      >
-                        {statusLabel(inv.status)} <ChevronDown className="w-3 h-3" />
-                      </button>
-                      {statusDropdown === inv.id && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
-                          <div className="absolute left-0 top-7 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-                            {STATUS_FLOW.map(s => (
-                              <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(inv.id, s) }}
-                                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${inv.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
-                                {statusLabel(s)}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer"
-                        className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View / Print PDF">
-                        <Eye className="w-3.5 h-3.5" />
-                      </a>
-                      {inv.client?.email && (
-                        <button onClick={() => sendEmail(inv.id)} disabled={sending === inv.id}
-                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" title="Send via Email (Resend)">
-                          {sending === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                      <button onClick={() => openEdit(inv)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => deleteInvoice(inv.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
+      {loading ? (
+        <div className="card px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
+      ) : invoices.length > 0 ? (
+        <>
+          {/* Mobile: stacked cards (avoids clipping the status dropdown that a
+              horizontally-scrolling table would cause) */}
+          <div className="md:hidden space-y-3">
+            {invoices.map((inv) => (
+              <div key={inv.id} className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-brand-600 truncate">{inv.invoice_number}</p>
+                    <p className="text-sm text-gray-700 truncate">{inv.client?.company_name ?? '—'}</p>
+                  </div>
+                  <span className="font-semibold flex-shrink-0">{formatCurrency(inv.total)}</span>
+                </div>
+                {(inv.subject ?? inv.notes) && <p className="text-xs text-gray-500 mt-1.5 truncate">{inv.subject ?? inv.notes}</p>}
+                <div className="flex items-center justify-between mt-3">
+                  <div className="relative inline-block">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === inv.id ? null : inv.id) }}
+                      className={`badge ${statusColor(inv.status)} cursor-pointer flex items-center gap-1`}
+                      style={{ minHeight: 32 }}
+                    >
+                      {statusLabel(inv.status)} <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {statusDropdown === inv.id && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
+                        <div className="absolute left-0 top-9 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                          {STATUS_FLOW.map(s => (
+                            <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(inv.id, s) }}
+                              className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-50 ${inv.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
+                              {statusLabel(s)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400">{formatDate(inv.issue_date)}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-3 pt-3 border-t border-gray-100">
+                  <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors" style={{ minHeight: 40 }} title="View / Print PDF">
+                    <Eye className="w-4 h-4" />
+                  </a>
+                  {inv.client?.email && (
+                    <button onClick={() => sendEmail(inv.id)} disabled={sending === inv.id}
+                      className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" style={{ minHeight: 40 }} title="Send via Email">
+                      {sending === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                  )}
+                  <button onClick={() => openEdit(inv)} className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors" style={{ minHeight: 40 }}>
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => deleteInvoice(inv.id)} className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors" style={{ minHeight: 40 }}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop / tablet: full table */}
+          <div className="card overflow-visible hidden md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Invoice #</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Client</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Subject</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Amount</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Date</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
+                  <th className="px-5 py-3" />
                 </tr>
-              )) : (
-                <tr><td colSpan={7} className="px-5 py-16 text-center text-gray-400 text-sm">No invoices yet</td></tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-brand-600">{inv.invoice_number}</td>
+                    <td className="px-5 py-3 text-gray-700">{inv.client?.company_name ?? '—'}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{inv.subject ?? inv.notes ?? '—'}</td>
+                    <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
+                    <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(inv.issue_date)}</td>
+                    <td className="px-5 py-3">
+                      <div className="relative inline-block">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === inv.id ? null : inv.id) }}
+                          className={`badge ${statusColor(inv.status)} cursor-pointer flex items-center gap-1`}
+                        >
+                          {statusLabel(inv.status)} <ChevronDown className="w-3 h-3" />
+                        </button>
+                        {statusDropdown === inv.id && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
+                            <div className="absolute left-0 top-7 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                              {STATUS_FLOW.map(s => (
+                                <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(inv.id, s) }}
+                                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${inv.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
+                                  {statusLabel(s)}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer"
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View / Print PDF">
+                          <Eye className="w-3.5 h-3.5" />
+                        </a>
+                        {inv.client?.email && (
+                          <button onClick={() => sendEmail(inv.id)} disabled={sending === inv.id}
+                            className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" title="Send via Email (Resend)">
+                            {sending === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                        <button onClick={() => openEdit(inv)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => deleteInvoice(inv.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="card px-5 py-16 text-center text-gray-400 text-sm">No invoices yet</div>
+      )}
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Invoice ${editing.invoice_number}` : 'New Invoice'} size="xl">
         <InvoiceForm

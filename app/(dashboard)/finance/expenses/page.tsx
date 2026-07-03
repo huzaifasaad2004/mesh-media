@@ -89,7 +89,7 @@ export default function ExpensesPage() {
         {loading ? (
           <div className="px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Description</th>
@@ -130,7 +130,7 @@ export default function ExpensesPage() {
                 <tr><td colSpan={6} className="px-5 py-16 text-center text-gray-400 text-sm">No expenses{filterCat ? ' in this category' : ' yet'}</td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

@@ -26,7 +26,7 @@ export default async function SalariesPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Team Member</th>
@@ -64,7 +64,7 @@ export default async function SalariesPage() {
               </tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   )

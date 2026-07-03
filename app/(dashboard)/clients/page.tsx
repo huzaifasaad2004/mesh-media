@@ -46,7 +46,7 @@ export default async function ClientsPage() {
           <Search className="w-4 h-4 text-gray-400" />
           <input className="flex-1 text-sm focus:outline-none bg-transparent placeholder:text-gray-400" placeholder="Search clients…" />
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Company</th>
@@ -98,7 +98,7 @@ export default async function ClientsPage() {
               </tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   )

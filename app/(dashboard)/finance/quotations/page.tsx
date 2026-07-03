@@ -108,95 +108,170 @@ export default function QuotationsPage() {
         })}
       </div>
 
-      <div className="card overflow-visible">
-        {loading ? (
-          <div className="px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Quote #</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Client</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Subject</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Total</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Issued</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Expires</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {quotes.length > 0 ? quotes.map((q) => (
-                <tr key={q.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-brand-600">{q.quote_number}</td>
-                  <td className="px-5 py-3 text-gray-700">{q.client?.company_name ?? '—'}</td>
-                  <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{q.subject ?? '—'}</td>
-                  <td className="px-5 py-3 font-semibold">{formatCurrency(q.total)}</td>
-                  <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(q.issue_date)}</td>
-                  <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(q.expiry_date)}</td>
-                  <td className="px-5 py-3">
-                    <div className="relative inline-block">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === q.id ? null : q.id) }}
-                        className={`badge ${statusColor(q.status)} cursor-pointer flex items-center gap-1`}
-                      >
-                        {statusLabel(q.status)} <ChevronDown className="w-3 h-3" />
-                      </button>
-                      {statusDropdown === q.id && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
-                          <div className="absolute left-0 top-7 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-                            {STATUS_FLOW.map(s => (
-                              <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(q.id, s) }}
-                                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${q.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
-                                {statusLabel(s)}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <a href={`/quotation/${q.id}`} target="_blank" rel="noopener noreferrer"
-                        className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View / Print PDF">
-                        <Eye className="w-3.5 h-3.5" />
-                      </a>
-                      {q.client?.email && (
-                        <button onClick={() => sendEmail(q.id)} disabled={sending === q.id}
-                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" title="Send via Email">
-                          {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                      {q.status === 'accepted' && !q.converted_invoice_id && (
-                        <button onClick={() => convertToInvoice(q.id)} disabled={sending === q.id}
-                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50" title="Convert to invoice">
-                          {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileOutput className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
-                      {q.converted_invoice_id && (
-                        <a href={`/invoice/${q.converted_invoice_id}`} target="_blank" rel="noopener noreferrer"
-                          className="w-7 h-7 flex items-center justify-center rounded text-green-600 hover:bg-green-50 transition-colors" title="View converted invoice">
-                          <FileOutput className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      <button onClick={() => openEdit(q)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => deleteQuote(q.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
+      {loading ? (
+        <div className="card px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
+      ) : quotes.length > 0 ? (
+        <>
+          {/* Mobile: stacked cards (avoids clipping the status dropdown that a
+              horizontally-scrolling table would cause) */}
+          <div className="md:hidden space-y-3">
+            {quotes.map((q) => (
+              <div key={q.id} className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-brand-600 truncate">{q.quote_number}</p>
+                    <p className="text-sm text-gray-700 truncate">{q.client?.company_name ?? '—'}</p>
+                  </div>
+                  <span className="font-semibold flex-shrink-0">{formatCurrency(q.total)}</span>
+                </div>
+                {q.subject && <p className="text-xs text-gray-500 mt-1.5 truncate">{q.subject}</p>}
+                <div className="flex items-center justify-between mt-3">
+                  <div className="relative inline-block">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === q.id ? null : q.id) }}
+                      className={`badge ${statusColor(q.status)} cursor-pointer flex items-center gap-1`}
+                      style={{ minHeight: 32 }}
+                    >
+                      {statusLabel(q.status)} <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {statusDropdown === q.id && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
+                        <div className="absolute left-0 top-9 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                          {STATUS_FLOW.map(s => (
+                            <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(q.id, s) }}
+                              className={`w-full text-left px-3 py-2.5 text-xs hover:bg-gray-50 ${q.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
+                              {statusLabel(s)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400">{formatDate(q.issue_date)}{q.expiry_date ? ` → ${formatDate(q.expiry_date)}` : ''}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-3 pt-3 border-t border-gray-100">
+                  <a href={`/quotation/${q.id}`} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors" style={{ minHeight: 40 }} title="View / Print PDF">
+                    <Eye className="w-4 h-4" />
+                  </a>
+                  {q.client?.email && (
+                    <button onClick={() => sendEmail(q.id)} disabled={sending === q.id}
+                      className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" style={{ minHeight: 40 }} title="Send via Email">
+                      {sending === q.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {q.status === 'accepted' && !q.converted_invoice_id && (
+                    <button onClick={() => convertToInvoice(q.id)} disabled={sending === q.id}
+                      className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50" style={{ minHeight: 40 }} title="Convert to invoice">
+                      {sending === q.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileOutput className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {q.converted_invoice_id && (
+                    <a href={`/invoice/${q.converted_invoice_id}`} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center rounded text-green-600 hover:bg-green-50 transition-colors" style={{ minHeight: 40 }} title="View converted invoice">
+                      <FileOutput className="w-4 h-4" />
+                    </a>
+                  )}
+                  <button onClick={() => openEdit(q)} className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors" style={{ minHeight: 40 }}>
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => deleteQuote(q.id)} className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors" style={{ minHeight: 40 }}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop / tablet: full table */}
+          <div className="card overflow-visible hidden md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Quote #</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Client</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Subject</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Total</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Issued</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Expires</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
+                  <th className="px-5 py-3" />
                 </tr>
-              )) : (
-                <tr><td colSpan={8} className="px-5 py-16 text-center text-gray-400 text-sm">No quotations yet</td></tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {quotes.map((q) => (
+                  <tr key={q.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-brand-600">{q.quote_number}</td>
+                    <td className="px-5 py-3 text-gray-700">{q.client?.company_name ?? '—'}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{q.subject ?? '—'}</td>
+                    <td className="px-5 py-3 font-semibold">{formatCurrency(q.total)}</td>
+                    <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(q.issue_date)}</td>
+                    <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(q.expiry_date)}</td>
+                    <td className="px-5 py-3">
+                      <div className="relative inline-block">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setStatusDropdown(statusDropdown === q.id ? null : q.id) }}
+                          className={`badge ${statusColor(q.status)} cursor-pointer flex items-center gap-1`}
+                        >
+                          {statusLabel(q.status)} <ChevronDown className="w-3 h-3" />
+                        </button>
+                        {statusDropdown === q.id && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />
+                            <div className="absolute left-0 top-7 z-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                              {STATUS_FLOW.map(s => (
+                                <button key={s} onClick={(e) => { e.stopPropagation(); updateStatus(q.id, s) }}
+                                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 ${q.status === s ? 'font-semibold text-brand-600' : 'text-gray-700'}`}>
+                                  {statusLabel(s)}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <a href={`/quotation/${q.id}`} target="_blank" rel="noopener noreferrer"
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View / Print PDF">
+                          <Eye className="w-3.5 h-3.5" />
+                        </a>
+                        {q.client?.email && (
+                          <button onClick={() => sendEmail(q.id)} disabled={sending === q.id}
+                            className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50" title="Send via Email">
+                            {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                        {q.status === 'accepted' && !q.converted_invoice_id && (
+                          <button onClick={() => convertToInvoice(q.id)} disabled={sending === q.id}
+                            className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50" title="Convert to invoice">
+                            {sending === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileOutput className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                        {q.converted_invoice_id && (
+                          <a href={`/invoice/${q.converted_invoice_id}`} target="_blank" rel="noopener noreferrer"
+                            className="w-7 h-7 flex items-center justify-center rounded text-green-600 hover:bg-green-50 transition-colors" title="View converted invoice">
+                            <FileOutput className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button onClick={() => openEdit(q)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => deleteQuote(q.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="card px-5 py-16 text-center text-gray-400 text-sm">No quotations yet</div>
+      )}
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Quote ${editing.quote_number}` : 'New Quotation'} size="xl">
         <QuotationForm

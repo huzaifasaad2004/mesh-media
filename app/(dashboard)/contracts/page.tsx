@@ -80,7 +80,7 @@ export default function ContractsPage() {
         {loading ? (
           <div className="px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Contract</th>
@@ -135,7 +135,7 @@ export default function ContractsPage() {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
