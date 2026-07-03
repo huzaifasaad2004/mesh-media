@@ -30,9 +30,10 @@ const navItems = [
 
 interface SidebarProps {
   profile: Profile | null
+  permissions?: string[]
 }
 
-export function Sidebar({ profile }: SidebarProps) {
+export function Sidebar({ profile, permissions }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -57,7 +58,7 @@ export function Sidebar({ profile }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.filter(({ href }) => navVisible(profile?.role, href)).map(({ href, label, icon: Icon }) => {
+        {navItems.filter(({ href }) => navVisible(profile?.role, href, permissions)).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link

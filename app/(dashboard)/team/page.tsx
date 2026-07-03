@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
 import type { Profile } from '@/types/database'
 import InviteMember from '@/components/team/InviteMember'
+import ManageAccess from '@/components/team/ManageAccess'
 
 const roleColors: Record<string, string> = {
   owner:   'bg-brand-600 text-paper-100',
@@ -93,10 +94,7 @@ export default async function TeamPage() {
               )}
 
               <div className="flex gap-2 mt-4">
-                <button className="btn-secondary btn-sm flex-1 justify-center">Edit</button>
-                {!salary && (
-                  <button className="btn-ghost btn-sm flex-1 justify-center">Set Salary</button>
-                )}
+                {member.role !== 'owner' && <ManageAccess userId={member.id} name={member.full_name ?? member.email ?? 'this person'} />}
               </div>
             </div>
           )
