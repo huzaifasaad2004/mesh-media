@@ -20,8 +20,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Client-portal users never see the staff dashboard
   if (profile?.role === 'client') redirect('/portal')
 
-  // Effective permissions = role defaults with any per-person overrides applied
-  const effective = await getEffectivePermissions(supabase, user.id, profile?.role ?? '')
+  // Effective permissions = role defaults with any per-person overrides applied.
+  // Depends on migrations (role_permissions/user_permissions) — never let a
+  // missing table or transient error take the whole dashboard down.
+  let effective = new Set<string>()
+  try {
+    effective = await getEffectivePermissions(supabase, user.id, profile?.role ?? '')
+  } catch { /* schema not migrated yet or transient error — degrade gracefully */ }
 
   return (
     <div className="flex min-h-screen">

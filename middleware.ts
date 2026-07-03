@@ -48,14 +48,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Invited teammates must choose a password before touching anything else
+  // Invited teammates must choose a password before touching anything else.
+  // This depends on a migration (profiles.password_set) — never let a
+  // missing column/table or any other hiccup here take down the whole app;
+  // worst case we just skip the redirect for this request.
   if (user && !isSetPassword && !isPublicPath && !request.nextUrl.pathname.startsWith('/api')) {
-    const { data: profile } = await supabase.from('profiles').select('password_set').eq('id', user.id).single()
-    if (profile && profile.password_set === false) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/set-password'
-      return NextResponse.redirect(url)
-    }
+    try {
+      const { data: profile } = await supabase.from('profiles').select('password_set').eq('id', user.id).single()
+      if (profile && profile.password_set === false) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/set-password'
+        return NextResponse.redirect(url)
+      }
+    } catch { /* schema not migrated yet or transient error — fail open */ }
   }
 
   return supabaseResponse
