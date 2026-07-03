@@ -19,10 +19,9 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
     client_id: (initialData?.client_id as string) ?? '',
     status: (initialData?.status as string) ?? 'draft',
     value: (initialData?.value as number)?.toString() ?? '',
-    currency: (initialData as Record<string, unknown> & { currency?: string })?.currency ?? 'AED',
     start_date: (initialData?.start_date as string) ?? '',
     end_date: (initialData?.end_date as string) ?? '',
-    description: (initialData?.description as string) ?? '',
+    content: (initialData?.content as string) ?? '',
   })
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -38,7 +37,7 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
       client_id: form.client_id || null,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
-      description: form.description || null,
+      content: form.content || null,
     }
     const id = initialData?.id as string | undefined
     const url = id ? `/api/contracts/${id}` : '/api/contracts'
@@ -79,15 +78,9 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Value</label>
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.value} onChange={set('value')} />
-        </div>
-        <div>
-          <label className={labelClass}>Currency</label>
-          <input className={inputClass} value={form.currency} onChange={set('currency')} />
-        </div>
+      <div>
+        <label className={labelClass}>Value <span className="text-gray-400 font-normal">(AED)</span></label>
+        <input className={inputClass} type="number" min="0" step="0.01" value={form.value} onChange={set('value')} placeholder="0.00" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -102,8 +95,8 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
       </div>
 
       <div>
-        <label className={labelClass}>Description</label>
-        <textarea className={inputClass} rows={4} value={form.description} onChange={set('description')} />
+        <label className={labelClass}>Content <span className="text-gray-400 font-normal">(terms, scope, clauses)</span></label>
+        <textarea className={inputClass} rows={6} value={form.content} onChange={set('content')} />
       </div>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}

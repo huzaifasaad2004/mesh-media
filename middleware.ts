@@ -28,6 +28,7 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+  const isSetPassword = request.nextUrl.pathname === '/set-password'
   const isPublicPath = request.nextUrl.pathname === '/'
     || request.nextUrl.pathname.startsWith('/auth/')
     || request.nextUrl.pathname === '/api/ai/test'
@@ -35,7 +36,7 @@ export async function middleware(request: NextRequest) {
     // bearer token (see lib/celine/auth.ts) — it has no browser session to check.
     || request.nextUrl.pathname.startsWith('/api/celine/')
 
-  if (!user && !isAuthPage && !isPublicPath) {
+  if (!user && !isAuthPage && !isPublicPath && !isSetPassword) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -45,6 +46,16 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // Invited teammates must choose a password before touching anything else
+  if (user && !isSetPassword && !isPublicPath && !request.nextUrl.pathname.startsWith('/api')) {
+    const { data: profile } = await supabase.from('profiles').select('password_set').eq('id', user.id).single()
+    if (profile && profile.password_set === false) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/set-password'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
