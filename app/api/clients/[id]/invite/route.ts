@@ -25,6 +25,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const email = (body.email ?? client.email)?.trim()
   if (!email) return NextResponse.json({ error: 'Client has no email address — add one first' }, { status: 400 })
 
+  // Guard: never turn a staff member into a client. One email = one account =
+  // one role, so inviting a staff email as a client would demote them.
+  const { data: existingProfile } = await admin
+    .from('profiles').select('id, role').ilike('email', email).maybeSingle()
+  if (existingProfile && ['owner', 'admin', 'manager', 'member', 'viewer'].includes(existingProfile.role)) {
+    return NextResponse.json({
+      error: 'This email belongs to a team member. Use a different email for client portal access.',
+    }, { status: 400 })
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const redirectTo = `${baseUrl}/auth/callback?next=/portal`
   const fullName = client.contact_person ?? client.company_name
