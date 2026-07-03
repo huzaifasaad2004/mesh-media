@@ -24,9 +24,6 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
     website: (initialData as any)?.website ?? '',
     address: initialData?.address ?? '',
     monthly_retainer: initialData?.monthly_retainer?.toString() ?? '',
-    currency: (initialData as any)?.currency ?? 'AED',
-    contract_start_date: (initialData as any)?.contract_start_date ?? '',
-    contract_end_date: (initialData as any)?.contract_end_date ?? '',
     drive_folder_url: initialData?.drive_folder_url ?? '',
     notes: initialData?.notes ?? '',
   })
@@ -41,8 +38,6 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
     const payload = {
       ...form,
       monthly_retainer: form.monthly_retainer ? parseFloat(form.monthly_retainer) : null,
-      contract_start_date: form.contract_start_date || null,
-      contract_end_date: form.contract_end_date || null,
       industry: form.industry || null,
       contact_person: form.contact_person || null,
       website: form.website || null,
@@ -112,26 +107,9 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Monthly Retainer</label>
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.monthly_retainer} onChange={set('monthly_retainer')} />
-        </div>
-        <div>
-          <label className={labelClass}>Currency</label>
-          <input className={inputClass} value={form.currency} onChange={set('currency')} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Contract Start Date</label>
-          <input className={inputClass} type="date" value={form.contract_start_date} onChange={set('contract_start_date')} />
-        </div>
-        <div>
-          <label className={labelClass}>Contract End Date</label>
-          <input className={inputClass} type="date" value={form.contract_end_date} onChange={set('contract_end_date')} />
-        </div>
+      <div>
+        <label className={labelClass}>Monthly Retainer <span className="text-gray-400 font-normal">(AED)</span></label>
+        <input className={inputClass} type="number" min="0" step="0.01" value={form.monthly_retainer} onChange={set('monthly_retainer')} placeholder="0.00" />
       </div>
 
       <div>

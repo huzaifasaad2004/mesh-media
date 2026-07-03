@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { Resend } from 'resend'
+import { COMPANY } from '@/lib/company'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   // Only owner/admin may invite portal users
@@ -20,36 +22,81 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .from('clients').select('id, company_name, email, contact_person').eq('id', params.id).single()
   if (clientError || !client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
-  const email = body.email ?? client.email
+  const email = (body.email ?? client.email)?.trim()
   if (!email) return NextResponse.json({ error: 'Client has no email address — add one first' }, { status: 400 })
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const redirectTo = `${baseUrl}/auth/callback?next=/portal`
+  const fullName = client.contact_person ?? client.company_name
 
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: client.contact_person ?? client.company_name, role: 'client' },
-    redirectTo: `${baseUrl}/auth/callback?next=/portal`,
+  // Generate a sign-in link (works whether or not the user already exists),
+  // then email it ourselves via Resend from the verified m3m.ae domain.
+  let actionLink: string | undefined
+  let userId: string | undefined
+
+  const invite = await admin.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: { data: { full_name: fullName, role: 'client' }, redirectTo },
   })
 
-  // Already-registered users are fine — we still (re)link them to the client
-  let userId = data?.user?.id
-  if (error) {
-    if (error.message.toLowerCase().includes('already been registered')) {
-      const { data: list } = await admin.auth.admin.listUsers()
-      userId = list?.users.find(u => u.email?.toLowerCase() === String(email).toLowerCase())?.id
-      if (!userId) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (invite.error) {
+    const msg = invite.error.message.toLowerCase()
+    if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
+      // Existing user — send a magic link instead
+      const magic = await admin.auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo } })
+      if (magic.error) return NextResponse.json({ error: magic.error.message }, { status: 400 })
+      actionLink = magic.data.properties?.action_link
+      userId = magic.data.user?.id
     } else {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ error: invite.error.message }, { status: 400 })
     }
+  } else {
+    actionLink = invite.data.properties?.action_link
+    userId = invite.data.user?.id
   }
 
-  if (userId) {
-    await admin.from('client_contacts').upsert(
-      { user_id: userId, client_id: params.id },
-      { onConflict: 'user_id,client_id' }
-    )
-    // Ensure their profile is the client role
-    await admin.from('profiles').update({ role: 'client' }).eq('id', userId)
+  if (!actionLink || !userId) {
+    return NextResponse.json({ error: 'Could not generate an invite link' }, { status: 500 })
   }
+
+  // Link the user to this client and ensure client role
+  await admin.from('client_contacts').upsert(
+    { user_id: userId, client_id: params.id },
+    { onConflict: 'user_id,client_id' }
+  )
+  await admin.from('profiles').update({ role: 'client' }).eq('id', userId)
+
+  // Send the branded invite email via Resend
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const { error: sendError } = await resend.emails.send({
+    from: `MeshMedia <${process.env.RESEND_FROM_EMAIL ?? 'hello@m3m.ae'}>`,
+    to: email,
+    subject: `Your MeshMedia client portal is ready`,
+    html: `
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>
+  body { font-family: Inter, Arial, sans-serif; margin:0; background:#f5f5f5; color:#1a1a1a; }
+  .wrap { max-width:520px; margin:32px auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .header { background:#6E1318; padding:28px 32px; }
+  .header h1 { color:#fff; margin:0; font-size:20px; font-weight:700; }
+  .body { padding:28px 32px; font-size:14px; line-height:1.6; }
+  .cta { display:inline-block; background:#6E1318; color:#fff !important; text-decoration:none; padding:13px 26px; border-radius:8px; font-weight:600; margin:18px 0; }
+  .footer { background:#f9f9f9; border-top:1px solid #eee; padding:16px 32px; font-size:11px; color:#999; text-align:center; }
+</style></head><body>
+<div class="wrap">
+  <div class="header"><h1>${COMPANY.name}</h1></div>
+  <div class="body">
+    <p>Hi ${fullName},</p>
+    <p>You've been given access to your private client portal, where you can view your projects, approve quotations, see invoices, download files, and send us requests.</p>
+    <p><a href="${actionLink}" class="cta">Open my client portal →</a></p>
+    <p style="color:#888;font-size:12px;">This secure link signs you in automatically. If the button doesn't work, copy and paste this URL into your browser:<br>${actionLink}</p>
+  </div>
+  <div class="footer">${COMPANY.name} · ${COMPANY.email} · ${COMPANY.phone}</div>
+</div>
+</body></html>`,
+  })
+
+  if (sendError) return NextResponse.json({ error: `Invite created but email failed: ${sendError.message}` }, { status: 500 })
 
   return NextResponse.json({ success: true, to: email })
 }
