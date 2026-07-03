@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { emitCelineEvent } from '@/lib/celine/events'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -10,7 +12,27 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .eq('id', params.id)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Tell Celine when an actual client (not staff) opens their invoice —
+  // she uses repeat views of overdue invoices as a payment-psychology signal.
+  notifyCelineIfClientView(params.id, data).catch(() => {})
+
   return NextResponse.json(data)
+}
+
+async function notifyCelineIfClientView(invoiceId: string, invoice: any) {
+  const supabase = createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'client') return
+  await emitCelineEvent('invoice_viewed', 'client', {
+    invoice_id: invoiceId,
+    invoice_number: invoice.invoice_number,
+    client_name: invoice.client?.company_name,
+    status: invoice.status,
+    amount: invoice.total,
+  })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
