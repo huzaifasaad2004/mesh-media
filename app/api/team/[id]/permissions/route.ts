@@ -64,13 +64,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     else toUpsert.push({ user_id: params.id, permission: key, granted: Boolean(value), updated_by: guard.userId! })
   }
 
+  const friendly = (msg: string) =>
+    msg.includes('user_permissions')
+      ? 'Per-person permissions need a one-time database setup that hasn\'t run yet. Ask your developer to run the pending migration.'
+      : msg
+
   if (toUpsert.length) {
     const { error } = await db.from('user_permissions').upsert(toUpsert, { onConflict: 'user_id,permission' })
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) return NextResponse.json({ error: friendly(error.message) }, { status: 400 })
   }
   if (toDelete.length) {
     const { error } = await db.from('user_permissions').delete().eq('user_id', params.id).in('permission', toDelete)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error) return NextResponse.json({ error: friendly(error.message) }, { status: 400 })
   }
 
   return NextResponse.json({ success: true })
