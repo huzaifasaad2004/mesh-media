@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -17,31 +17,48 @@ interface Notification {
 export default function NotificationBell() {
   const [items, setItems] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
-  const supabase = createClient()
+  // Stable client for this component's lifetime
+  const supabaseRef = useRef<ReturnType<typeof createClient>>()
+  if (!supabaseRef.current) supabaseRef.current = createClient()
+  const supabase = supabaseRef.current
 
   const load = useCallback(async () => {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(15)
-    setItems(data ?? [])
+    try {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(15)
+      setItems(data ?? [])
+    } catch { /* notifications table may not exist yet — bell just stays empty */ }
   }, [supabase])
 
   useEffect(() => {
     load()
-    const channel = supabase
-      .channel('notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, load)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [load, supabase])
+    // A UNIQUE channel name per mount is essential: reusing a fixed name
+    // returns the cached, already-subscribed channel on a re-mount, and
+    // calling .on() after .subscribe() throws — which previously crashed
+    // the whole app. try/catch is a further safety net so realtime being
+    // unavailable can never take the UI down.
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    try {
+      channel = supabase
+        .channel(`notifications-${Math.random().toString(36).slice(2)}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => load())
+        .subscribe()
+    } catch { /* realtime unavailable — the bell still works via the initial load */ }
+    return () => { if (channel) { try { supabase.removeChannel(channel) } catch { /* noop */ } } }
+    // Intentionally run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const unread = items.filter(n => !n.read).length
 
   const markAllRead = async () => {
-    await supabase.from('notifications').update({ read: true }).eq('read', false)
-    setItems(p => p.map(n => ({ ...n, read: true })))
+    try {
+      await supabase.from('notifications').update({ read: true }).eq('read', false)
+      setItems(p => p.map(n => ({ ...n, read: true })))
+    } catch { /* noop */ }
   }
 
   return (
