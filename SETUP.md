@@ -32,8 +32,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 In Supabase → **Authentication → Users → Invite User**
 Enter your email. Once you sign in, go to **SQL Editor** and run:
 ```sql
-update profiles set role = 'admin', full_name = 'Your Name' where email = 'your@email.com';
+update profiles set role = 'owner', full_name = 'Your Name' where email = 'your@email.com';
 ```
+(Roles are `owner | admin | manager | member | viewer | client` — see `lib/roles.ts`.)
+
+Note: `schema.sql` is only the base schema. Also run the `phase2`–`phase16` migration files
+in `supabase/` in order to get the current feature set (projects, portal, payroll, etc.).
 
 ## Step 5: Run the app
 ```bash
@@ -60,13 +64,14 @@ Open http://localhost:3000 — log in and you're live.
 | Tasks | Kanban board + list view with priority, assignee, due date |
 | Files | Per-client file storage with Google Drive link support |
 | Contracts | Draft, send, sign tracking with value and period |
-| Finance | Invoices, expenses, salary management, P&L overview |
-| Team | Team profiles, roles, salary cards, open task counts |
+| Finance | Invoices (VAT, discounts, PDF, email send), expenses (receipt AI), quotations, P&L reports |
+| Payroll | Multi-currency salaries, payslips, recurring runs |
+| Projects | Projects + milestones linking clients ↔ tasks ↔ invoices |
+| Client portal | Clients view projects/invoices, approve/decline quotations, submit requests |
+| Team | Profiles, six roles + per-user permission overrides, invites |
+| Aether AI | Gemini-powered assistant (chat + expense capture) |
+| Celine API | `/api/celine/*` action endpoints for the external Celine assistant |
 
-## Next steps Claude Code can build for you
-- Add/edit forms for all modules (clients, tasks, contracts, invoices)
-- Google Drive folder auto-creation on new client
-- PDF invoice generation and email sending
-- Contract builder with e-signature flow
-- Role-based permission enforcement (admin-only pages)
-- Notifications and activity feed
+## What's next
+See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for the roadmap (status header shows what's done)
+and [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) for the **open security fixes — do those first**.
