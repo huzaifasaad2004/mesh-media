@@ -14,8 +14,7 @@ is a production deploy — be sure before pushing.**
 - Migrations: numbered `supabase/phaseN_*.sql`, applied by pasting into the Supabase SQL editor (no CLI pipeline). Continue the numbering; never edit an already-applied file.
 
 ## Security rules (non-negotiable)
-- 🔴 **Read `docs/SECURITY_AUDIT.md` before touching API routes** — it has OPEN critical findings (privilege escalation, service-role bypass). Don't extend the broken pattern.
-- New API routes must authenticate: `supabase.auth.getUser()` + role/permission check. Use the RLS cookie client for reads; service-role **only after** an explicit role check (see `/api/team/invite`, `/api/ai/chat` for the correct pattern).
+- New API routes must use `lib/apiAuth.ts` (`requireUser` / `requireStaff` / `requireRoles` / `requireFinanceRead`): RLS cookie client (`auth.db`) for reads; `serviceRole()` **only after** the role gate. Never a bare service-role client — that was the audit's critical finding (see `docs/SECURITY_AUDIT.md`).
 - Never put keys in code or scripts — a one-off script with a hardcoded service key already had to be purged once.
 - `/api/celine/*` routes are bearer-token authed (Celine integration) and exempted from the session-cookie middleware — keep it that way; use `lib/celine/auth.ts`.
 

@@ -16,7 +16,7 @@ Use this document as the master plan. Each phase below is written so you can han
 > - ✅ Part B (partial): brand re-skin + mobile responsiveness (app-shell drawer, card views)
 > - ✅ Celine integration: `/api/celine/*` action endpoints + portal-view event webhooks
 > - ❌ NOT done: online payments, e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base
-> - 🔴 NOT done: the security fixes in [SECURITY_AUDIT.md](SECURITY_AUDIT.md) — **do these before any new features**
+> - ✅ Security fixes from [SECURITY_AUDIT.md](SECURITY_AUDIT.md) applied 2026-07-06 (phase17 migration + password rotation still manual — see its status table)
 
 ---
 
