@@ -13,7 +13,29 @@ const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.
 export async function POST(req: NextRequest) {
   if (!celineAuthorized(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const { text, image_base64, mime_type, client_id, requested_by } = await req.json()
+  const { text, image_base64, mime_type, client_id, requested_by, structured } = await req.json()
+
+  // Fast path: Celine already parsed the expense with her own model, so accept
+  // structured {amount, description, category, date} directly and skip m3m's
+  // own AI extraction (which runs on a separate, rate-limited key).
+  if (structured?.amount > 0 && structured?.description) {
+    const db = admin()
+    const CATS = ['software', 'ads', 'freelancer', 'office', 'travel', 'other']
+    const { data: expense, error } = await db.from('expenses').insert({
+      category: CATS.includes(structured.category) ? structured.category : 'other',
+      description: structured.description,
+      amount: Number(structured.amount),
+      date: structured.date || new Date().toISOString().split('T')[0],
+      client_id: client_id ?? null,
+      created_by: requested_by ?? null,
+    }).select().single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await emitCelineEvent('expense_captured', 'admin', {
+      expense_id: expense.id, description: expense.description, amount: expense.amount, category: expense.category,
+    })
+    return NextResponse.json({ ok: true, expense })
+  }
+
   if (!text && !image_base64) return NextResponse.json({ error: 'text or image_base64 required' }, { status: 400 })
 
   let extracted
