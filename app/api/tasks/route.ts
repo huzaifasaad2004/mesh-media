@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+import { requireStaff, requireRoles, serviceRole, stripProtected, OPS_WRITE } from '@/lib/apiAuth'
 
 export async function GET() {
-  const { data, error } = await admin()
+  const auth = await requireStaff()
+  if ('res' in auth) return auth.res
+  const { data, error } = await auth.db
     .from('tasks')
     .select('*, assignee:profiles!tasks_assigned_to_fkey(full_name, avatar_url, email), client:clients(company_name)')
     .order('created_at', { ascending: false })
@@ -13,8 +13,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { data, error } = await admin().from('tasks').insert(body).select().single()
+  const auth = await requireRoles(OPS_WRITE)
+  if ('res' in auth) return auth.res
+  const body = stripProtected(await req.json())
+  const { data, error } = await serviceRole().from('tasks').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }

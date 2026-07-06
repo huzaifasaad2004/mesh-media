@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { resolvePeriod, type ReportPeriod, ALL_PERIODS } from '@/lib/reportPeriods'
+import { requireFinanceRead } from '@/lib/apiAuth'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET(req: NextRequest) {
+  const auth = await requireFinanceRead()
+  if ('res' in auth) return auth.res
+
   const periodParam = req.nextUrl.searchParams.get('period') as ReportPeriod | null
   const period: ReportPeriod = periodParam && ALL_PERIODS.includes(periodParam) ? periodParam : 'this_month'
   const { start, end } = resolvePeriod(period)

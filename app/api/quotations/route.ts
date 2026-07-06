@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireFinanceRead, requireRoles, serviceRole, stripProtected, FINANCE_WRITE } from '@/lib/apiAuth'
 import { computeTotals } from '@/lib/documentTotals'
 
-const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
 export async function GET() {
-  const { data, error } = await admin()
+  const auth = await requireFinanceRead()
+  if ('res' in auth) return auth.res
+  const { data, error } = await serviceRole()
     .from('quotations')
     .select('*, client:clients(company_name, email, contact_person, phone, address), items:quotation_items(*)')
     .order('created_at', { ascending: false })
@@ -14,11 +14,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRoles(FINANCE_WRITE, 'finance.write')
+  if ('res' in auth) return auth.res
   const body = await req.json()
-  const { items, ...quoteData } = body
-  const { subtotal, taxAmount, total } = computeTotals(items ?? [], quoteData.discount_type, quoteData.discount_value, quoteData.tax_rate)
+  const { items, ...rest } = body
+  const quoteData = stripProtected(rest)
+  const { subtotal, taxAmount, total } = computeTotals(items ?? [], quoteData.discount_type as string, quoteData.discount_value as number, quoteData.tax_rate as number)
 
-  const { data: quote, error } = await admin()
+  const { data: quote, error } = await serviceRole()
     .from('quotations')
     .insert({ ...quoteData, subtotal, tax_amount: taxAmount, total })
     .select()
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (items?.length) {
-    await admin().from('quotation_items').insert(
+    await serviceRole().from('quotation_items').insert(
       items.map((item: { description: string; quantity: number; unit_price: number }, idx: number) => ({
         description: item.description,
         quantity: item.quantity,

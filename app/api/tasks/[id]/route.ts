@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+import { requireRoles, serviceRole, stripProtected, OPS_WRITE } from '@/lib/apiAuth'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json()
-  const { data, error } = await admin().from('tasks').update(body).eq('id', params.id).select().single()
+  const auth = await requireRoles(OPS_WRITE)
+  if ('res' in auth) return auth.res
+  const body = stripProtected(await req.json())
+  const { data, error } = await serviceRole().from('tasks').update(body).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { error } = await admin().from('tasks').delete().eq('id', params.id)
+  const auth = await requireRoles(OPS_WRITE)
+  if ('res' in auth) return auth.res
+  const { error } = await serviceRole().from('tasks').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ success: true })
 }

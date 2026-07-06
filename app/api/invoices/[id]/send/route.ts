@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
+import { requireRoles, FINANCE_WRITE } from '@/lib/apiAuth'
+import { escapeHtml } from '@/lib/utils'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const authz = await requireRoles(FINANCE_WRITE, 'finance.write')
+  if ('res' in authz) return authz.res
+
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const { data: inv, error } = await admin()
@@ -19,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mesh-media.vercel.app'
   const invoiceUrl = `${baseUrl}/invoice/${params.id}`
-  const clientName = inv.client.contact_person ?? inv.client.company_name
+  const clientName = escapeHtml(inv.client.contact_person ?? inv.client.company_name)
 
   const { error: sendError } = await resend.emails.send({
     from: `MeshMedia <${process.env.RESEND_FROM_EMAIL ?? 'invoices@m3m.ae'}>`,
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 <body>
 <div class="wrap">
   <div class="header">
-    <h1>Invoice ${inv.invoice_number}</h1>
+    <h1>Invoice ${escapeHtml(inv.invoice_number)}</h1>
     <p>${COMPANY.name}</p>
   </div>
   <div class="body">
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     <a href="${invoiceUrl}" class="cta">View &amp; Download Invoice →</a>
     <table class="details">
       ${(inv.items ?? []).slice(0, 5).map((item: any) => `
-      <tr><td>${item.description}</td><td>AED ${Number(item.amount).toLocaleString()}</td></tr>`).join('')}
+      <tr><td>${escapeHtml(item.description)}</td><td>AED ${Number(item.amount).toLocaleString()}</td></tr>`).join('')}
       <tr style="font-weight:700;font-size:14px;"><td>Total</td><td>AED ${Number(inv.total).toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
     </table>
     <p style="margin-top:24px;font-size:13px;color:#555;">

@@ -63,7 +63,13 @@ export default function AiChat() {
   }
 
   function renderContent(text: string) {
-    return text
+    // Escape first — message content echoes DB data (client names, request
+    // text), so raw HTML here is a stored-XSS vector. Then the mini-markdown.
+    const esc = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    return esc
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br>')

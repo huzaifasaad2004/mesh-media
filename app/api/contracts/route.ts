@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+import { requireUser, requireRoles, serviceRole, stripProtected, OPS_WRITE } from '@/lib/apiAuth'
 
 export async function GET() {
-  const { data, error } = await admin()
+  const auth = await requireUser()
+  if ('res' in auth) return auth.res
+  // RLS-scoped: staff see all, client-portal users only their own contracts
+  const { data, error } = await auth.db
     .from('contracts')
     .select('*, client:clients(company_name), creator:profiles(full_name)')
     .order('created_at', { ascending: false })
@@ -13,8 +14,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { data, error } = await admin().from('contracts').insert(body).select().single()
+  const auth = await requireRoles(OPS_WRITE)
+  if ('res' in auth) return auth.res
+  const body = stripProtected(await req.json())
+  const { data, error } = await serviceRole().from('contracts').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }

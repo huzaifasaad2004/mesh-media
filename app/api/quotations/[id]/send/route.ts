@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
+import { requireRoles, FINANCE_WRITE } from '@/lib/apiAuth'
+import { escapeHtml } from '@/lib/utils'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const authz = await requireRoles(FINANCE_WRITE, 'finance.write')
+  if ('res' in authz) return authz.res
+
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const { data: q, error } = await admin()
@@ -19,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mesh-media.vercel.app'
   const quoteUrl = `${baseUrl}/quotation/${params.id}`
-  const clientName = q.client.contact_person ?? q.client.company_name
+  const clientName = escapeHtml(q.client.contact_person ?? q.client.company_name)
 
   const { error: sendError } = await resend.emails.send({
     from: `MeshMedia <${process.env.RESEND_FROM_EMAIL ?? 'hello@m3m.ae'}>`,
@@ -47,12 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 <body>
 <div class="wrap">
   <div class="header">
-    <h1>Quotation ${q.quote_number}</h1>
+    <h1>Quotation ${escapeHtml(q.quote_number)}</h1>
     <p>${COMPANY.name}</p>
   </div>
   <div class="body">
     <p>Dear ${clientName},</p>
-    <p>Please find below our quotation for your consideration.${q.subject ? ` This covers: <strong>${q.subject}</strong>.` : ''}</p>
+    <p>Please find below our quotation for your consideration.${q.subject ? ` This covers: <strong>${escapeHtml(q.subject)}</strong>.` : ''}</p>
     <div class="amount-box">
       <div class="label">Total Value</div>
       <div class="amount">AED ${Number(q.total).toLocaleString('en-AE', { minimumFractionDigits: 2 })}</div>
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     <a href="${quoteUrl}" class="cta">View &amp; Download Quotation →</a>
     <table class="details">
       ${(q.items ?? []).slice(0, 5).map((item: any) => `
-      <tr><td>${item.description}</td><td>AED ${Number(item.amount).toLocaleString()}</td></tr>`).join('')}
+      <tr><td>${escapeHtml(item.description)}</td><td>AED ${Number(item.amount).toLocaleString()}</td></tr>`).join('')}
       <tr style="font-weight:700;font-size:14px;"><td>Total</td><td>AED ${Number(q.total).toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
     </table>
     <p style="margin-top:20px;font-size:13px;color:#555;">To accept this quotation, please reply to this email or contact us directly.</p>

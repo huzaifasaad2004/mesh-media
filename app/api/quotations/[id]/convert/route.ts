@@ -25,15 +25,24 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Already converted to an invoice' }, { status: 400 })
   }
 
-  // Brand-consistent invoice number, continuing the MM-INV sequence
-  const year = new Date().getFullYear()
-  const { data: existing } = await db.from('invoices').select('invoice_number').ilike('invoice_number', `MM-INV-${year}-%`)
-  let maxN = 100
-  for (const row of existing ?? []) {
-    const m = (row.invoice_number as string).match(/(\d+)$/)
-    if (m) maxN = Math.max(maxN, parseInt(m[1], 10))
+  // Brand-consistent invoice number, continuing the MM-INV sequence.
+  // Atomic via the doc_counters DB function (phase17) — two simultaneous
+  // conversions can never mint the same number.
+  let invoice_number: string
+  const { data: rpcNumber, error: rpcErr } = await db.rpc('next_doc_number', { p_kind: 'invoice', p_prefix: 'MM-INV-' })
+  if (!rpcErr && rpcNumber) {
+    invoice_number = rpcNumber as string
+  } else {
+    // phase17 not applied yet — fall back to the old (racy) max+1 scan
+    const year = new Date().getFullYear()
+    const { data: existing } = await db.from('invoices').select('invoice_number').ilike('invoice_number', `MM-INV-${year}-%`)
+    let maxN = 100
+    for (const row of existing ?? []) {
+      const m = (row.invoice_number as string).match(/(\d+)$/)
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10))
+    }
+    invoice_number = `MM-INV-${year}-${String(maxN + 1).padStart(5, '0')}`
   }
-  const invoice_number = `MM-INV-${year}-${String(maxN + 1).padStart(5, '0')}`
 
   const { data: invoice, error: invErr } = await db.from('invoices').insert({
     invoice_number,

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
-
-const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+import { requireFinanceRead } from '@/lib/apiAuth'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const db = admin()
+  const auth = await requireFinanceRead()
+  if ('res' in auth) return auth.res
+  const db = auth.db // RLS-scoped
   const [{ data: client }, { data: invoices }, { data: quotations }] = await Promise.all([
     db.from('clients').select('id, company_name, email, monthly_retainer').eq('id', params.id).single(),
     db.from('invoices').select('id, invoice_number, status, total, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
