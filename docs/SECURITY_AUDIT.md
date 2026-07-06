@@ -9,17 +9,17 @@
 >
 > | # | Finding | Status |
 > |---|---------|--------|
-> | 1 | Privilege escalation via `profiles.role` (CRITICAL) | 🟡 **Migration written — `supabase/phase17_security.sql` must be pasted into the Supabase SQL editor** |
+> | 1 | Privilege escalation via `profiles.role` (CRITICAL) | ✅ FIXED — phase17 migration applied to production 2026-07-06 (verified: `doc_counters` live) |
 > | 2 | 17 API routes use service-role key with no authz (CRITICAL) | ✅ FIXED — `lib/apiAuth.ts` added; all 17 routes now authenticate + role-gate (reads via RLS client, writes gated to the same role sets as the DB policies) |
 > | 3 | `/api/ai/test` public + billable | ✅ FIXED — route deleted, removed from middleware public list |
 > | 4 | Stored XSS in `components/AiChat.tsx` | ✅ FIXED — content HTML-escaped before mini-markdown |
 > | 5 | No security headers / CSP | ✅ FIXED — HSTS/XFO/XCTO/Referrer/Permissions enforced; CSP in Report-Only (rename header to enforce once console is clean) |
-> | 6 | Invoice number race condition | 🟡 Code uses atomic `next_doc_number()` with fallback — **needs the phase17 migration** |
+> | 6 | Invoice number race condition | ✅ FIXED — `next_doc_number()` live; invoice counter seeded to 101 (matches current max MM-INV-2026-101) |
 > | 7 | Mass-assignment | ✅ Mitigated — `stripProtected()` blocks id/created_at/created_by/updated_at on all create/update routes |
 > | 8 | Weak owner password | 🔴 MANUAL — rotate the owner password + raise min length / leaked-password check in Supabase Auth settings |
 > | 9 | HTML injection in outbound emails | ✅ FIXED — `escapeHtml()` on all interpolations in invoice/quotation emails |
 >
-> **Remaining action: paste `supabase/phase17_security.sql` into the Supabase SQL editor (closes #1 and #6), and do #8 manually.**
+> **Remaining action: #8 — rotate the owner password (the old one still authenticated when tested 2026-07-06) and enable leaked-password protection in Supabase Auth settings.**
 
 This file is written to be handed directly to Claude Code. Each finding has: what's
 wrong, proof, the exploit, and a concrete fix (with code/SQL). Findings marked
