@@ -17,6 +17,32 @@ Use this document as the master plan. Each phase below is written so you can han
 > - ✅ Celine integration: `/api/celine/*` action endpoints + portal-view event webhooks
 > - ❌ NOT done: online payments, e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base
 > - ✅ Security fixes from [SECURITY_AUDIT.md](SECURITY_AUDIT.md) applied 2026-07-06 (phase17 migration + password rotation still manual — see its status table)
+> - ✅ 2026-07-06 evening: click-to-confirm invite flow (`/auth/confirm`), admin password set/reset on Team page, real server-generated PDF downloads, WhatsApp on both doc pages
+
+---
+
+## NEXT UP — prioritized roadmap (agreed 2026-07-06)
+
+### Tier 1 — quick wins (each ~1 session)
+1. **Attach the PDF to invoice/quotation emails** — the `/api/*/pdf` endpoints exist; add the buffer as a Resend attachment so clients get the file, not just a link.
+2. **Search + filter + pagination** on Clients, Invoices, Expenses, Tasks lists (audit UX item; also a perf fix as data grows).
+3. **Dashboard upgrade** — clickable KPI tiles, revenue-over-time line, expense-by-category donut (data already exists).
+4. **Empty states + toasts + confirm-before-delete** made consistent everywhere.
+5. **Global ⌘K command palette** — jump to any client/invoice/task.
+
+### Tier 2 — admin control center ("full access" requirement)
+6. **Permissions matrix editor** at `/settings/permissions` — role × permission grid editing `role_permissions` live (per-user overrides already exist via Manage Access). Admin sees and controls exactly who can do what.
+7. **Client portal access manager** — per client: portal on/off, invited users, last login, resend invite (uses the new confirm-link flow).
+8. **Audit log UI** — record + show who did what, when (create `activity_log` writes in `lib/apiAuth.ts` mutations, one page to browse).
+9. **"View as" impersonation** for admins — see exactly what a member or client sees.
+
+### Tier 3 — money & retention (biggest business impact)
+10. **Online payments** — Pay-now button on the invoice page (Telr / Stripe AED) + webhook → auto-mark paid.
+11. **Recurring retainer invoices + smart dunning** — auto-generate monthly, escalating polite→firm reminders, auto-stop on payment.
+12. **Cash-flow forecast** widget on Finance (retainers + outstanding − payroll − recurring expenses).
+
+### Tier 4 — flagship differentiators (see audit §4)
+13. Client Pulse churn radar · monthly branded Impact Report PDF per client · WhatsApp-native Aether · PR media-placement/EMV tracker.
 
 ---
 
