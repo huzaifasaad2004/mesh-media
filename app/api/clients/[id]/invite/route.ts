@@ -35,8 +35,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }, { status: 400 })
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const redirectTo = `${baseUrl}/auth/callback?next=/portal`
+  // Same click-to-confirm pattern as team invites — see that route for why.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
   const fullName = client.contact_person ?? client.company_name
 
   // Generate a sign-in link (works whether or not the user already exists),
@@ -47,22 +47,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const invite = await admin.auth.admin.generateLink({
     type: 'invite',
     email,
-    options: { data: { full_name: fullName, role: 'client' }, redirectTo },
+    options: { data: { full_name: fullName, role: 'client' } },
   })
 
   if (invite.error) {
     const msg = invite.error.message.toLowerCase()
     if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
       // Existing user — send a magic link instead
-      const magic = await admin.auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo } })
+      const magic = await admin.auth.admin.generateLink({ type: 'magiclink', email })
       if (magic.error) return NextResponse.json({ error: magic.error.message }, { status: 400 })
-      actionLink = magic.data.properties?.action_link
+      if (magic.data.properties?.hashed_token) {
+        actionLink = `${baseUrl}/auth/confirm?token_hash=${magic.data.properties.hashed_token}&type=magiclink&next=/portal`
+      }
       userId = magic.data.user?.id
     } else {
       return NextResponse.json({ error: invite.error.message }, { status: 400 })
     }
   } else {
-    actionLink = invite.data.properties?.action_link
+    if (invite.data.properties?.hashed_token) {
+      actionLink = `${baseUrl}/auth/confirm?token_hash=${invite.data.properties.hashed_token}&type=invite&next=/portal`
+    }
     userId = invite.data.user?.id
   }
 

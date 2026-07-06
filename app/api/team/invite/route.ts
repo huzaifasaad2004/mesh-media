@@ -23,8 +23,10 @@ export async function POST(req: NextRequest) {
   const inviteRole = allowedRoles.includes(role) ? role : 'member'
 
   const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const redirectTo = `${baseUrl}/auth/callback?next=/dashboard`
+  // Prefer the configured public URL, else the actual request origin —
+  // never localhost, which used to leak into emailed links when the env
+  // var was missing and made invites dead on arrival.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
   const fullName = full_name || email.split('@')[0]
 
   // Generate the sign-in link ourselves and email it via Resend from our own
@@ -34,24 +36,33 @@ export async function POST(req: NextRequest) {
   let userId: string | undefined
   let isNewAccount = false
 
+  // We do NOT email Supabase's one-time action_link: email security
+  // scanners prefetch it and burn the token before the human clicks
+  // ("invalid or expired"). Instead we email a link to our own
+  // /auth/confirm page carrying the token_hash — nothing is consumed
+  // until the person presses the button there.
   const invite = await admin.auth.admin.generateLink({
     type: 'invite',
     email,
-    options: { data: { full_name: fullName, role: inviteRole }, redirectTo },
+    options: { data: { full_name: fullName, role: inviteRole } },
   })
 
   if (invite.error) {
     const msg = invite.error.message.toLowerCase()
     if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
-      const magic = await admin.auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo } })
+      const magic = await admin.auth.admin.generateLink({ type: 'magiclink', email })
       if (magic.error) return NextResponse.json({ error: magic.error.message }, { status: 400 })
-      actionLink = magic.data.properties?.action_link
+      if (magic.data.properties?.hashed_token) {
+        actionLink = `${baseUrl}/auth/confirm?token_hash=${magic.data.properties.hashed_token}&type=magiclink&next=/dashboard`
+      }
       userId = magic.data.user?.id
     } else {
       return NextResponse.json({ error: invite.error.message }, { status: 400 })
     }
   } else {
-    actionLink = invite.data.properties?.action_link
+    if (invite.data.properties?.hashed_token) {
+      actionLink = `${baseUrl}/auth/confirm?token_hash=${invite.data.properties.hashed_token}&type=invite&next=/dashboard`
+    }
     userId = invite.data.user?.id
     isNewAccount = true
   }

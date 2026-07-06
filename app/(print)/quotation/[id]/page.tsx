@@ -117,21 +117,25 @@ export default function QuotationPrintPage() {
           </button>
         )}
 
-        {client.phone && (
-          <a href={`https://wa.me/${(client.phone as string).replace(/\D/g, '')}?text=${waText}`}
-            target="_blank" rel="noopener noreferrer"
-            style={btnStyle('#25D366', 'white')}>
-            <MessageCircle size={13} /> WhatsApp
-          </a>
-        )}
+        {/* WhatsApp — always available; without a phone on file it opens
+            WhatsApp's contact picker with the message prefilled */}
+        <a href={client.phone
+            ? `https://wa.me/${(client.phone as string).replace(/\D/g, '')}?text=${waText}`
+            : `https://wa.me/?text=${waText}`}
+          target="_blank" rel="noopener noreferrer"
+          style={btnStyle('#25D366', 'white')}
+          title={client.phone ? `WhatsApp ${client.phone}` : 'No phone on file — choose the contact in WhatsApp'}>
+          <MessageCircle size={13} /> WhatsApp
+        </a>
 
         <button onClick={printNow} disabled={preparingPrint} style={btnStyle('rgba(255,255,255,0.2)', 'white')}>
           {preparingPrint ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />} Print
         </button>
 
-        <button onClick={printNow} disabled={preparingPrint} style={btnStyle('white', BRAND)}>
-          {preparingPrint ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download PDF
-        </button>
+        {/* Download PDF — a real server-generated .pdf file, no print dialog */}
+        <a href={`/api/quotations/${id}/pdf`} style={btnStyle('white', BRAND)}>
+          <Download size={13} /> Download PDF
+        </a>
       </div>
 
       {emailState === 'error' && (

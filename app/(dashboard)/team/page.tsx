@@ -3,6 +3,7 @@ import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
 import type { Profile } from '@/types/database'
 import InviteMember from '@/components/team/InviteMember'
 import ManageAccess from '@/components/team/ManageAccess'
+import ManagePassword from '@/components/team/ManagePassword'
 
 const roleColors: Record<string, string> = {
   owner:   'bg-brand-600 text-paper-100',
@@ -95,6 +96,7 @@ export default async function TeamPage() {
 
               <div className="flex gap-2 mt-4">
                 {member.role !== 'owner' && <ManageAccess userId={member.id} name={member.full_name ?? member.email ?? 'this person'} />}
+                {member.role !== 'owner' && <ManagePassword userId={member.id} name={member.full_name ?? member.email ?? 'this person'} />}
               </div>
             </div>
           )
