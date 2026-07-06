@@ -1,21 +1,44 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import DocumentTemplate from '@/components/DocumentTemplate'
-import { Printer, Download, Mail, MessageCircle, ArrowLeft, Loader2, Check } from 'lucide-react'
+import { Printer, Download, Mail, MessageCircle, ArrowLeft, Loader2, Check, CreditCard } from 'lucide-react'
 import { COMPANY } from '@/lib/company'
 import { waitForImages } from '@/lib/waitForImages'
 
 const BRAND = '#6E1318'
 
 export default function InvoicePrintPage() {
+  return (
+    <Suspense fallback={null}>
+      <InvoicePrintContent />
+    </Suspense>
+  )
+}
+
+function InvoicePrintContent() {
   const { id } = useParams<{ id: string }>()
   const [invoice, setInvoice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [preparingPrint, setPreparingPrint] = useState(false)
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [emailMsg, setEmailMsg] = useState('')
+  const [payState, setPayState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [payError, setPayError] = useState('')
+
+  const payNow = async () => {
+    setPayState('loading'); setPayError('')
+    try {
+      const res = await fetch(`/api/invoices/${id}/checkout`, { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Could not start payment')
+      window.location.href = d.url
+    } catch (e: any) {
+      setPayState('error'); setPayError(e.message)
+      setTimeout(() => setPayState('idle'), 5000)
+    }
+  }
 
   // window.print() captures a snapshot of the DOM right when it's called — if
   // the logo/signature images haven't finished decoding yet (very common on
@@ -45,11 +68,25 @@ export default function InvoicePrintPage() {
     }
   }
 
+  const searchParams = useSearchParams()
+  const justPaid = searchParams.get('paid') === '1'
+
   useEffect(() => {
     fetch(`/api/invoices/${id}`)
       .then(r => r.json())
       .then(d => { setInvoice(d); setLoading(false) })
   }, [id])
+
+  // Stripe redirects back immediately after payment — the webhook that marks
+  // the invoice paid can land a beat later, so poll once to pick up the
+  // confirmed status instead of showing stale "unpaid" data.
+  useEffect(() => {
+    if (!justPaid) return
+    const t = setTimeout(() => {
+      fetch(`/api/invoices/${id}`).then(r => r.json()).then(setInvoice)
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [justPaid, id])
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#888', fontFamily: 'Inter, sans-serif' }}>
@@ -104,6 +141,16 @@ export default function InvoicePrintPage() {
           Invoice #{invoice.invoice_number} · {client.company_name}
         </span>
 
+        {/* Pay now — Stripe Checkout, only while there's still a balance due */}
+        {!['paid', 'cancelled'].includes(invoice.status) && (
+          <button onClick={payNow} disabled={payState === 'loading'}
+            style={btnStyle('#25a05a', 'white')}
+            title={payState === 'error' ? payError : 'Pay online with a card'}>
+            {payState === 'loading' ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
+            {payState === 'loading' ? 'Redirecting…' : payState === 'error' ? 'Payment failed' : 'Pay Now'}
+          </button>
+        )}
+
         {/* Email — sends directly through the software via Resend */}
         {client.email && (
           <button onClick={sendEmail} disabled={emailState === 'sending'}
@@ -151,6 +198,16 @@ export default function InvoicePrintPage() {
           fontSize: 12, fontFamily: 'Inter, sans-serif',
         }}>
           Email failed: {emailMsg}
+        </div>
+      )}
+
+      {justPaid && (
+        <div className="no-print" style={{
+          position: 'fixed', top: 48, left: 0, right: 0, zIndex: 99,
+          background: invoice.status === 'paid' ? '#25a05a' : '#B8801F', color: 'white', padding: '8px 20px',
+          fontSize: 12, fontFamily: 'Inter, sans-serif',
+        }}>
+          {invoice.status === 'paid' ? 'Payment received — thank you!' : 'Payment successful — confirming with our system…'}
         </div>
       )}
 

@@ -34,6 +34,17 @@ export async function middleware(request: NextRequest) {
     // Celine's action API authenticates its own requests via CELINE_API_TOKEN
     // bearer token (see lib/celine/auth.ts) — it has no browser session to check.
     || request.nextUrl.pathname.startsWith('/api/celine/')
+    // Clients open these print pages from an emailed link with no session at
+    // all. The underlying API routes already gate writes with their own
+    // requireRoles()/requireFinanceRead() checks (401/403 JSON) — the
+    // middleware only needs to stop redirecting reads to an HTML /login page.
+    || request.nextUrl.pathname.startsWith('/invoice/')
+    || request.nextUrl.pathname.startsWith('/quotation/')
+    || request.nextUrl.pathname.startsWith('/api/invoices')
+    || request.nextUrl.pathname.startsWith('/api/quotations')
+    // Stripe's servers call this with no browser session — verified by
+    // webhook signature instead (see app/api/webhooks/stripe/route.ts).
+    || request.nextUrl.pathname.startsWith('/api/webhooks/')
 
   if (!user && !isAuthPage && !isPublicPath && !isSetPassword) {
     const url = request.nextUrl.clone()

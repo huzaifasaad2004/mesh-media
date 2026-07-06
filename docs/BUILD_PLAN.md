@@ -6,8 +6,8 @@ Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supaba
 
 Use this document as the master plan. Each phase below is written so you can hand it to Claude Code as a self-contained brief.
 
-> ## STATUS — as of 2026-07-06
-> Much of this plan is now BUILT (migrations `phase2`–`phase16` applied; see git log):
+> ## STATUS — as of 2026-07-06 (updated same-day, evening session 2)
+> Much of this plan is now BUILT (migrations `phase2`–`phase19` written; see git log):
 > - ✅ Phase 0–1: stabilized; RBAC (`phase5_rbac.sql`), roles owner/admin/manager/member/viewer/client, per-user permission overrides (`phase12`)
 > - ✅ Phase 2: projects layer (`phase6_projects.sql`)
 > - ✅ Phase 3: client portal (`phase7_portal.sql`), quotations with VAT/discount/decline-reason
@@ -15,34 +15,43 @@ Use this document as the master plan. Each phase below is written so you can han
 > - ✅ Phase 7 (partial): full payroll module — multi-currency, payslips, recurring
 > - ✅ Part B (partial): brand re-skin + mobile responsiveness (app-shell drawer, card views)
 > - ✅ Celine integration: `/api/celine/*` action endpoints + portal-view event webhooks
-> - ❌ NOT done: online payments, e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base
 > - ✅ Security fixes from [SECURITY_AUDIT.md](SECURITY_AUDIT.md) applied 2026-07-06 (phase17 migration + password rotation still manual — see its status table)
-> - ✅ 2026-07-06 evening: click-to-confirm invite flow (`/auth/confirm`), admin password set/reset on Team page, real server-generated PDF downloads, WhatsApp on both doc pages
+> - ✅ 2026-07-06 evening (session 1): click-to-confirm invite flow (`/auth/confirm`), admin password set/reset on Team page, real server-generated PDF downloads, WhatsApp on both doc pages
+> - ✅ **2026-07-06 evening (session 2): Tier 1 + Tier 2 fully shipped, Tier 3 item 10 (online payments) built and code-complete** — see "DONE" list below. Pushed live to `main` → Vercel (commit `5cd0d52` for Tier 1/2; a further commit ships Tier 3 #10 — check `git log` for the exact hash before resuming).
+> - ❌ NOT done: recurring retainer invoices + dunning (Tier 3 #11), cash-flow forecast (Tier 3 #12), e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base, Tier 4 flagship differentiators
+>
+> **⚠️ Two migrations are written but NOT yet run in Supabase** — paste these into the Supabase SQL editor when convenient (nothing is broken in the meantime, both degrade gracefully):
+> - `supabase/phase18_portal_access.sql` — adds `clients.portal_enabled`; until run, the portal on/off toggle shows a clear "run this migration" error instead of saving.
+> - `supabase/phase19_activity_log.sql` — creates the `activity_log` table; until run, `/settings/activity` shows a clear "run this migration" error instead of listing entries.
+>
+> **⚠️ Online payments (Tier 3 #10) needs Stripe keys** — code is fully built (Checkout session creation, webhook handler, Pay Now button, idempotent paid-status update) but inert until you add to the environment: `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` (the last one only after registering a webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for the `checkout.session.completed` event in the Stripe dashboard).
 
 ---
 
 ## NEXT UP — prioritized roadmap (agreed 2026-07-06)
 
-### Tier 1 — quick wins (each ~1 session)
-1. **Attach the PDF to invoice/quotation emails** — the `/api/*/pdf` endpoints exist; add the buffer as a Resend attachment so clients get the file, not just a link.
-2. **Search + filter + pagination** on Clients, Invoices, Expenses, Tasks lists (audit UX item; also a perf fix as data grows).
-3. **Dashboard upgrade** — clickable KPI tiles, revenue-over-time line, expense-by-category donut (data already exists).
-4. **Empty states + toasts + confirm-before-delete** made consistent everywhere.
-5. **Global ⌘K command palette** — jump to any client/invoice/task.
+### Tier 1 — quick wins (each ~1 session) — ✅ ALL DONE
+1. ✅ **Attach the PDF to invoice/quotation emails** — `/api/invoices/[id]/send` and `/api/quotations/[id]/send` now attach the real PDF via Resend (reusing `lib/pdf/DocumentPdf.ts`), not just a link.
+2. ✅ **Search + filter + pagination** on Clients, Invoices, Expenses, Tasks — new shared `components/ui/Pagination.tsx`, per-page search/filter state, `ClientsTable.tsx` extracted as a client component for Clients.
+3. ✅ **Dashboard upgrade** — clickable KPI tiles (already were), added trend-delta arrow on Total Revenue, a fluid-width inline-SVG revenue-vs-expenses line chart and expense-by-category donut (`components/dashboard/RevenueChart.tsx`, `ExpenseDonut.tsx` — no chart library dependency added).
+4. ✅ **Empty states + toasts + confirm-before-delete** — new `components/ui/Toast.tsx` (`ToastProvider`, mounted in root `app/layout.tsx`) and `components/ui/EmptyState.tsx`, wired into Clients/Invoices/Expenses/Tasks/Contracts/Quotations/Salaries, replacing all ad-hoc inline success/error banners and one stray `alert()`.
+5. ✅ **Global ⌘K command palette** — `components/CommandPalette.tsx` + `/api/search` (clients/invoices/quotations/tasks/contracts via RLS-scoped query), triggered by `Cmd/Ctrl+K` or the search icon in the sidebar/mobile header.
 
-### Tier 2 — admin control center ("full access" requirement)
-6. **Permissions matrix editor** at `/settings/permissions` — role × permission grid editing `role_permissions` live (per-user overrides already exist via Manage Access). Admin sees and controls exactly who can do what.
-7. **Client portal access manager** — per client: portal on/off, invited users, last login, resend invite (uses the new confirm-link flow).
-8. **Audit log UI** — record + show who did what, when (create `activity_log` writes in `lib/apiAuth.ts` mutations, one page to browse).
-9. **"View as" impersonation** for admins — see exactly what a member or client sees.
+### Tier 2 — admin control center — ✅ ALL DONE
+6. ✅ **Permissions matrix editor** at `/settings/permissions` — `/api/role-permissions` (owner/admin only) + a role × permission grid UI, click-to-toggle with optimistic updates.
+7. ✅ **Client portal access manager** — `PortalAccessCard.tsx` on the client detail page: on/off toggle (needs `phase18` migration — see warning above), invited-user list with last-login, resend invite, invite-first-user CTA. Portal itself now blocks paused clients (`app/portal/layout.tsx`).
+8. ✅ **Audit log** — `lib/activityLog.ts` (`logActivity()`) wired into every mutation route (clients, invoices, quotations, expenses, tasks, contracts, salary pay/payroll run, role-permission changes, per-user permission overrides, portal invite/toggle). Browse UI at `/settings/activity` (needs `phase19` migration — see warning above).
+9. ✅ **"View as" impersonation** — real session-swap (not a simulated view): `/api/admin/impersonate/start` mints and swaps to the target's real session via a server-side magic-link exchange (stashes the admin's original session in an httpOnly cookie), `/api/admin/impersonate/stop` restores it. `ImpersonationBanner.tsx` shown in both dashboard and portal layouts. Trigger buttons (`ViewAsButton.tsx`) on Team member cards and invited portal users. Cannot impersonate another owner/admin. Both start/stop are audit-logged.
+   - **Found and fixed in passing**: `PUT`/`DELETE` on `/api/invoices/[id]` had **no auth check at all** — now gated with `requireRoles` like every other mutation route.
+   - **Found and fixed in passing**: the global `middleware.ts` was redirecting *all* unauthenticated requests to `/login`, including the public invoice/quotation print pages and their API routes — meaning a client opening their emailed invoice link (or, critically, Stripe's webhook) would never have worked. Added explicit public-path exemptions for `/invoice/`, `/quotation/`, `/api/invoices`, `/api/quotations`, `/api/webhooks/` (each of those routes still self-enforces auth internally where it should).
 
-### Tier 3 — money & retention (biggest business impact)
-10. **Online payments** — Pay-now button on the invoice page (Telr / Stripe AED) + webhook → auto-mark paid.
-11. **Recurring retainer invoices + smart dunning** — auto-generate monthly, escalating polite→firm reminders, auto-stop on payment.
-12. **Cash-flow forecast** widget on Finance (retainers + outstanding − payroll − recurring expenses).
+### Tier 3 — money & retention (biggest business impact) — #10 code-complete, #11–12 next
+10. ✅ **Online payments** — Stripe Checkout (AED). `lib/stripe.ts`, `/api/invoices/[id]/checkout` (creates session), `/api/webhooks/stripe` (verifies signature, idempotently marks invoice paid, audit-logs), a "Pay Now" button on the invoice print page with a post-payment confirmation poll. **Inert until Stripe keys are added** — see warning above.
+11. ⬜ **Recurring retainer invoices + smart dunning** — auto-generate monthly, escalating polite→firm reminders, auto-stop on payment. NOT STARTED.
+12. ⬜ **Cash-flow forecast** widget on Finance (retainers + outstanding − payroll − recurring expenses). NOT STARTED.
 
 ### Tier 4 — flagship differentiators (see audit §4)
-13. Client Pulse churn radar · monthly branded Impact Report PDF per client · WhatsApp-native Aether · PR media-placement/EMV tracker.
+13. Client Pulse churn radar · monthly branded Impact Report PDF per client · WhatsApp-native Aether · PR media-placement/EMV tracker. NOT STARTED.
 
 ---
 
