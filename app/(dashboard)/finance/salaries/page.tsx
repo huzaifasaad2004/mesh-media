@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Plus, DollarSign, Loader2, CheckCircle, Eye, Play } from 'lucide-react'
+import { ArrowLeft, Plus, DollarSign, Loader2, Eye, Play } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import SalaryForm from '@/components/forms/SalaryForm'
+import { useToast } from '@/components/ui/Toast'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 export default function SalariesPage() {
@@ -14,7 +15,7 @@ export default function SalariesPage() {
   const [showModal, setShowModal] = useState(false)
   const [paying, setPaying] = useState<string | null>(null)
   const [runningPayroll, setRunningPayroll] = useState(false)
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const toast = useToast()
 
   const load = useCallback(async () => {
     const [sRes, meRes] = await Promise.all([fetch('/api/salaries'), fetch('/api/profiles/me')])
@@ -32,27 +33,22 @@ export default function SalariesPage() {
   const monthlyTotal = salaries.filter(s => !s.effective_to).reduce((sum, s) => sum + Number(s.amount), 0)
 
   const recordPayment = async (salaryId: string) => {
-    setPaying(salaryId); setMsg(null)
+    setPaying(salaryId)
     const res = await fetch(`/api/salaries/${salaryId}/pay`, { method: 'POST' })
     const d = await res.json()
     setPaying(null)
-    setMsg({ text: res.ok ? (d.emailed ? 'Payment recorded and payslip emailed' : 'Payment recorded (email not sent — check Resend setup)') : (d.error ?? 'Failed'), ok: res.ok })
-    if (res.ok) load()
-    setTimeout(() => setMsg(null), 5000)
+    if (res.ok) { toast.success(d.emailed ? 'Payment recorded and payslip emailed' : 'Payment recorded (email not sent — check Resend setup)'); load() }
+    else toast.error(d.error ?? 'Failed')
   }
 
   const runPayroll = async () => {
     if (!confirm("Generate this month's payroll for every active monthly salary that hasn't been paid yet?")) return
-    setRunningPayroll(true); setMsg(null)
+    setRunningPayroll(true)
     const res = await fetch('/api/salaries/run-recurring', { method: 'POST' })
     const d = await res.json()
     setRunningPayroll(false)
-    setMsg({
-      text: res.ok ? `Generated ${d.generated.length} payslip(s)${d.skipped.length ? `, ${d.skipped.length} already paid` : ''}` : (d.error ?? 'Failed'),
-      ok: res.ok,
-    })
-    if (res.ok) load()
-    setTimeout(() => setMsg(null), 6000)
+    if (res.ok) { toast.success(`Generated ${d.generated.length} payslip(s)${d.skipped.length ? `, ${d.skipped.length} already paid` : ''}`); load() }
+    else toast.error(d.error ?? 'Failed')
   }
 
   return (
@@ -76,12 +72,6 @@ export default function SalariesPage() {
           </div>
         )}
       </div>
-
-      {msg && (
-        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {msg.ok && <CheckCircle className="w-4 h-4" />} {msg.text}
-        </div>
-      )}
 
       <div className="card overflow-hidden">
         {loading ? (

@@ -1,13 +1,17 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, CheckCircle } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, Search } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import InvoiceForm from '@/components/forms/InvoiceForm'
+import Pagination from '@/components/ui/Pagination'
+import EmptyState from '@/components/ui/EmptyState'
+import { useToast } from '@/components/ui/Toast'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 
 const STATUS_FLOW = ['draft', 'sent', 'paid', 'overdue', 'cancelled']
+const PAGE_SIZE = 10
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([])
@@ -17,7 +21,11 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
-  const [sendMsg, setSendMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null)
+  const [query, setQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
+  const toast = useToast()
 
   const fetchData = useCallback(async () => {
     const [invRes, cliRes] = await Promise.all([fetch('/api/invoices'), fetch('/api/clients')])
@@ -37,24 +45,25 @@ export default function InvoicesPage() {
 
   const updateStatus = async (id: string, status: string) => {
     setStatusDropdown(null)
-    await fetch(`/api/invoices/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-    fetchData()
+    const res = await fetch(`/api/invoices/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (res.ok) { toast.success(`Marked as ${statusLabel(status)}`); fetchData() }
+    else toast.error('Failed to update status')
   }
 
   const sendEmail = async (id: string) => {
-    setSending(id); setSendMsg(null)
+    setSending(id)
     const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST' })
     const d = await res.json()
     setSending(null)
-    setSendMsg({ id, msg: res.ok ? `Sent to ${d.to}` : (d.error ?? 'Send failed'), ok: res.ok })
-    if (res.ok) fetchData()
-    setTimeout(() => setSendMsg(null), 4000)
+    if (res.ok) { toast.success(`Sent to ${d.to}`); fetchData() }
+    else toast.error(d.error ?? 'Send failed')
   }
 
   const deleteInvoice = async (id: string) => {
     if (!confirm('Delete this invoice?')) return
-    await fetch(`/api/invoices/${id}`, { method: 'DELETE' })
-    fetchData()
+    const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Invoice deleted'); fetchData() }
+    else toast.error('Failed to delete invoice')
   }
 
   const openEdit = async (inv: any) => {
@@ -70,6 +79,24 @@ export default function InvoicesPage() {
     outstanding: invoices.filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0),
     overdue: invoices.filter(i => i.status === 'overdue').length,
   }
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return invoices.filter((inv) => {
+      if (dateFrom && inv.issue_date < dateFrom) return false
+      if (dateTo && inv.issue_date > dateTo) return false
+      if (!q) return true
+      return (
+        inv.invoice_number?.toLowerCase().includes(q) ||
+        inv.client?.company_name?.toLowerCase().includes(q) ||
+        inv.subject?.toLowerCase().includes(q)
+      )
+    })
+  }, [invoices, query, dateFrom, dateTo])
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return (
     <div>
@@ -97,21 +124,35 @@ export default function InvoicesPage() {
         ))}
       </div>
 
-      {sendMsg && (
-        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${sendMsg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {sendMsg.ok && <CheckCircle className="w-4 h-4" />}
-          {sendMsg.msg}
+
+      {/* Search + date filter */}
+      <div className="card px-4 py-3 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <input
+            className="flex-1 text-sm focus:outline-none bg-transparent placeholder:text-gray-400"
+            placeholder="Search invoice #, client, subject…"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+          />
         </div>
-      )}
+        <div className="flex items-center gap-2 text-sm">
+          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600" />
+          <span className="text-gray-400 text-xs">to</span>
+          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600" />
+        </div>
+      </div>
 
       {loading ? (
         <div className="card px-5 py-16 text-center text-gray-400 text-sm">Loading…</div>
-      ) : invoices.length > 0 ? (
+      ) : filtered.length > 0 ? (
         <>
           {/* Mobile: stacked cards (avoids clipping the status dropdown that a
               horizontally-scrolling table would cause) */}
           <div className="md:hidden space-y-3">
-            {invoices.map((inv) => (
+            {visible.map((inv) => (
               <div key={inv.id} className="card p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -166,6 +207,9 @@ export default function InvoicesPage() {
                 </div>
               </div>
             ))}
+            <div className="card">
+              <Pagination page={currentPage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            </div>
           </div>
 
           {/* Desktop / tablet: full table */}
@@ -183,7 +227,7 @@ export default function InvoicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {invoices.map((inv) => (
+                {visible.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 font-medium text-brand-600">{inv.invoice_number}</td>
                     <td className="px-5 py-3 text-gray-700">{inv.client?.company_name ?? '—'}</td>
@@ -237,10 +281,17 @@ export default function InvoicesPage() {
                 ))}
               </tbody>
             </table>
+            <Pagination page={currentPage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </div>
         </>
       ) : (
-        <div className="card px-5 py-16 text-center text-gray-400 text-sm">No invoices yet</div>
+        <div className="card">
+          <EmptyState
+            title={invoices.length === 0 ? 'No invoices yet' : 'No invoices match your search'}
+            helper={invoices.length === 0 ? 'Create your first invoice to start billing clients.' : 'Try a different search term or clear your filters.'}
+            action={invoices.length === 0 ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditing(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Invoice</button> : undefined}
+          />
+        </div>
       )}
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Invoice ${editing.invoice_number}` : 'New Invoice'} size="xl">

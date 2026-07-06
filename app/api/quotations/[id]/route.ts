@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/activityLog'
 import { computeTotals } from '@/lib/documentTotals'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -62,6 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { data, error } = await admin().from('quotations').update(quoteData).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity(user, 'update', 'quotation', params.id, data.quote_number)
   return NextResponse.json(data)
 }
 
@@ -74,7 +76,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   }
 
+  const { data: existing } = await admin().from('quotations').select('quote_number').eq('id', params.id).single()
   const { error } = await admin().from('quotations').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity(user, 'delete', 'quotation', params.id, existing?.quote_number)
   return NextResponse.json({ success: true })
 }

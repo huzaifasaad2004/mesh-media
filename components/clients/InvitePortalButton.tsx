@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { Globe, Loader2, Check } from 'lucide-react'
+import { useToast } from '@/components/ui/Toast'
 
 export default function InvitePortalButton({ clientId, disabled }: { clientId: string; disabled?: boolean }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [msg, setMsg] = useState('')
+  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const toast = useToast()
 
   const invite = async () => {
     if (!confirm('Send this client a portal invite email?')) return
@@ -13,15 +14,15 @@ export default function InvitePortalButton({ clientId, disabled }: { clientId: s
     const res = await fetch(`/api/clients/${clientId}/invite`, { method: 'POST' })
     const d = await res.json()
     if (res.ok) {
-      setState('done'); setMsg(`Invited ${d.to}`)
+      setState('done')
+      toast.success(`Invited ${d.to}`)
     } else {
-      setState('error'); setMsg(d.error ?? 'Invite failed')
-      setTimeout(() => setState('idle'), 4000)
+      setState('idle')
+      toast.error(d.error ?? 'Invite failed')
     }
   }
 
-  if (state === 'done') return <span className="btn-ghost btn-sm text-xs" style={{ color: 'var(--success)' }}><Check className="w-3 h-3" /> {msg}</span>
-  if (state === 'error') return <span className="btn-ghost btn-sm text-xs" style={{ color: 'var(--danger)' }} title={msg}>Failed</span>
+  if (state === 'done') return <span className="btn-ghost btn-sm text-xs" style={{ color: 'var(--success)' }}><Check className="w-3 h-3" /> Invited</span>
 
   return (
     <button onClick={invite} disabled={disabled || state === 'loading'} className="btn-ghost btn-sm" title={disabled ? 'Add a client email first' : 'Invite to client portal'}>

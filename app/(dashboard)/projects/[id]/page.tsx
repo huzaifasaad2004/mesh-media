@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Pencil, Trash2, CheckSquare, FileText, FolderOpen, Eye, Activity } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import ProjectForm from '@/components/forms/ProjectForm'
+import { useToast } from '@/components/ui/Toast'
 import { statusColor, statusLabel, formatDate, formatCurrency } from '@/lib/utils'
 
 export default function ProjectDetailPage() {
@@ -16,6 +17,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showEdit, setShowEdit] = useState(false)
+  const toast = useToast()
 
   const fetchData = useCallback(async () => {
     try {
@@ -35,8 +37,9 @@ export default function ProjectDetailPage() {
 
   const deleteProject = async () => {
     if (!confirm('Delete this project? Tasks, invoices and files stay but lose the link.')) return
-    await fetch(`/api/projects/${id}`, { method: 'DELETE' })
-    router.push('/projects')
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Project deleted'); router.push('/projects') }
+    else toast.error('Failed to delete project')
   }
 
   if (loading) return <div className="card h-60 animate-pulse bg-paper-100" />

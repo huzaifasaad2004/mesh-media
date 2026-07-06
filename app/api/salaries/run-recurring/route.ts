@@ -3,6 +3,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { hasPermission } from '@/lib/permissions'
 import { sendPayslipEmail } from '@/lib/payslip'
+import { logActivity } from '@/lib/activityLog'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -65,6 +66,8 @@ export async function POST(_req: NextRequest) {
     })
     generated.push(salary.profile?.full_name ?? salary.profile_id)
   }
+
+  await logActivity(user, 'run', 'payroll', null, `${period} · ${generated.length} generated, ${skipped.length} skipped`)
 
   return NextResponse.json({ success: true, period, generated, skipped })
 }

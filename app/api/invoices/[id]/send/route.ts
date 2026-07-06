@@ -4,6 +4,9 @@ import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
 import { requireRoles, FINANCE_WRITE } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
+import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
+
+export const runtime = 'nodejs'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -15,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const { data: inv, error } = await admin()
     .from('invoices')
-    .select('*, client:clients(company_name, email, contact_person), items:invoice_items(*)')
+    .select('*, client:clients(company_name, email, contact_person, phone, address), items:invoice_items(*)')
     .eq('id', params.id)
     .single()
 
@@ -25,6 +28,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mesh-media.vercel.app'
   const invoiceUrl = `${baseUrl}/invoice/${params.id}`
   const clientName = escapeHtml(inv.client.contact_person ?? inv.client.company_name)
+
+  const items = (inv.items ?? []).map((i: any) => ({
+    description: i.description, quantity: Number(i.quantity),
+    unit_price: Number(i.unit_price), amount: Number(i.amount),
+  }))
+  const subtotal = items.reduce((s: number, i: any) => s + i.amount, 0)
+  const discountAmount = inv.discount_type === 'percent' ? subtotal * (Number(inv.discount_value ?? 0) / 100)
+    : inv.discount_type === 'flat' ? Number(inv.discount_value ?? 0) : 0
+
+  const pdfBuffer = await renderDocumentPdf({
+    type: 'invoice',
+    number: inv.invoice_number,
+    issueDate: inv.issue_date,
+    dueOrExpiryDate: inv.due_date,
+    dueOrExpiryLabel: 'Due Date',
+    subject: inv.subject,
+    client: inv.client ?? { company_name: 'Unknown' },
+    items,
+    subtotal,
+    discountAmount,
+    taxRate: Number(inv.tax_rate ?? 0),
+    taxAmount: Number(inv.tax_amount ?? 0),
+    total: Number(inv.total ?? 0),
+    notes: inv.notes,
+    terms: inv.terms,
+    baseUrl,
+  })
 
   const { error: sendError } = await resend.emails.send({
     from: `MeshMedia <${process.env.RESEND_FROM_EMAIL ?? 'invoices@m3m.ae'}>`,
@@ -80,6 +110,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 </div>
 </body>
 </html>`,
+    attachments: [{
+      filename: `${inv.invoice_number}.pdf`,
+      content: Buffer.from(pdfBuffer),
+    }],
   })
 
   if (sendError) return NextResponse.json({ error: sendError.message }, { status: 500 })

@@ -11,8 +11,10 @@ import NotificationBell from '@/components/NotificationBell'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet,
-  Menu, X
+  Menu, X, Search
 } from 'lucide-react'
+
+const openCommandPalette = () => window.dispatchEvent(new Event('mm:open-command-palette'))
 
 const navItems = [
   { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
@@ -61,7 +63,12 @@ export function Sidebar({ profile, permissions }: SidebarProps) {
           <img src="/brand/mm_mark_maroon.png" alt="Mesh Media" className="w-6 h-7 object-contain" />
           <span className="text-base font-semibold text-ink" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>Mesh Media</span>
         </div>
-        <NotificationBell />
+        <div className="flex items-center gap-1">
+          <button onClick={openCommandPalette} className="p-2 text-umber-700" aria-label="Search (⌘K)">
+            <Search className="w-4.5 h-4.5" />
+          </button>
+          <NotificationBell />
+        </div>
       </header>
 
       {/* Overlay behind the mobile drawer */}
@@ -85,6 +92,18 @@ export function Sidebar({ profile, permissions }: SidebarProps) {
           <div className="hidden lg:block"><NotificationBell /></div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1 text-taupe-500" aria-label="Close menu">
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Search / command palette trigger */}
+        <div className="hidden lg:block px-3 pt-3">
+          <button
+            onClick={openCommandPalette}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-sand-300 text-taupe-500 text-xs hover:border-brand-300 transition-colors"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span className="flex-1 text-left">Search…</span>
+            <kbd className="text-[10px] border border-sand-300 rounded px-1 py-0.5">⌘K</kbd>
           </button>
         </div>
 

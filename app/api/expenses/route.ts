@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireFinanceRead, requireRoles, serviceRole, stripProtected, FINANCE_WRITE } from '@/lib/apiAuth'
+import { logActivity } from '@/lib/activityLog'
 
 export async function GET() {
   const auth = await requireFinanceRead()
@@ -18,5 +19,6 @@ export async function POST(req: NextRequest) {
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('expenses').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity(auth.user, 'create', 'expense', data.id, data.description)
   return NextResponse.json(data)
 }

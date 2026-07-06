@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, CheckCircle, FileOutput } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, FileOutput } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import QuotationForm from '@/components/forms/QuotationForm'
+import EmptyState from '@/components/ui/EmptyState'
+import { useToast } from '@/components/ui/Toast'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 
 const STATUS_FLOW = ['draft', 'sent', 'accepted', 'declined', 'expired']
@@ -17,7 +19,7 @@ export default function QuotationsPage() {
   const [loading, setLoading] = useState(true)
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null)
   const [sending, setSending] = useState<string | null>(null)
-  const [sendMsg, setSendMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null)
+  const toast = useToast()
 
   const fetchData = useCallback(async () => {
     const [qRes, cRes] = await Promise.all([fetch('/api/quotations'), fetch('/api/clients')])
@@ -34,36 +36,37 @@ export default function QuotationsPage() {
     const res = await fetch(`/api/quotations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     if (!res.ok) {
       const d = await res.json()
-      alert(`Status update failed: ${d.error ?? 'Unknown error'}`)
+      toast.error(`Status update failed: ${d.error ?? 'Unknown error'}`)
+    } else {
+      toast.success(`Marked as ${statusLabel(status)}`)
     }
     fetchData()
   }
 
   const sendEmail = async (id: string) => {
-    setSending(id); setSendMsg(null)
+    setSending(id)
     const res = await fetch(`/api/quotations/${id}/send`, { method: 'POST' })
     const d = await res.json()
     setSending(null)
-    setSendMsg({ id, msg: res.ok ? `Sent to ${d.to}` : (d.error ?? 'Send failed'), ok: res.ok })
-    if (res.ok) fetchData()
-    setTimeout(() => setSendMsg(null), 4000)
+    if (res.ok) { toast.success(`Sent to ${d.to}`); fetchData() }
+    else toast.error(d.error ?? 'Send failed')
   }
 
   const convertToInvoice = async (id: string) => {
     if (!confirm('Create an invoice from this accepted quotation?')) return
-    setSending(id); setSendMsg(null)
+    setSending(id)
     const res = await fetch(`/api/quotations/${id}/convert`, { method: 'POST' })
     const d = await res.json()
     setSending(null)
-    setSendMsg({ id, msg: res.ok ? `Created invoice ${d.invoice_number}` : (d.error ?? 'Convert failed'), ok: res.ok })
-    if (res.ok) fetchData()
-    setTimeout(() => setSendMsg(null), 5000)
+    if (res.ok) { toast.success(`Created invoice ${d.invoice_number}`); fetchData() }
+    else toast.error(d.error ?? 'Convert failed')
   }
 
   const deleteQuote = async (id: string) => {
     if (!confirm('Delete this quotation?')) return
-    await fetch(`/api/quotations/${id}`, { method: 'DELETE' })
-    fetchData()
+    const res = await fetch(`/api/quotations/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Quotation deleted'); fetchData() }
+    else toast.error('Failed to delete quotation')
   }
 
   const openEdit = async (q: any) => {
@@ -89,13 +92,6 @@ export default function QuotationsPage() {
           <Plus className="w-4 h-4" /> New Quote
         </button>
       </div>
-
-      {sendMsg && (
-        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${sendMsg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {sendMsg.ok && <CheckCircle className="w-4 h-4" />}
-          {sendMsg.msg}
-        </div>
-      )}
 
       <div className="flex gap-3 mb-6 flex-wrap">
         {['draft', 'sent', 'accepted', 'declined', 'expired'].map(s => {
@@ -275,7 +271,13 @@ export default function QuotationsPage() {
           </div>
         </>
       ) : (
-        <div className="card px-5 py-16 text-center text-gray-400 text-sm">No quotations yet</div>
+        <div className="card">
+          <EmptyState
+            title="No quotations yet"
+            helper="Create your first quotation to send to a client for approval."
+            action={<button className="btn-primary btn-sm inline-flex" onClick={() => { setEditing(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Quote</button>}
+          />
+        </div>
       )}
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Quote ${editing.quote_number}` : 'New Quotation'} size="xl">

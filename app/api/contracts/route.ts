@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser, requireRoles, serviceRole, stripProtected, OPS_WRITE } from '@/lib/apiAuth'
+import { logActivity } from '@/lib/activityLog'
 
 export async function GET() {
   const auth = await requireUser()
@@ -19,5 +20,6 @@ export async function POST(req: NextRequest) {
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('contracts').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity(auth.user, 'create', 'contract', data.id, data.title)
   return NextResponse.json(data)
 }

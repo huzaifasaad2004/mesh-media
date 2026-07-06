@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
+import { logActivity } from '@/lib/activityLog'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   // Only owner/admin may invite portal users
@@ -111,6 +112,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   })
 
   if (sendError) return NextResponse.json({ error: `Invite created but email failed: ${sendError.message}` }, { status: 500 })
+
+  await logActivity(user, 'invite', 'client_portal', params.id, `${client.company_name} · ${email}`)
 
   return NextResponse.json({ success: true, to: email })
 }

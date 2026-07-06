@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireFinanceRead, requireRoles, serviceRole, stripProtected, FINANCE_WRITE } from '@/lib/apiAuth'
+import { logActivity } from '@/lib/activityLog'
 import { computeTotals } from '@/lib/documentTotals'
 
 export async function GET() {
@@ -43,5 +44,6 @@ export async function POST(req: NextRequest) {
       }))
     )
   }
+  await logActivity(auth.user, 'create', 'invoice', invoice.id, invoice.invoice_number)
   return NextResponse.json(invoice)
 }

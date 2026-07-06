@@ -4,6 +4,9 @@ import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
 import { requireRoles, FINANCE_WRITE } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
+import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
+
+export const runtime = 'nodejs'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -15,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const { data: q, error } = await admin()
     .from('quotations')
-    .select('*, client:clients(company_name, email, contact_person), items:quotation_items(*)')
+    .select('*, client:clients(company_name, email, contact_person, phone, address), items:quotation_items(*)')
     .eq('id', params.id)
     .single()
 
@@ -25,6 +28,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mesh-media.vercel.app'
   const quoteUrl = `${baseUrl}/quotation/${params.id}`
   const clientName = escapeHtml(q.client.contact_person ?? q.client.company_name)
+
+  const items = (q.items ?? []).map((i: any) => ({
+    description: i.description, quantity: Number(i.quantity),
+    unit_price: Number(i.unit_price), amount: Number(i.amount),
+  }))
+  const subtotal = items.reduce((s: number, i: any) => s + i.amount, 0)
+  const discountAmount = q.discount_type === 'percent' ? subtotal * (Number(q.discount_value ?? 0) / 100)
+    : q.discount_type === 'flat' ? Number(q.discount_value ?? 0) : 0
+
+  const pdfBuffer = await renderDocumentPdf({
+    type: 'quotation',
+    number: q.quote_number,
+    issueDate: q.issue_date,
+    dueOrExpiryDate: q.expiry_date,
+    dueOrExpiryLabel: 'Valid Until',
+    subject: q.subject,
+    client: q.client ?? { company_name: 'Unknown' },
+    items,
+    subtotal,
+    discountAmount,
+    taxRate: Number(q.tax_rate ?? 0),
+    taxAmount: Number(q.tax_amount ?? 0),
+    total: Number(q.total ?? 0),
+    notes: q.notes,
+    terms: q.terms,
+    baseUrl,
+  })
 
   const { error: sendError } = await resend.emails.send({
     from: `MeshMedia <${process.env.RESEND_FROM_EMAIL ?? 'hello@m3m.ae'}>`,
@@ -75,6 +105,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 </div>
 </body>
 </html>`,
+    attachments: [{
+      filename: `${q.quote_number}.pdf`,
+      content: Buffer.from(pdfBuffer),
+    }],
   })
 
   if (sendError) return NextResponse.json({ error: sendError.message }, { status: 500 })

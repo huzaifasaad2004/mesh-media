@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/activityLog'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -12,7 +13,7 @@ async function requireAdmin() {
   if (!me || !['owner', 'admin'].includes(me.role)) {
     return { error: NextResponse.json({ error: 'Admins only' }, { status: 403 }) }
   }
-  return { userId: user.id }
+  return { userId: user.id, user }
 }
 
 // Effective = role defaults, with any per-user override taking precedence
@@ -76,6 +77,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (toDelete.length) {
     const { error } = await db.from('user_permissions').delete().eq('user_id', params.id).in('permission', toDelete)
     if (error) return NextResponse.json({ error: friendly(error.message) }, { status: 400 })
+  }
+
+  if (guard.user) {
+    await logActivity(guard.user, 'update', 'user_permissions', params.id, Object.keys(overrides).join(', '))
   }
 
   return NextResponse.json({ success: true })

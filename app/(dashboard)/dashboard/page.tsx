@@ -1,9 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
-import { Users, CheckSquare, FileText, DollarSign, TrendingUp, Clock } from 'lucide-react'
+import { Users, CheckSquare, FileText, DollarSign, TrendingUp, Clock, ArrowUp, ArrowDown } from 'lucide-react'
 import Link from 'next/link'
 import WorkloadPanel from '@/components/WorkloadPanel'
 import QuickExpense from '@/components/QuickExpense'
+import RevenueChart from '@/components/dashboard/RevenueChart'
+import ExpenseDonut from '@/components/dashboard/ExpenseDonut'
+
+const CAT_LABELS: Record<string, string> = {
+  office: 'Office & Rent',
+  freelancer: 'Salaries & Freelancers',
+  software: 'IT & Software',
+  ads: 'Advertising',
+  travel: 'Travel',
+  other: 'Other',
+}
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -34,15 +45,64 @@ export default async function DashboardPage() {
 
   const { data: expenseData } = await supabase
     .from('expenses')
-    .select('amount')
+    .select('amount, category, date')
 
   const totalExpenses = expenseData?.reduce((sum, e) => sum + (e.amount || 0), 0) ?? 0
+
+  // Revenue vs expenses over the last 6 months
+  const monthKey = (d: string) => d.slice(0, 7) // YYYY-MM
+  const monthLabel = (key: string) => new Date(`${key}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })
+
+  const now = new Date()
+  const months: string[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  const { data: paidInvoicesForTrend } = await supabase
+    .from('invoices')
+    .select('total, tax_amount, issue_date')
+    .eq('status', 'paid')
+
+  const revenueByMonth = new Map<string, number>()
+  for (const inv of paidInvoicesForTrend ?? []) {
+    if (!inv.issue_date) continue
+    const key = monthKey(inv.issue_date)
+    revenueByMonth.set(key, (revenueByMonth.get(key) ?? 0) + ((inv.total || 0) - (inv.tax_amount || 0)))
+  }
+
+  const expensesByMonth = new Map<string, number>()
+  for (const e of expenseData ?? []) {
+    if (!e.date) continue
+    const key = monthKey(e.date)
+    expensesByMonth.set(key, (expensesByMonth.get(key) ?? 0) + (e.amount || 0))
+  }
+
+  const trendData = months.map((key) => ({
+    label: monthLabel(key),
+    revenue: revenueByMonth.get(key) ?? 0,
+    expenses: expensesByMonth.get(key) ?? 0,
+  }))
+
+  const thisMonthRevenue = trendData[trendData.length - 1]?.revenue ?? 0
+  const lastMonthRevenue = trendData[trendData.length - 2]?.revenue ?? 0
+  const revenueDelta = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : null
+
+  // Expenses by category (all-time)
+  const expenseByCategory = new Map<string, number>()
+  for (const e of expenseData ?? []) {
+    expenseByCategory.set(e.category, (expenseByCategory.get(e.category) ?? 0) + (e.amount || 0))
+  }
+  const categoryData = Array.from(expenseByCategory.entries())
+    .map(([cat, amount]) => ({ label: CAT_LABELS[cat] ?? cat, amount }))
+    .sort((a, b) => b.amount - a.amount)
 
   const stats = [
     { label: 'Active Clients', value: clientCount ?? 0, icon: Users, color: 'text-brand-600', bg: 'bg-brand-50', href: '/clients' },
     { label: 'Open Tasks', value: (tasks?.length ?? 0), icon: CheckSquare, color: 'text-umber-700', bg: 'bg-paper-200', href: '/tasks' },
     { label: 'Due Today', value: tasksDueToday ?? 0, icon: Clock, color: 'text-[#B8801F]', bg: 'bg-[#F6ECD6]', href: '/tasks' },
-    { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: DollarSign, color: 'text-[#4F7A4A]', bg: 'bg-[#E7EFE3]', href: '/finance' },
+    { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: DollarSign, color: 'text-[#4F7A4A]', bg: 'bg-[#E7EFE3]', href: '/finance', delta: revenueDelta },
     { label: 'Expenses', value: formatCurrency(totalExpenses), icon: TrendingUp, color: 'text-[#B23A2E]', bg: 'bg-[#F4E0DC]', href: '/finance' },
     { label: 'Invoices', value: invoiceCount ?? 0, icon: FileText, color: 'text-brand-600', bg: 'bg-brand-50', href: '/finance/invoices' },
   ]
@@ -59,17 +119,47 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-        {stats.map(({ label, value, icon: Icon, color, bg, href }) => (
+        {stats.map(({ label, value, icon: Icon, color, bg, href, delta }: any) => (
           <Link key={label} href={href}>
             <div className="stat-card hover:shadow-md transition-shadow cursor-pointer">
               <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center mb-2`}>
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
               <p className="stat-number text-ink">{value}</p>
-              <p className="text-xs text-taupe-600">{label}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-taupe-600">{label}</p>
+                {typeof delta === 'number' && (
+                  <span className={`text-[10px] font-semibold flex items-center ${delta >= 0 ? 'text-[#4F7A4A]' : 'text-[#B23A2E]'}`}>
+                    {delta >= 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                    {Math.abs(delta).toFixed(0)}%
+                  </span>
+                )}
+              </div>
             </div>
           </Link>
         ))}
+      </div>
+
+      {/* Revenue vs expenses + category breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="card">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h3>Revenue vs Expenses</h3>
+            <Link href="/finance" className="text-xs text-brand-600 hover:underline font-medium">Open Finance →</Link>
+          </div>
+          <div className="p-5">
+            <RevenueChart data={trendData} />
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h3>Expenses by Category</h3>
+            <Link href="/finance/expenses" className="text-xs text-brand-600 hover:underline font-medium">Open Expenses →</Link>
+          </div>
+          <div className="p-5">
+            <ExpenseDonut data={categoryData} />
+          </div>
+        </div>
       </div>
 
       {/* Manager-only team workload (self-hides for others) */}

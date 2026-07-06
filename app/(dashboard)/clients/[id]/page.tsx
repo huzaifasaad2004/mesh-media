@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
 import { ArrowLeft, ExternalLink, Phone, Mail, Globe, CheckCircle2, Circle } from 'lucide-react'
+import PortalAccessCard from '@/components/clients/PortalAccessCard'
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -124,6 +125,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </div>
             ) : <p className="text-sm text-gray-400">No contacts added</p>}
           </div>
+
+          {/* Client Portal Access */}
+          <PortalAccessCard clientId={params.id} clientEmail={client.email} />
 
           {/* Onboarding */}
           {totalSteps > 0 && (

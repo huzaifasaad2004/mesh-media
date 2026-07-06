@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Plus, FileSignature, Pencil, Trash2 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import ContractForm from '@/components/forms/ContractForm'
+import EmptyState from '@/components/ui/EmptyState'
+import { useToast } from '@/components/ui/Toast'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 
 export default function ContractsPage() {
@@ -12,6 +14,7 @@ export default function ContractsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingContract, setEditingContract] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
+  const toast = useToast()
 
   const fetchContracts = useCallback(async () => {
     const res = await fetch('/api/contracts')
@@ -27,8 +30,9 @@ export default function ContractsPage() {
 
   const deleteContract = async (id: string) => {
     if (!confirm('Delete this contract?')) return
-    await fetch(`/api/contracts/${id}`, { method: 'DELETE' })
-    fetchContracts()
+    const res = await fetch(`/api/contracts/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Contract deleted'); fetchContracts() }
+    else toast.error('Failed to delete contract')
   }
 
   const openEdit = (contract: any) => {
@@ -124,15 +128,13 @@ export default function ContractsPage() {
                   </td>
                 </tr>
               )) : (
-                <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
-                    <FileSignature className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-400 text-sm">No contracts yet</p>
-                    <button className="btn-primary btn-sm mt-4 inline-flex" onClick={() => setShowModal(true)}>
-                      <Plus className="w-3 h-3" /> Create first contract
-                    </button>
-                  </td>
-                </tr>
+                <EmptyState
+                  colSpan={7}
+                  icon={FileSignature}
+                  title="No contracts yet"
+                  helper="Track signed agreements and their value here."
+                  action={<button className="btn-primary btn-sm inline-flex" onClick={() => setShowModal(true)}><Plus className="w-3 h-3" /> Create first contract</button>}
+                />
               )}
             </tbody>
           </table></div>

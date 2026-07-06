@@ -1,10 +1,15 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, LayoutGrid, List } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Plus, Pencil, Trash2, LayoutGrid, List, Search } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import TaskForm from '@/components/forms/TaskForm'
+import Pagination from '@/components/ui/Pagination'
+import EmptyState from '@/components/ui/EmptyState'
+import { useToast } from '@/components/ui/Toast'
 import { formatDate, statusColor, statusLabel, getInitials } from '@/lib/utils'
+
+const PAGE_SIZE = 10
 
 const COLUMNS = [
   { key: 'todo',        label: 'To Do' },
@@ -33,6 +38,10 @@ export default function TasksPage() {
   const [view, setView] = useState<'board' | 'list'>('board')
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const toast = useToast()
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -62,12 +71,14 @@ export default function TasksPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
-    if (!res.ok) fetchTasks()
+    if (!res.ok) { toast.error('Failed to move task'); fetchTasks() }
   }
 
   const deleteTask = async (id: string) => {
     if (!confirm('Delete this task?')) return
-    await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+    if (res.ok) toast.success('Task deleted')
+    else toast.error('Failed to delete task')
     fetchTasks()
   }
 
@@ -76,6 +87,24 @@ export default function TasksPage() {
   const handleSuccess = () => { handleClose(); fetchTasks() }
 
   const isOverdue = (t: any) => t.due_date && t.due_date < today() && t.status !== 'done'
+
+  const searched = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return tasks
+    return tasks.filter(t =>
+      t.title?.toLowerCase().includes(q) ||
+      t.client?.company_name?.toLowerCase().includes(q) ||
+      t.assignee?.full_name?.toLowerCase().includes(q)
+    )
+  }, [tasks, query])
+
+  const listFiltered = useMemo(
+    () => statusFilter ? searched.filter(t => t.status === statusFilter) : searched,
+    [searched, statusFilter]
+  )
+  const pageCount = Math.max(1, Math.ceil(listFiltered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const listVisible = listFiltered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const TaskCard = ({ task }: { task: any }) => (
     <div
@@ -151,6 +180,29 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Search + status filter */}
+      <div className="card px-4 py-3 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <Search className="w-4 h-4 text-taupe-500 flex-shrink-0" />
+          <input
+            className="flex-1 text-sm focus:outline-none bg-transparent placeholder:text-taupe-500"
+            placeholder="Search tasks, client, assignee…"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+          />
+        </div>
+        {view === 'list' && (
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+            className="border border-sand-300 rounded-lg px-2 py-1.5 text-xs text-umber-700 bg-white"
+          >
+            <option value="">All statuses</option>
+            {COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        )}
+      </div>
+
       {loading ? (
         <div className="grid grid-cols-4 gap-3">
           {[1, 2, 3, 4].map(i => <div key={i} className="card h-60 animate-pulse bg-paper-100" />)}
@@ -159,7 +211,7 @@ export default function TasksPage() {
         /* ── Kanban board ── */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
           {COLUMNS.map(col => {
-            const colTasks = tasks.filter(t => t.status === col.key)
+            const colTasks = searched.filter(t => t.status === col.key)
             return (
               <div key={col.key}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(col.key) }}
@@ -196,7 +248,7 @@ export default function TasksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-paper-200">
-              {tasks.length > 0 ? tasks.map((task) => (
+              {listVisible.length > 0 ? listVisible.map((task) => (
                 <tr key={task.id} className="hover:bg-paper-50 transition-colors">
                   <td className="px-5 py-3 font-medium text-ink">{task.title}</td>
                   <td className="px-5 py-3 text-taupe-600">{task.client?.company_name ?? '—'}</td>
@@ -235,12 +287,16 @@ export default function TasksPage() {
                   </td>
                 </tr>
               )) : (
-                <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center text-taupe-500 text-sm">No tasks yet</td>
-                </tr>
+                <EmptyState
+                  colSpan={7}
+                  title={tasks.length === 0 ? 'No tasks yet' : 'No tasks match your search'}
+                  helper={tasks.length === 0 ? 'Create a task to start tracking work.' : 'Try a different search term or status filter.'}
+                  action={tasks.length === 0 ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditingTask(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Task</button> : undefined}
+                />
               )}
             </tbody>
           </table>
+          <Pagination page={currentPage} pageCount={pageCount} total={listFiltered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
         </div>
       )}
 

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireRoles, FINANCE_WRITE, OPS_WRITE } from '@/lib/apiAuth'
+import { logActivity } from '@/lib/activityLog'
 import { emitCelineEvent } from '@/lib/celine/events'
 import { computeTotals } from '@/lib/documentTotals'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+// Intentionally public — clients open this via the emailed invoice link without a session.
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { data, error } = await admin()
     .from('invoices')
@@ -37,6 +40,9 @@ async function notifyCelineIfClientView(invoiceId: string, invoice: any) {
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireRoles(FINANCE_WRITE, 'finance.write')
+  if ('res' in auth) return auth.res
+
   const body = await req.json()
   const { items, ...invoiceData } = body
 
@@ -70,19 +76,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { data, error } = await admin().from('invoices').update(invoiceData).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity(auth.user, 'update', 'invoice', params.id, data.invoice_number)
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!me || !['owner', 'admin', 'manager', 'member'].includes(me.role)) {
-    return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  }
+  const auth = await requireRoles(OPS_WRITE)
+  if ('res' in auth) return auth.res
 
+  const { data: existing } = await admin().from('invoices').select('invoice_number').eq('id', params.id).single()
   const { error } = await admin().from('invoices').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity(auth.user, 'delete', 'invoice', params.id, existing?.invoice_number)
   return NextResponse.json({ success: true })
 }
