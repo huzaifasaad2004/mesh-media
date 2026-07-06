@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import DocumentTemplate from '@/components/DocumentTemplate'
 import { Printer, Download, Mail, MessageCircle, ArrowLeft, Loader2, Check } from 'lucide-react'
 import { COMPANY } from '@/lib/company'
+import { waitForImages } from '@/lib/waitForImages'
 
 const BRAND = '#6E1318'
 
@@ -12,8 +13,23 @@ export default function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>()
   const [invoice, setInvoice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [preparingPrint, setPreparingPrint] = useState(false)
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [emailMsg, setEmailMsg] = useState('')
+
+  // window.print() captures a snapshot of the DOM right when it's called — if
+  // the logo/signature images haven't finished decoding yet (very common on
+  // a fresh load), that spot renders blank in the printed/saved PDF. Wait for
+  // every image to actually be ready first. The .no-print toolbar is already
+  // hidden purely via the @media print CSS rule, so no DOM mutation is needed
+  // here — mutating styles right before print() risks the browser capturing
+  // a mid-reflow, blank frame instead.
+  const printNow = async () => {
+    setPreparingPrint(true)
+    await waitForImages()
+    setPreparingPrint(false)
+    window.print()
+  }
 
   const sendEmail = async () => {
     setEmailState('sending')
@@ -116,18 +132,13 @@ export default function InvoicePrintPage() {
         )}
 
         {/* Print */}
-        <button onClick={() => window.print()} style={btnStyle('rgba(255,255,255,0.2)', 'white')}>
-          <Printer size={13} /> Print
+        <button onClick={printNow} disabled={preparingPrint} style={btnStyle('rgba(255,255,255,0.2)', 'white')}>
+          {preparingPrint ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />} Print
         </button>
 
-        {/* Download PDF */}
-        <button onClick={() => {
-          const el = document.querySelector('.no-print') as HTMLElement
-          if (el) el.style.display = 'none'
-          window.print()
-          if (el) el.style.display = ''
-        }} style={btnStyle('white', BRAND)}>
-          <Download size={13} /> Download PDF
+        {/* Download PDF — same browser print dialog; "Save as PDF" there produces the file */}
+        <button onClick={printNow} disabled={preparingPrint} style={btnStyle('white', BRAND)}>
+          {preparingPrint ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download PDF
         </button>
       </div>
 

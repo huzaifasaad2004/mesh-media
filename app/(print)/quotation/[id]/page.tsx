@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import DocumentTemplate from '@/components/DocumentTemplate'
 import { Printer, Download, Mail, MessageCircle, ArrowLeft, Loader2, Check } from 'lucide-react'
 import { COMPANY } from '@/lib/company'
+import { waitForImages } from '@/lib/waitForImages'
 
 const BRAND = '#6E1318'
 
@@ -12,8 +13,19 @@ export default function QuotationPrintPage() {
   const { id } = useParams<{ id: string }>()
   const [quote, setQuote] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [preparingPrint, setPreparingPrint] = useState(false)
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [emailMsg, setEmailMsg] = useState('')
+
+  // See invoice print page for why: window.print() snapshots the DOM
+  // immediately, so we wait for the logo/signature images to finish
+  // decoding first, and never mutate styles right around the print() call.
+  const printNow = async () => {
+    setPreparingPrint(true)
+    await waitForImages()
+    setPreparingPrint(false)
+    window.print()
+  }
 
   const sendEmail = async () => {
     setEmailState('sending')
@@ -113,17 +125,12 @@ export default function QuotationPrintPage() {
           </a>
         )}
 
-        <button onClick={() => window.print()} style={btnStyle('rgba(255,255,255,0.2)', 'white')}>
-          <Printer size={13} /> Print
+        <button onClick={printNow} disabled={preparingPrint} style={btnStyle('rgba(255,255,255,0.2)', 'white')}>
+          {preparingPrint ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />} Print
         </button>
 
-        <button onClick={() => {
-          const el = document.querySelector('.no-print') as HTMLElement
-          if (el) el.style.display = 'none'
-          window.print()
-          if (el) el.style.display = ''
-        }} style={btnStyle('white', BRAND)}>
-          <Download size={13} /> Download PDF
+        <button onClick={printNow} disabled={preparingPrint} style={btnStyle('white', BRAND)}>
+          {preparingPrint ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download PDF
         </button>
       </div>
 
