@@ -24,12 +24,16 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
     website: (initialData as any)?.website ?? '',
     address: initialData?.address ?? '',
     monthly_retainer: initialData?.monthly_retainer?.toString() ?? '',
+    auto_invoice_retainer: (initialData as any)?.auto_invoice_retainer ?? false,
     drive_folder_url: initialData?.drive_folder_url ?? '',
     notes: initialData?.notes ?? '',
   })
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
+
+  const toggle = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.checked }))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,6 +114,12 @@ export default function ClientForm({ onSuccess, initialData }: ClientFormProps) 
       <div>
         <label className={labelClass}>Monthly Retainer <span className="text-gray-400 font-normal">(AED)</span></label>
         <input className={inputClass} type="number" min="0" step="0.01" value={form.monthly_retainer} onChange={set('monthly_retainer')} placeholder="0.00" />
+        {parseFloat(form.monthly_retainer) > 0 && (
+          <label className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+            <input type="checkbox" checked={form.auto_invoice_retainer} onChange={toggle('auto_invoice_retainer')} className="rounded border-gray-300" />
+            Auto-generate and send this invoice every month
+          </label>
+        )}
       </div>
 
       <div>

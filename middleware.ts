@@ -45,6 +45,9 @@ export async function middleware(request: NextRequest) {
     // Stripe's servers call this with no browser session — verified by
     // webhook signature instead (see app/api/webhooks/stripe/route.ts).
     || request.nextUrl.pathname.startsWith('/api/webhooks/')
+    // Vercel Cron calls these with no browser session — verified by
+    // CRON_SECRET bearer token instead (see lib/cron.ts).
+    || request.nextUrl.pathname.startsWith('/api/cron/')
 
   if (!user && !isAuthPage && !isPublicPath && !isSetPassword) {
     const url = request.nextUrl.clone()

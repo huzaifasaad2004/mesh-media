@@ -56,6 +56,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     invoiceData.paid_date = null
   }
 
+  // Paid (or cancelled) invoices exit the dunning sequence entirely.
+  if (invoiceData.status === 'paid' || invoiceData.status === 'cancelled') {
+    invoiceData.dunning_stage = 0
+    invoiceData.last_reminder_sent_at = null
+  }
+
   if (items) {
     const { subtotal, taxAmount, total } = computeTotals(items, invoiceData.discount_type, invoiceData.discount_value, invoiceData.tax_rate)
     await admin().from('invoice_items').delete().eq('invoice_id', params.id)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, Search, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import InvoiceForm from '@/components/forms/InvoiceForm'
@@ -25,6 +25,7 @@ export default function InvoicesPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
+  const [runningRetainers, setRunningRetainers] = useState(false)
   const toast = useToast()
 
   const fetchData = useCallback(async () => {
@@ -64,6 +65,16 @@ export default function InvoicesPage() {
     const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' })
     if (res.ok) { toast.success('Invoice deleted'); fetchData() }
     else toast.error('Failed to delete invoice')
+  }
+
+  const runRetainerInvoices = async () => {
+    if (!confirm("Generate this month's retainer invoices for every client with auto-invoicing enabled?")) return
+    setRunningRetainers(true)
+    const res = await fetch('/api/cron/recurring-invoices', { method: 'POST' })
+    const d = await res.json()
+    setRunningRetainers(false)
+    if (res.ok) { toast.success(`Generated ${d.generated.length} invoice(s)${d.skipped.length ? `, ${d.skipped.length} skipped` : ''}`); fetchData() }
+    else toast.error(d.error ?? 'Failed')
   }
 
   const openEdit = async (inv: any) => {
@@ -108,9 +119,14 @@ export default function InvoicesPage() {
             <p className="text-gray-500 text-sm mt-0.5">{invoices.length} total · {formatCurrency(totals.outstanding)} outstanding</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => { setEditing(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> New Invoice
-        </button>
+        <div className="flex gap-2">
+          <button className="btn-secondary" onClick={runRetainerInvoices} disabled={runningRetainers} title="Generate this month's retainer invoices for opted-in clients">
+            {runningRetainers ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Run Retainer Invoices
+          </button>
+          <button className="btn-primary" onClick={() => { setEditing(null); setShowModal(true) }}>
+            <Plus className="w-4 h-4" /> New Invoice
+          </button>
+        </div>
       </div>
 
       {/* Summary pills */}
@@ -242,6 +258,9 @@ export default function InvoicesPage() {
                         >
                           {statusLabel(inv.status)} <ChevronDown className="w-3 h-3" />
                         </button>
+                        {inv.status === 'overdue' && inv.dunning_stage > 0 && (
+                          <span className="ml-1.5 text-[10px] text-gray-400" title="Automated reminder stage sent so far">Reminder {inv.dunning_stage}/3</span>
+                        )}
                         {statusDropdown === inv.id && (
                           <>
                             <div className="fixed inset-0 z-30" onClick={() => setStatusDropdown(null)} />

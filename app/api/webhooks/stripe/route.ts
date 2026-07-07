@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
         await db.from('invoices').update({
           status: 'paid',
           paid_date: new Date().toISOString().split('T')[0],
+          dunning_stage: 0,
+          last_reminder_sent_at: null,
         }).eq('id', invoiceId)
 
         // Attribute the log entry to the system, not a signed-in user — this

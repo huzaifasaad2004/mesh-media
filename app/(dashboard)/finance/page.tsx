@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
 import { FileText, Receipt, FileSpreadsheet, Users } from 'lucide-react'
 import FinanceReportPanel from '@/components/finance/FinanceReportPanel'
+import CashFlowForecast from '@/components/finance/CashFlowForecast'
 
 export default async function FinancePage() {
   const supabase = createClient()
@@ -75,6 +76,9 @@ export default async function FinancePage() {
 
       {/* Period-aware P&L, revenue trend, and top clients */}
       <FinanceReportPanel />
+
+      {/* Forward-looking cash-flow signal */}
+      <CashFlowForecast />
 
       {/* Module cards */}
       <div className="grid grid-cols-2 gap-5">

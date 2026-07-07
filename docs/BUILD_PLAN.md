@@ -17,12 +17,14 @@ Use this document as the master plan. Each phase below is written so you can han
 > - ✅ Celine integration: `/api/celine/*` action endpoints + portal-view event webhooks
 > - ✅ Security fixes from [SECURITY_AUDIT.md](SECURITY_AUDIT.md) applied 2026-07-06 (phase17 migration + password rotation still manual — see its status table)
 > - ✅ 2026-07-06 evening (session 1): click-to-confirm invite flow (`/auth/confirm`), admin password set/reset on Team page, real server-generated PDF downloads, WhatsApp on both doc pages
-> - ✅ **2026-07-06 evening (session 2): Tier 1 + Tier 2 fully shipped, Tier 3 item 10 (online payments) built and code-complete** — see "DONE" list below. Pushed live to `main` → Vercel (commit `5cd0d52` for Tier 1/2; a further commit ships Tier 3 #10 — check `git log` for the exact hash before resuming).
-> - ❌ NOT done: recurring retainer invoices + dunning (Tier 3 #11), cash-flow forecast (Tier 3 #12), e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base, Tier 4 flagship differentiators
+> - ✅ **2026-07-06 evening (session 2): Tier 1 + Tier 2 fully shipped, Tier 3 fully code-complete (all of #10–12)** — see "DONE" list below.
+> - ✅ **2026-07-06 evening (session 3): critical permission-leak fix** (see detail below) + Tier 3 #11/#12 (recurring retainer invoices/dunning, cash-flow forecast).
+> - ❌ NOT done: e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base, Tier 4 flagship differentiators
 >
-> **⚠️ Two migrations are written but NOT yet run in Supabase** — paste these into the Supabase SQL editor when convenient (nothing is broken in the meantime, both degrade gracefully):
+> **⚠️ Three migrations are written but NOT yet run in Supabase** — paste these into the Supabase SQL editor when convenient (nothing is broken in the meantime, all degrade gracefully):
 > - `supabase/phase18_portal_access.sql` — adds `clients.portal_enabled`; until run, the portal on/off toggle shows a clear "run this migration" error instead of saving.
 > - `supabase/phase19_activity_log.sql` — creates the `activity_log` table; until run, `/settings/activity` shows a clear "run this migration" error instead of listing entries.
+> - `supabase/phase21_recurring_invoices.sql` — adds `clients.auto_invoice_retainer`, `invoices.retainer_period`/`dunning_stage`/`last_reminder_sent_at`; until run, recurring invoices/dunning cron jobs will error (manual "Run Retainer Invoices" button will show the DB error).
 >
 > **⚠️ Online payments (Tier 3 #10) needs Stripe keys** — code is fully built (Checkout session creation, webhook handler, Pay Now button, idempotent paid-status update) but inert until you add to the environment: `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` (the last one only after registering a webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for the `checkout.session.completed` event in the Stripe dashboard).
 >
@@ -55,10 +57,10 @@ Use this document as the master plan. Each phase below is written so you can han
    - **Found and fixed in passing**: `PUT`/`DELETE` on `/api/invoices/[id]` had **no auth check at all** — now gated with `requireRoles` like every other mutation route.
    - **Found and fixed in passing**: the global `middleware.ts` was redirecting *all* unauthenticated requests to `/login`, including the public invoice/quotation print pages and their API routes — meaning a client opening their emailed invoice link (or, critically, Stripe's webhook) would never have worked. Added explicit public-path exemptions for `/invoice/`, `/quotation/`, `/api/invoices`, `/api/quotations`, `/api/webhooks/` (each of those routes still self-enforces auth internally where it should).
 
-### Tier 3 — money & retention (biggest business impact) — #10 code-complete, #11–12 next
+### Tier 3 — money & retention (biggest business impact) — ✅ ALL DONE (code-complete)
 10. ✅ **Online payments** — Stripe Checkout (AED). `lib/stripe.ts`, `/api/invoices/[id]/checkout` (creates session), `/api/webhooks/stripe` (verifies signature, idempotently marks invoice paid, audit-logs), a "Pay Now" button on the invoice print page with a post-payment confirmation poll. **Inert until Stripe keys are added** — see warning above.
-11. ⬜ **Recurring retainer invoices + smart dunning** — auto-generate monthly, escalating polite→firm reminders, auto-stop on payment. NOT STARTED.
-12. ⬜ **Cash-flow forecast** widget on Finance (retainers + outstanding − payroll − recurring expenses). NOT STARTED.
+11. ✅ **Recurring retainer invoices + smart dunning** — `supabase/phase21_recurring_invoices.sql` (adds `clients.auto_invoice_retainer`, `invoices.retainer_period`/`dunning_stage`/`last_reminder_sent_at`). `/api/cron/recurring-invoices` generates one invoice per opted-in client per month (idempotent via a unique `(client_id, retainer_period)` index), emails it via Resend. `/api/cron/dunning` escalates overdue invoices through 3 stages (polite day 0 → firm day 7 → final notice day 14), auto-stops once paid/cancelled (`dunning_stage` reset in the invoice PUT route and the Stripe webhook). Wired to `vercel.json` cron schedules (1st of month 6am, daily 8am) — protected by a `CRON_SECRET` bearer check (`lib/cron.ts`) that also lets a signed-in finance.write admin trigger either job manually (the "Run Retainer Invoices" button on `/finance/invoices`). **Needs `CRON_SECRET` set in Vercel env** (same value cron sends) for the scheduled runs to authenticate — manual "Run Retainer Invoices" works either way since it falls back to a normal session check.
+12. ✅ **Cash-flow forecast** widget on `/finance` (`components/finance/CashFlowForecast.tsx`, `/api/finance/cashflow`) — recurring retainer income + outstanding − payroll − recurring expenses, projected across this month / next month / month after.
 
 ### Tier 4 — flagship differentiators (see audit §4)
 13. Client Pulse churn radar · monthly branded Impact Report PDF per client · WhatsApp-native Aether · PR media-placement/EMV tracker. NOT STARTED.
