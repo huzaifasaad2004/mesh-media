@@ -116,6 +116,7 @@ export default function ProjectsPage() {
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit ${editing.name}` : 'New Project'}>
         <ProjectForm
+          key={editing?.id ?? 'new'}
           onSuccess={() => { setShowModal(false); setEditing(null); fetchData() }}
           clients={clients}
           initialData={editing ?? undefined}

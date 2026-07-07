@@ -148,6 +148,7 @@ export default function ContractsPage() {
         size="lg"
       >
         <ContractForm
+          key={editingContract?.id ?? 'new'}
           onSuccess={handleSuccess}
           clients={clients}
           initialData={editingContract ?? undefined}

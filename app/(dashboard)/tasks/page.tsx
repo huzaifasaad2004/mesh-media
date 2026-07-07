@@ -307,6 +307,7 @@ export default function TasksPage() {
         size="lg"
       >
         <TaskForm
+          key={editingTask?.id ?? 'new'}
           onSuccess={handleSuccess}
           clients={clients}
           profiles={profiles}

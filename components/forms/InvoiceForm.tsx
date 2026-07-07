@@ -46,7 +46,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
     } catch { /* ignore */ } finally { setAiLoading(null) }
   }
   const [form, setForm] = useState({
-    invoice_number: (initialData?.invoice_number as string) ?? `MM-INV-${new Date().getFullYear()}-`,
+    invoice_number: (initialData?.invoice_number as string) ?? '',
     client_id: (initialData?.client_id as string) ?? '',
     status: (initialData?.status as string) ?? 'draft',
     issue_date: (initialData?.issue_date as string) ?? new Date().toISOString().split('T')[0],
@@ -96,6 +96,11 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const validItems = items.filter(i => i.description.trim() !== '')
+    if (validItems.length === 0 && existingItems.length === 0 && !initialData?.id) {
+      setError('Add at least one line item')
+      return
+    }
     setSaving(true); setError('')
     const payload = {
       ...form,
@@ -106,7 +111,11 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
       terms: showTerms ? (form.terms || null) : null,
       discount_value: discountValue,
       tax_rate: taxRate,
-      items,
+      // Omit `items` entirely when there's nothing meaningful to save and the
+      // record already had none — otherwise the API would recompute totals
+      // from a single blank qty-1/price-0 row and zero out the real total
+      // (this hits invoices imported without a line-item breakdown).
+      ...(validItems.length > 0 || existingItems.length > 0 ? { items: validItems } : {}),
     }
     const id = initialData?.id as string | undefined
     const res = await fetch(id ? `/api/invoices/${id}` : '/api/invoices', {
@@ -123,10 +132,17 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Invoice Number</label>
-          <input className={inputClass} value={form.invoice_number} onChange={set('invoice_number')} required />
-        </div>
+        {initialData?.id ? (
+          <div>
+            <label className={labelClass}>Invoice Number</label>
+            <input className={inputClass + ' bg-gray-50 text-gray-500'} value={form.invoice_number} readOnly />
+          </div>
+        ) : (
+          <div>
+            <label className={labelClass}>Invoice Number</label>
+            <input className={inputClass + ' bg-gray-50 text-gray-400'} value="Auto-generated on save" disabled />
+          </div>
+        )}
         <div>
           <label className={labelClass}>Client *</label>
           <select className={inputClass} value={form.client_id} onChange={set('client_id')} required>
@@ -192,7 +208,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-5 relative">
                 <input className={inputClass + ' pr-8'} placeholder="Description" value={item.description}
-                  onChange={e => setItem(idx, 'description', e.target.value)} required />
+                  onChange={e => setItem(idx, 'description', e.target.value)} />
                 <button type="button" title="AI suggest description"
                   onClick={() => suggestDescription(idx)} disabled={aiLoading === idx}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-brand-400 hover:text-brand-600 disabled:opacity-50 transition-colors">

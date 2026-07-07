@@ -315,6 +315,7 @@ export default function InvoicesPage() {
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Invoice ${editing.invoice_number}` : 'New Invoice'} size="xl">
         <InvoiceForm
+          key={editing?.id ?? 'new'}
           onSuccess={() => { setShowModal(false); setEditing(null); fetchData() }}
           clients={clients}
           initialData={editing ?? undefined}

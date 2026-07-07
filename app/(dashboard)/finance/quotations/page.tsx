@@ -282,6 +282,7 @@ export default function QuotationsPage() {
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? `Edit Quote ${editing.quote_number}` : 'New Quotation'} size="xl">
         <QuotationForm
+          key={editing?.id ?? 'new'}
           onSuccess={() => { setShowModal(false); setEditing(null); fetchData() }}
           clients={clients}
           initialData={editing ?? undefined}

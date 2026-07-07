@@ -100,6 +100,11 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.client_id) { setError('Please select a client'); return }
+    const validItems = items.filter(i => i.description.trim() !== '')
+    if (validItems.length === 0 && existingItems.length === 0 && !initialData?.id) {
+      setError('Add at least one line item')
+      return
+    }
     setSaving(true); setError('')
     const payload = {
       ...form,
@@ -109,7 +114,10 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
       terms: showTerms ? (form.terms || null) : null,
       discount_value: discountValue,
       tax_rate: taxRate,
-      items,
+      // Omit `items` when there's nothing meaningful and the record already
+      // had none — otherwise the API recomputes totals from a blank
+      // qty-1/price-0 row and zeroes out the real total.
+      ...(validItems.length > 0 || existingItems.length > 0 ? { items: validItems } : {}),
     }
     const id = initialData?.id as string | undefined
     const res = await fetch(id ? `/api/quotations/${id}` : '/api/quotations', {
@@ -179,7 +187,7 @@ export default function QuotationForm({ onSuccess, clients, initialData }: Quota
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-5 relative">
                 <input className={inputClass + ' pr-8'} placeholder="Description" value={item.description}
-                  onChange={e => setItem(idx, 'description', e.target.value)} required />
+                  onChange={e => setItem(idx, 'description', e.target.value)} />
                 <button type="button" title="AI suggest description"
                   onClick={() => suggestDescription(idx)} disabled={aiLoading === idx}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-brand-400 hover:text-brand-600 disabled:opacity-50 transition-colors">

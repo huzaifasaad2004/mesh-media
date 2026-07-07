@@ -190,6 +190,7 @@ export default function ExpensesPage() {
 
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditing(null) }} title={editing ? 'Edit Expense' : 'Add Expense'} size="lg">
         <ExpenseForm
+          key={editing?.id ?? 'new'}
           onSuccess={() => { setShowModal(false); setEditing(null); fetchData() }}
           clients={clients}
           initialData={editing ?? undefined}

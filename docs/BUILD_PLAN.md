@@ -6,7 +6,56 @@ Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supaba
 
 Use this document as the master plan. Each phase below is written so you can hand it to Claude Code as a self-contained brief.
 
-> ## STATUS — as of 2026-07-06 (updated same-day, evening session 2)
+---
+
+## ✅ URGENT bugs — FIXED 2026-07-07 (session 5)
+
+Huzaifa reported these live on production. Both root causes below were fixed and verified locally (dev server, which points at the production Supabase DB — a test invoice was created to verify auto-numbering, then deleted via the API immediately after).
+
+- **#1 blank edit form**: added `key={editing?.id ?? 'new'}` to the form element in all six pages (`InvoiceForm`, `QuotationForm`, `ExpenseForm`, `TaskForm`, `ContractForm`, `ProjectForm`), forcing React to remount with fresh `initialData` on every edit. Verified: opened two different invoices' edit modals back-to-back, each correctly showed its own data.
+- **#2 invoice numbers**: `components/forms/InvoiceForm.tsx` now defaults `invoice_number` to `''` and shows it as read-only (existing invoices) or "Auto-generated on save" (new invoices) instead of an editable text input — matching `QuotationForm`. Verified: creating a new invoice via the form triggered the DB's `generate_invoice_number()` and produced `INV-2026-1000` automatically.
+- **#3 paid-date**: re-verified live — opening an overdue invoice, switching status to Paid, and setting an explicit Paid Date correctly saves and persists that date (not just today's date); reverted the test invoice back to its original overdue state afterward.
+
+**Bonus fix found during the general Finance/Tasks pass**: `InvoiceForm`/`QuotationForm` always submitted an `items` array with at least one blank line item (qty 1 × price 0), even for invoices that legitimately have zero line items (the "Imported from Zoho Books" ones). Two problems: (1) the blank line item's required `Description` field silently blocked saving *any* edit — including just changing status — on those invoices, and (2) if forced through, it would have overwritten the invoice's real total with 0. Fixed in both forms: blank line items are filtered out before submit, and `items` is omitted entirely from the payload when there's nothing meaningful to send and the record already had none — so the API's total-recompute never fires and the existing total is preserved. Verified live: marked a 0-item, AED 4,420 overdue invoice as Paid — total stayed at 4,420 instead of zeroing out.
+
+**General Finance/Tasks pass**: spot-checked create/edit/delete/status-change on Invoices, Expenses, and Tasks directly against production (via UI where reliable, via the same API calls the UI makes otherwise) — all working, all test records cleaned up afterward. Contracts and Projects only got the key-prop fix + a quick read-through (not full CRUD cycle) — worth a closer look if issues surface there.
+
+Original bug descriptions kept below for reference.
+
+### 1. Editing an invoice/quotation/task shows a blank "new" form instead of the existing data
+**Symptom:** click the edit (pencil) icon on an invoice, quotation, or task → the modal opens as if creating a brand-new record — every field is blank/default, not the record's actual data.
+
+**Root cause (confirmed):** `components/ui/Modal.tsx` always renders `{children}` and only *hides* the modal via CSS (`opacity-0`/`translate-x-full`) when `isOpen` is false — it never unmounts them. That means `InvoiceForm`, `QuotationForm`, and `TaskForm` (etc.) mount **once**, on the very first page render, when `editing` is still `null` — so their `useState({...initialData})` initializer runs exactly once with `initialData = undefined`. React never re-runs a `useState` initializer just because a prop changed on a later render, so every subsequent "Edit" click passes a new `initialData` prop into an *already-mounted* form component whose internal state is permanently stuck at its first ("New") values. Confirmed by grepping every page using this `<Modal><XForm initialData={editing}/></Modal>` pattern — **all of these share the exact same bug**:
+- `app/(dashboard)/finance/invoices/page.tsx` (InvoiceForm)
+- `app/(dashboard)/finance/quotations/page.tsx` (QuotationForm)
+- `app/(dashboard)/finance/expenses/page.tsx` (ExpenseForm)
+- `app/(dashboard)/tasks/page.tsx` (TaskForm)
+- `app/(dashboard)/contracts/page.tsx` (ContractForm)
+- `app/(dashboard)/projects/page.tsx` (ProjectForm)
+
+**Fix:** give each form a `key` prop tied to the record being edited, e.g. `key={editing?.id ?? 'new'}`, on the `<XForm .../>` element (not the `<Modal>` itself). A changed `key` forces React to unmount the old component instance and mount a fresh one, which correctly re-runs the `useState` initializer with the new `initialData`. Minimal, low-risk, one line per page — apply to all six pages above. Test each one: open "New", cancel, open "Edit" on an existing record, confirm the form is pre-filled, save, re-open edit on a *different* record, confirm it shows that record's data (not the previous one — this is the part that's easy to get wrong if only tested once).
+
+### 2. Invoice numbers are not auto-generated (unlike quotations)
+**Symptom:** creating a new invoice requires manually typing an invoice number; it's not automatic like quotation numbers are.
+
+**Root cause (confirmed):** the DB already has an auto-numbering trigger for invoices (`generate_invoice_number()` in `supabase/schema.sql`, fires `IF new.invoice_number IS NULL OR new.invoice_number = ''`) — identical in spirit to the one quotations already use successfully (`generate_quote_number()`, `supabase/phase2_migration.sql`). The difference is purely in the frontend form:
+- `components/forms/QuotationForm.tsx` defaults `quote_number` to `''` (empty) and **does not render an input for it** — so the DB trigger always fires and auto-assigns `MM-QT-######`. This is the correct pattern.
+- `components/forms/InvoiceForm.tsx` instead defaults `invoice_number` to the literal string `` `MM-INV-${year}-` `` and renders it as an **editable text input** the user is expected to finish typing — so the field is never empty, the DB trigger never fires, and numbering is entirely manual (and prone to typos/collisions, though the `invoices_invoice_number_key` unique index at least prevents duplicates crashing silently).
+
+**Fix:** make `InvoiceForm` match `QuotationForm` — default `invoice_number` to `''`, remove the manual input (or only show it read-only once `initialData?.id` exists, for editing an already-created invoice), and stop sending a placeholder value in the POST payload. Verify a newly created invoice gets `MM-INV-YYYY-NNNNN` automatically.
+
+### 3. Invoice paid-date / due-date — verify after fixing #1
+Huzaifa reported not being able to set "when payment was received" on an invoice. A `paid_date` field **was already added** to `InvoiceForm` (shown only when `status = 'paid'`) in the 2026-07-06 evening session — but if bug #1 (blank edit form) was masking it the whole time, he may never have actually seen that field. **Once #1 is fixed, re-verify**: open an existing sent/overdue invoice, change status to "Paid", confirm a "Paid Date" input appears and saves correctly (`app/api/invoices/[id]/route.ts` PUT already respects an explicit `paid_date` instead of always stamping "today" — this logic should already be correct, just needs to actually be reachable in the UI).
+
+### General ask
+Huzaifa also asked to double-check the rest of the Finance and Tasks modules are otherwise solid while in there — no other specific bugs reported, but worth a quick pass (create/edit/delete/status-change on each) since the edit-blank-form bug went unnoticed for a while.
+
+---
+
+> ## STATUS — as of 2026-07-07 (updated session 4 — see 🚨 URGENT section above first)
+> - ✅ **2026-07-07 (session 4): Tier 4 #14 e-signature shipped** (document upload + dual-party signing, quotation signing-at-acceptance) — `supabase/phase22_esignature.sql` still needs to be run in Supabase (see migrations list below).
+> - 🚨 **Same session: Huzaifa reported 3 bugs in the Finance/Tasks modules, diagnosed but NOT yet fixed** — see the urgent section at the very top of this file before doing anything else.
+>
 > Much of this plan is now BUILT (migrations `phase2`–`phase19` written; see git log):
 > - ✅ Phase 0–1: stabilized; RBAC (`phase5_rbac.sql`), roles owner/admin/manager/member/viewer/client, per-user permission overrides (`phase12`)
 > - ✅ Phase 2: projects layer (`phase6_projects.sql`)
@@ -19,12 +68,13 @@ Use this document as the master plan. Each phase below is written so you can han
 > - ✅ 2026-07-06 evening (session 1): click-to-confirm invite flow (`/auth/confirm`), admin password set/reset on Team page, real server-generated PDF downloads, WhatsApp on both doc pages
 > - ✅ **2026-07-06 evening (session 2): Tier 1 + Tier 2 fully shipped, Tier 3 fully code-complete (all of #10–12)** — see "DONE" list below.
 > - ✅ **2026-07-06 evening (session 3): critical permission-leak fix** (see detail below) + Tier 3 #11/#12 (recurring retainer invoices/dunning, cash-flow forecast).
-> - ❌ NOT done: e-signature, RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base, Tier 4 flagship differentiators
+> - ❌ NOT done: RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base, remaining Tier 4 flagship differentiators (impact reports, WhatsApp Aether, PR tracker)
 >
-> **⚠️ Three migrations are written but NOT yet run in Supabase** — paste these into the Supabase SQL editor when convenient (nothing is broken in the meantime, all degrade gracefully):
-> - `supabase/phase18_portal_access.sql` — adds `clients.portal_enabled`; until run, the portal on/off toggle shows a clear "run this migration" error instead of saving.
-> - `supabase/phase19_activity_log.sql` — creates the `activity_log` table; until run, `/settings/activity` shows a clear "run this migration" error instead of listing entries.
+> **✅ Already run in Supabase (confirmed by Huzaifa):** `phase18_portal_access.sql`, `phase19_activity_log.sql`.
+>
+> **⚠️ Two migrations are written but NOT yet confirmed run in Supabase** — paste these into the Supabase SQL editor when convenient (nothing is broken in the meantime, both degrade gracefully):
 > - `supabase/phase21_recurring_invoices.sql` — adds `clients.auto_invoice_retainer`, `invoices.retainer_period`/`dunning_stage`/`last_reminder_sent_at`; until run, recurring invoices/dunning cron jobs will error (manual "Run Retainer Invoices" button will show the DB error).
+> - `supabase/phase22_esignature.sql` — adds `signable_documents`/`document_signatures` tables + storage bucket + `quotations.signature_name`/`signature_data`; until run, `/documents` and quotation signing will show a clear "table not found" error.
 >
 > **⚠️ Online payments (Tier 3 #10) needs Stripe keys** — code is fully built (Checkout session creation, webhook handler, Pay Now button, idempotent paid-status update) but inert until you add to the environment: `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` (the last one only after registering a webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for the `checkout.session.completed` event in the Stripe dashboard).
 >
