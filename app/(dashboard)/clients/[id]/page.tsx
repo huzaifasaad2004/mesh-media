@@ -18,6 +18,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     { data: contracts },
     { data: invoices },
     { data: files },
+    { data: reports },
   ] = await Promise.all([
     supabase.from('clients').select('*').eq('id', params.id).single(),
     supabase.from('contacts').select('*').eq('client_id', params.id).order('is_primary', { ascending: false }),
@@ -27,6 +28,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     supabase.from('contracts').select('id, title, status, value, start_date, end_date').eq('client_id', params.id).order('created_at', { ascending: false }).limit(3),
     supabase.from('invoices').select('id, invoice_number, total, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
     supabase.from('files').select('id, name, file_type, category, created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
+    supabase.from('client_reports').select('id, period, pdf_url').eq('client_id', params.id).order('period', { ascending: false }).limit(12),
   ])
 
   if (!client) notFound()
@@ -319,6 +321,28 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </div>
             ) : (
               <p className="px-5 py-6 text-sm text-gray-400">No files yet</p>
+            )}
+          </div>
+
+          {/* Impact Reports */}
+          <div className="card">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3>Impact Reports</h3>
+            </div>
+            {reports && reports.length > 0 ? (
+              <div className="divide-y divide-gray-50">
+                {reports.map((r: any) => (
+                  <a key={r.id} href={r.pdf_url} target="_blank" rel="noopener noreferrer"
+                    className="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <span className="text-sm text-gray-800">
+                      {new Date(`${r.period}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="px-5 py-6 text-sm text-gray-400">No reports generated yet</p>
             )}
           </div>
 

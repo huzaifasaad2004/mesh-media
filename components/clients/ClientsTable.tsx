@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, ExternalLink } from 'lucide-react'
+import { Plus, Search, ExternalLink, FileBarChart, Loader2 } from 'lucide-react'
 import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
 import type { Client } from '@/types/database'
 import InvitePortalButton from '@/components/clients/InvitePortalButton'
 import Pagination from '@/components/ui/Pagination'
 import EmptyState from '@/components/ui/EmptyState'
+import { useToast } from '@/components/ui/Toast'
 import { CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR, type ChurnLevel } from '@/lib/churnRisk'
 
 const PAGE_SIZE = 10
@@ -17,6 +18,18 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
   const [churnByClient, setChurnByClient] = useState<Record<string, { score: number; level: ChurnLevel }>>({})
+  const [runningReports, setRunningReports] = useState(false)
+  const toast = useToast()
+
+  const runImpactReports = async () => {
+    if (!confirm("Generate last month's Impact Report for every active client?")) return
+    setRunningReports(true)
+    const res = await fetch('/api/cron/impact-reports', { method: 'POST' })
+    const d = await res.json()
+    setRunningReports(false)
+    if (res.ok) toast.success(`Generated ${d.generated.length} report(s)${d.skipped.length ? `, ${d.skipped.length} skipped` : ''}`)
+    else toast.error(d.error ?? 'Failed')
+  }
 
   useEffect(() => {
     fetch('/api/clients/churn-risk')
@@ -59,9 +72,14 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
           <h1>Clients</h1>
           <p className="text-gray-500 text-sm mt-0.5">{clients.length} total clients</p>
         </div>
-        <Link href="/clients/new" className="btn-primary">
-          <Plus className="w-4 h-4" /> Add Client
-        </Link>
+        <div className="flex gap-2">
+          <button className="btn-secondary" onClick={runImpactReports} disabled={runningReports} title="Generate last month's Impact Report PDF for every active client">
+            {runningReports ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileBarChart className="w-4 h-4" />} Generate Impact Reports
+          </button>
+          <Link href="/clients/new" className="btn-primary">
+            <Plus className="w-4 h-4" /> Add Client
+          </Link>
+        </div>
       </div>
 
       {/* Status overview */}

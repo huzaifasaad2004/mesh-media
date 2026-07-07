@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { FileText, FolderOpen, FileSignature } from 'lucide-react'
+import { FileText, FolderOpen, FileSignature, FileBarChart } from 'lucide-react'
 import PortalQuoteActions from '@/components/portal/PortalQuoteActions'
 import PortalRequests from '@/components/portal/PortalRequests'
 
@@ -12,7 +12,7 @@ export default async function PortalPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   // RLS scopes every query below to this client's own rows
-  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }] =
+  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }, { data: reports }] =
     await Promise.all([
       supabase.from('clients').select('id, company_name'),
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
@@ -20,6 +20,7 @@ export default async function PortalPage() {
       supabase.from('quotations').select('*').order('issue_date', { ascending: false }).limit(10),
       supabase.from('files').select('*').order('created_at', { ascending: false }).limit(8),
       supabase.from('signable_documents').select('*, signatures:document_signatures(party, signed_at)').order('created_at', { ascending: false }).limit(10),
+      supabase.from('client_reports').select('*').order('period', { ascending: false }).limit(12),
     ])
 
   const pendingDocuments = (documents ?? []).filter((d: any) => !d.signatures?.some((s: any) => s.party === 'client'))
@@ -132,6 +133,24 @@ export default async function PortalPage() {
             <p className="text-sm text-taupe-500 py-4">No files shared yet.</p>
           )}
         </div>
+
+        {/* Monthly Impact Reports */}
+        {reports && reports.length > 0 && (
+          <div className="card p-5 md:col-span-2">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>
+              <FileBarChart className="w-4 h-4 text-brand-600" /> Monthly Reports
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {reports.map((r: any) => (
+                <a key={r.id} href={r.pdf_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-paper-100 border border-sand-300 rounded-lg px-3 py-2 text-xs text-umber-700 hover:border-brand-300 transition-colors">
+                  <FileBarChart className="w-3.5 h-3.5" />
+                  {new Date(`${r.period}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Documents needing your signature */}
         {pendingDocuments.length > 0 && (
