@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Check, X, Eye, Loader2 } from 'lucide-react'
+import SignaturePad from '@/components/esign/SignaturePad'
 
 const DECLINE_REASONS = [
   'Price is too high',
@@ -16,20 +17,22 @@ export default function PortalQuoteActions({ quoteId, quoteStatus }: { quoteId: 
   const [loading, setLoading] = useState<'accept' | 'decline' | null>(null)
   const [error, setError] = useState('')
   const [declining, setDeclining] = useState(false)
+  const [signing, setSigning] = useState(false)
   const [reasonChoice, setReasonChoice] = useState(DECLINE_REASONS[0])
   const [reasonDetail, setReasonDetail] = useState('')
 
-  const respondAccept = async () => {
+  const respondAccept = async (payload: { name: string; dataUrl: string | null }) => {
     setLoading('accept'); setError('')
     try {
       const res = await fetch(`/api/portal/quotations/${quoteId}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision: 'accept' }),
+        body: JSON.stringify({ decision: 'accept', signature_name: payload.name, signature_data: payload.dataUrl }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Failed')
       setStatus(d.status)
+      setSigning(false)
     } catch (e: any) { setError(e.message) } finally { setLoading(null) }
   }
 
@@ -55,7 +58,13 @@ export default function PortalQuoteActions({ quoteId, quoteStatus }: { quoteId: 
   return (
     <div className="mt-3">
       {pending ? (
-        declining ? (
+        signing ? (
+          <div className="bg-paper-50 border border-sand-300 rounded-lg p-3">
+            <p className="text-xs font-medium text-umber-700 mb-2">Sign to accept this quotation</p>
+            <SignaturePad submitting={loading === 'accept'} onSubmit={respondAccept} submitLabel="Sign & Accept" />
+            <button onClick={() => { setSigning(false); setError('') }} className="btn-ghost btn-sm mt-2">Cancel</button>
+          </div>
+        ) : declining ? (
           <div className="space-y-2 bg-paper-50 border border-sand-300 rounded-lg p-3">
             <label className="text-xs font-medium text-umber-700">Why are you declining?</label>
             <select className="input" value={reasonChoice} onChange={e => setReasonChoice(e.target.value)} style={{ fontSize: 13 }}>
@@ -72,9 +81,9 @@ export default function PortalQuoteActions({ quoteId, quoteStatus }: { quoteId: 
           </div>
         ) : (
           <div className="flex gap-2">
-            <button onClick={respondAccept} disabled={loading !== null}
+            <button onClick={() => setSigning(true)} disabled={loading !== null}
               className="btn-primary btn-sm flex-1 justify-center">
-              {loading === 'accept' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Approve
+              <Check className="w-3 h-3" /> Approve
             </button>
             <button onClick={() => setDeclining(true)} disabled={loading !== null}
               className="btn-secondary btn-sm flex-1 justify-center">

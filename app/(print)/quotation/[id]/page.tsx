@@ -167,6 +167,19 @@ export default function QuotationPrintPage() {
             notes={quote.notes}
             terms={quote.terms}
           />
+          {quote.status === 'accepted' && quote.signature_name && (
+            <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 20px' }}>
+              <div style={{
+                background: 'white', border: '1px solid #ece7e0', borderLeft: `4px solid ${BRAND}`,
+                borderRadius: 6, padding: '16px 20px', marginTop: 12,
+              }}>
+                <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Signed &amp; Accepted</div>
+                {quote.signature_data && <img src={quote.signature_data} alt="Signature" style={{ height: 48, marginBottom: 6 }} />}
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{quote.signature_name}</div>
+                <div style={{ fontSize: 12, color: '#888' }}>{quote.decided_at ? new Date(quote.decided_at).toLocaleString('en-GB') : ''}</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

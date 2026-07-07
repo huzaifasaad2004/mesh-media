@@ -9,11 +9,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-  const { decision, reason } = await req.json()
+  const { decision, reason, signature_name, signature_data } = await req.json()
   const status = decision === 'accept' ? 'accepted' : decision === 'decline' ? 'declined' : null
   if (!status) return NextResponse.json({ error: 'Invalid decision' }, { status: 400 })
   if (status === 'declined' && !reason?.trim()) {
     return NextResponse.json({ error: 'Please tell us why so we can follow up appropriately' }, { status: 400 })
+  }
+  if (status === 'accepted' && !signature_name?.trim()) {
+    return NextResponse.json({ error: 'Please sign to accept this quotation' }, { status: 400 })
   }
 
   const db = admin()
@@ -38,11 +41,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: `This quotation is already ${quote.status}` }, { status: 400 })
   }
 
-  await db.from('quotations').update({
+  const { error: updateError } = await db.from('quotations').update({
     status,
     decided_at: new Date().toISOString(),
     decline_reason: status === 'declined' ? reason.trim() : null,
+    signature_name: status === 'accepted' ? signature_name.trim() : null,
+    signature_data: status === 'accepted' ? (signature_data || null) : null,
   }).eq('id', params.id)
+  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
 
   // Notify admins/managers in-app
   const { data: staff } = await db.from('profiles').select('id').in('role', ['owner', 'admin', 'manager'])

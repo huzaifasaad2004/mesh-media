@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
-import { FileText, FolderOpen } from 'lucide-react'
+import Link from 'next/link'
+import { FileText, FolderOpen, FileSignature } from 'lucide-react'
 import PortalQuoteActions from '@/components/portal/PortalQuoteActions'
 import PortalRequests from '@/components/portal/PortalRequests'
 
@@ -11,14 +12,17 @@ export default async function PortalPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   // RLS scopes every query below to this client's own rows
-  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }] =
+  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }] =
     await Promise.all([
       supabase.from('clients').select('id, company_name'),
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
       supabase.from('invoices').select('*').order('issue_date', { ascending: false }).limit(10),
       supabase.from('quotations').select('*').order('issue_date', { ascending: false }).limit(10),
       supabase.from('files').select('*').order('created_at', { ascending: false }).limit(8),
+      supabase.from('signable_documents').select('*, signatures:document_signatures(party, signed_at)').order('created_at', { ascending: false }).limit(10),
     ])
+
+  const pendingDocuments = (documents ?? []).filter((d: any) => !d.signatures?.some((s: any) => s.party === 'client'))
 
   const companyName = clients?.[0]?.company_name ?? user?.email ?? 'there'
   const openInvoices = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status))
@@ -128,6 +132,23 @@ export default async function PortalPage() {
             <p className="text-sm text-taupe-500 py-4">No files shared yet.</p>
           )}
         </div>
+
+        {/* Documents needing your signature */}
+        {pendingDocuments.length > 0 && (
+          <div className="card p-5 md:col-span-2" style={{ borderColor: '#D98A8E' }}>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>
+              <FileSignature className="w-4 h-4 text-brand-600" /> Documents awaiting your signature
+            </h2>
+            <div className="divide-y divide-paper-200">
+              {pendingDocuments.map((doc: any) => (
+                <div key={doc.id} className="flex items-center justify-between py-3 gap-3">
+                  <span className="text-sm font-medium text-ink">{doc.title}</span>
+                  <Link href={`/documents/${doc.id}`} className="btn-primary btn-sm">Review &amp; Sign</Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Requests inbox */}
         <div className="md:col-span-2">

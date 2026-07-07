@@ -11,7 +11,7 @@ import NotificationBell from '@/components/NotificationBell'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet,
-  Menu, X, Search
+  Menu, X, Search, FileSignature
 } from 'lucide-react'
 
 const openCommandPalette = () => window.dispatchEvent(new Event('mm:open-command-palette'))
@@ -27,6 +27,7 @@ const navItems = [
   { href: '/my-pay',     label: 'My Pay',      icon: Wallet },
   { href: '/files',      label: 'Files',       icon: FolderOpen },
   { href: '/contracts',  label: 'Contracts',   icon: FileText },
+  { href: '/documents',  label: 'Documents',   icon: FileSignature },
   { href: '/finance',    label: 'Finance',     icon: DollarSign },
   { href: '/team',       label: 'Team',        icon: UserCog },
   { href: '/settings',   label: 'Settings',    icon: Settings },
