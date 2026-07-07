@@ -51,6 +51,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
     status: (initialData?.status as string) ?? 'draft',
     issue_date: (initialData?.issue_date as string) ?? new Date().toISOString().split('T')[0],
     due_date: (initialData?.due_date as string) ?? '',
+    paid_date: (initialData?.paid_date as string) ?? '',
     subject: (initialData?.subject as string) ?? '',
     notes: (initialData?.notes as string) ?? '',
     terms: (initialData?.terms as string) ?? '',
@@ -99,6 +100,7 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
     const payload = {
       ...form,
       due_date: form.due_date || null,
+      paid_date: form.status === 'paid' ? (form.paid_date || null) : null,
       subject: form.subject || null,
       notes: form.notes || null,
       terms: showTerms ? (form.terms || null) : null,
@@ -154,6 +156,16 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
           <input className={inputClass} type="date" value={form.due_date} onChange={set('due_date')} />
         </div>
       </div>
+
+      {form.status === 'paid' && (
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className={labelClass}>Paid Date</label>
+            <input className={inputClass} type="date" value={form.paid_date} onChange={set('paid_date')} />
+            <p className="text-xs text-gray-400 mt-1">Leave blank to use today&apos;s date</p>
+          </div>
+        </div>
+      )}
 
       <div>
         <label className={labelClass}>Subject / Project Description</label>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { requireRoles, FINANCE_WRITE, OPS_WRITE } from '@/lib/apiAuth'
+import { requireFinanceWrite } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { emitCelineEvent } from '@/lib/celine/events'
 import { computeTotals } from '@/lib/documentTotals'
@@ -40,7 +40,7 @@ async function notifyCelineIfClientView(invoiceId: string, invoice: any) {
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(FINANCE_WRITE, 'finance.write')
+  const auth = await requireFinanceWrite()
   if ('res' in auth) return auth.res
 
   const body = await req.json()
@@ -81,7 +81,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireFinanceWrite()
   if ('res' in auth) return auth.res
 
   const { data: existing } = await admin().from('invoices').select('invoice_number').eq('id', params.id).single()

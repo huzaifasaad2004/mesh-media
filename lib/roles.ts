@@ -4,8 +4,6 @@ export const STAFF_ROLES: Role[] = ['owner', 'admin', 'manager', 'member', 'view
 
 export const isStaff = (role?: string | null) => STAFF_ROLES.includes(role as Role)
 export const isAdmin = (role?: string | null) => role === 'owner' || role === 'admin'
-export const canSeeFinance = (role?: string | null) =>
-  ['owner', 'admin', 'manager', 'viewer'].includes(role ?? '')
 export const canManageTeam = isAdmin
 export const canManageSettings = isAdmin
 

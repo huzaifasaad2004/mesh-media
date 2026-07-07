@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
-import { hasPermission } from '@/lib/permissions'
+import { requirePayrollWrite, serviceRole } from '@/lib/apiAuth'
 import { sendPayslipEmail } from '@/lib/payslip'
 import { logActivity } from '@/lib/activityLog'
-
-const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 // Generates this month's payment for every active MONTHLY salary that
 // doesn't already have one for the current period. Safe to call repeatedly —
 // the unique (salary_id, period) index means it can never double-pay anyone.
 export async function POST(_req: NextRequest) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  const db = admin()
-  if (!me || !(await hasPermission(db, user.id, me.role, 'payroll.write'))) {
-    return NextResponse.json({ error: 'You do not have payroll access' }, { status: 403 })
-  }
+  const auth = await requirePayrollWrite()
+  if ('res' in auth) return auth.res
+  const { user } = auth
+  const db = serviceRole()
 
   const today = new Date().toISOString().split('T')[0]
   const period = today.slice(0, 7)

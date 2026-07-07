@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRoles, serviceRole, stripProtected, FINANCE_WRITE } from '@/lib/apiAuth'
+import { requireFinanceWrite, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(FINANCE_WRITE, 'finance.write')
+  const auth = await requireFinanceWrite()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('expenses').update(body).eq('id', params.id).select().single()
@@ -13,7 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(FINANCE_WRITE, 'finance.write')
+  const auth = await requireFinanceWrite()
   if ('res' in auth) return auth.res
   const { data: existing } = await serviceRole().from('expenses').select('description').eq('id', params.id).single()
   const { error } = await serviceRole().from('expenses').delete().eq('id', params.id)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { isAdmin } from '@/lib/roles'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -17,12 +18,28 @@ export async function GET() {
     .select('*, client:clients(id, company_name)')
     .order('created_at', { ascending: false })
 
-  // Clients only see their own; staff see all
   if (me?.role === 'client') {
+    // Clients only see their own
     const { data: links } = await db.from('client_contacts').select('client_id').eq('user_id', user.id)
     const ids = (links ?? []).map(l => l.client_id)
     if (ids.length === 0) return NextResponse.json([])
     query = query.in('client_id', ids)
+  } else if (!isAdmin(me?.role)) {
+    // Non-admin staff only see requests for clients they actually work with
+    // (assigned tasks or project membership) — not every request made to
+    // the agency/owner.
+    const [{ data: assignedTasks }, { data: memberProjects }] = await Promise.all([
+      db.from('tasks').select('client_id').eq('assigned_to', user.id).not('client_id', 'is', null),
+      db.from('project_members').select('project:projects(client_id)').eq('user_id', user.id),
+    ])
+    const ids = new Set<string>()
+    for (const t of assignedTasks ?? []) if (t.client_id) ids.add(t.client_id)
+    for (const p of memberProjects ?? []) {
+      const clientId = (p as any).project?.client_id
+      if (clientId) ids.add(clientId)
+    }
+    if (ids.size === 0) return NextResponse.json([])
+    query = query.in('client_id', Array.from(ids))
   }
 
   const { data, error } = await query

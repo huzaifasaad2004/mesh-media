@@ -25,6 +25,16 @@ Use this document as the master plan. Each phase below is written so you can han
 > - `supabase/phase19_activity_log.sql` — creates the `activity_log` table; until run, `/settings/activity` shows a clear "run this migration" error instead of listing entries.
 >
 > **⚠️ Online payments (Tier 3 #10) needs Stripe keys** — code is fully built (Checkout session creation, webhook handler, Pay Now button, idempotent paid-status update) but inert until you add to the environment: `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` (the last one only after registering a webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for the `checkout.session.completed` event in the Stripe dashboard).
+>
+> - ✅ **2026-07-06 evening (session 3): critical permission-leak fix, requested urgently by Huzaifa.** Managers/members were seeing finance data (invoices, revenue, dashboard KPIs, all client-support requests) and the Permissions Matrix editor had **zero effect** on built-in roles because `lib/apiAuth.ts` checked a hardcoded role array before ever consulting `role_permissions`. Fixed properly — see `lib/apiAuth.ts` (`requireFinanceRead/Write`, `requirePayrollRead/Write` are now fully permission-driven, owner/admin bypass only). Also fixed along the way:
+>   - `GET /api/salaries` had **no auth check at all** — any authenticated (or unauthenticated) request returned every employee's salary. Now gated by `payroll.read`.
+>   - `/payslip/[id]` "not loading" bug: `salary_payments` has two FKs to `profiles` (`profile_id`, `created_by`); the ambiguous embed was silently failing every request. Fixed with an explicit `!salary_payments_profile_id_fkey` hint.
+>   - Dashboard (`app/(dashboard)/dashboard/page.tsx`) now computes effective permissions server-side and only queries/renders finance (revenue, expenses, invoices, charts) and clients data for users who actually have `finance.read`/`clients.read`. Non-finance staff see Open Tasks, Due Today, and a "My Salary" tile instead.
+>   - `/api/requests` (client support tickets) now scopes non-admin staff to only the clients they're actually assigned to (via tasks or project membership) instead of every request in the system.
+>   - Ran `phase20_restrict_manager_finance.sql` directly against production (with Huzaifa's explicit go-ahead) to revoke the `manager` role's default `finance.read`/`finance.write` grants — the owner can re-grant per-role via `/settings/permissions` or per-person via Team → Manage Access.
+>   - Invoices: `InvoiceForm` now has an editable **Paid Date** field (shown when status = Paid).
+>   - Salaries: replaced the one-click "Pay Now" (always dated today) with a **Payments modal** (`components/finance/SalaryPaymentsModal.tsx`) — record a payment with any date, and edit the date/amount of any past payment via a new `PUT /api/salary-payments/[id]`.
+>   - All verified live via the "View as" impersonation feature (start a real session as the manager, confirm the dashboard/invoices/requests are properly scoped, then return to admin).
 
 ---
 

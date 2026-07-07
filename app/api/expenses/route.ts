@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireFinanceRead, requireRoles, serviceRole, stripProtected, FINANCE_WRITE } from '@/lib/apiAuth'
+import { requireFinanceRead, requireFinanceWrite, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRoles(FINANCE_WRITE, 'finance.write')
+  const auth = await requireFinanceWrite()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('expenses').insert(body).select().single()

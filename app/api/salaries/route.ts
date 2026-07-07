@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
-import { hasPermission } from '@/lib/permissions'
+import { requirePayrollRead, requirePayrollWrite, serviceRole } from '@/lib/apiAuth'
 
-const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-async function requirePayrollWrite() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Not authenticated' }, { status: 401 }) }
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!me || !(await hasPermission(admin(), user.id, me.role, 'payroll.write'))) {
-    return { error: NextResponse.json({ error: 'You do not have payroll access' }, { status: 403 }) }
-  }
-  return { userId: user.id }
-}
-
+// Full list requires payroll.read (or owner/admin) — this used to have NO
+// auth check at all and leaked every employee's salary to anyone with a
+// session. Everyone else only sees their own record via /api/my-pay.
 export async function GET() {
-  const { data, error } = await admin()
+  const auth = await requirePayrollRead()
+  if ('res' in auth) return auth.res
+
+  const { data, error } = await serviceRole()
     .from('salaries')
     .select('*, profile:profiles(id, full_name, email), payments:salary_payments(id, amount, payment_date, period)')
     .order('effective_from', { ascending: false })
@@ -26,13 +17,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requirePayrollWrite()
-  if (guard.error) return guard.error
+  const auth = await requirePayrollWrite()
+  if ('res' in auth) return auth.res
 
   const b = await req.json()
   if (!b.profile_id || !b.amount) return NextResponse.json({ error: 'Team member and amount are required' }, { status: 400 })
 
-  const { data, error } = await admin().from('salaries').insert({
+  const { data, error } = await serviceRole().from('salaries').insert({
     profile_id: b.profile_id,
     amount: Number(b.amount),
     currency: b.currency || 'AED',

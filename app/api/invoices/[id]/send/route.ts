@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
-import { requireRoles, FINANCE_WRITE } from '@/lib/apiAuth'
+import { requireFinanceWrite } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
 import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
 
@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const authz = await requireRoles(FINANCE_WRITE, 'finance.write')
+  const authz = await requireFinanceWrite()
   if ('res' in authz) return authz.res
 
   const resend = new Resend(process.env.RESEND_API_KEY)

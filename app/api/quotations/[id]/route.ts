@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireFinanceWrite } from '@/lib/apiAuth'
+import { isAdmin } from '@/lib/roles'
 import { logActivity } from '@/lib/activityLog'
 import { computeTotals } from '@/lib/documentTotals'
 
@@ -19,13 +20,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!me || !['owner', 'admin', 'manager', 'member'].includes(me.role)) {
-    return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  }
+  const auth = await requireFinanceWrite()
+  if ('res' in auth) return auth.res
 
   const body = await req.json()
   const { items, ...quoteData } = body
@@ -37,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (quoteData.status) {
     const { data: existing } = await admin().from('quotations').select('status').eq('id', params.id).single()
     if (existing && CLIENT_DECIDED_STATUSES.includes(existing.status) && existing.status !== quoteData.status) {
-      if (!['owner', 'admin'].includes(me.role)) {
+      if (!isAdmin(auth.role)) {
         return NextResponse.json({ error: `Only an admin can change a quotation the client already ${existing.status}` }, { status: 403 })
       }
     }
@@ -63,22 +59,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { data, error } = await admin().from('quotations').update(quoteData).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  await logActivity(user, 'update', 'quotation', params.id, data.quote_number)
+  await logActivity(auth.user, 'update', 'quotation', params.id, data.quote_number)
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!me || !['owner', 'admin', 'manager', 'member'].includes(me.role)) {
-    return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
-  }
+  const auth = await requireFinanceWrite()
+  if ('res' in auth) return auth.res
 
   const { data: existing } = await admin().from('quotations').select('quote_number').eq('id', params.id).single()
   const { error } = await admin().from('quotations').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  await logActivity(user, 'delete', 'quotation', params.id, existing?.quote_number)
+  await logActivity(auth.user, 'delete', 'quotation', params.id, existing?.quote_number)
   return NextResponse.json({ success: true })
 }

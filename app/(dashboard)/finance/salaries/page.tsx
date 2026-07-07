@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, DollarSign, Loader2, Eye, Play } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import SalaryForm from '@/components/forms/SalaryForm'
+import SalaryPaymentsModal from '@/components/finance/SalaryPaymentsModal'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
@@ -13,7 +14,7 @@ export default function SalariesPage() {
   const [canManage, setCanManage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [paying, setPaying] = useState<string | null>(null)
+  const [payingSalaryId, setPayingSalaryId] = useState<string | null>(null)
   const [runningPayroll, setRunningPayroll] = useState(false)
   const toast = useToast()
 
@@ -32,15 +33,6 @@ export default function SalariesPage() {
 
   const monthlyTotal = salaries.filter(s => !s.effective_to).reduce((sum, s) => sum + Number(s.amount), 0)
 
-  const recordPayment = async (salaryId: string) => {
-    setPaying(salaryId)
-    const res = await fetch(`/api/salaries/${salaryId}/pay`, { method: 'POST' })
-    const d = await res.json()
-    setPaying(null)
-    if (res.ok) { toast.success(d.emailed ? 'Payment recorded and payslip emailed' : 'Payment recorded (email not sent — check Resend setup)'); load() }
-    else toast.error(d.error ?? 'Failed')
-  }
-
   const runPayroll = async () => {
     if (!confirm("Generate this month's payroll for every active monthly salary that hasn't been paid yet?")) return
     setRunningPayroll(true)
@@ -50,6 +42,8 @@ export default function SalariesPage() {
     if (res.ok) { toast.success(`Generated ${d.generated.length} payslip(s)${d.skipped.length ? `, ${d.skipped.length} already paid` : ''}`); load() }
     else toast.error(d.error ?? 'Failed')
   }
+
+  const payingSalary = salaries.find(s => s.id === payingSalaryId)
 
   return (
     <div>
@@ -125,10 +119,10 @@ export default function SalariesPage() {
                     </td>
                     {canManage && (
                       <td className="px-5 py-3">
-                        {!sal.effective_to && !paidThisMonth && (
-                          <button onClick={() => recordPayment(sal.id)} disabled={paying === sal.id}
+                        {!sal.effective_to && (
+                          <button onClick={() => setPayingSalaryId(sal.id)}
                             className="btn-secondary btn-sm ml-auto flex items-center gap-1">
-                            {paying === sal.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <DollarSign className="w-3 h-3" />} Pay Now
+                            <DollarSign className="w-3 h-3" /> Payments
                           </button>
                         )}
                       </td>
@@ -149,6 +143,18 @@ export default function SalariesPage() {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Set Salary">
         <SalaryForm onSuccess={() => { setShowModal(false); load() }} />
+      </Modal>
+
+      <Modal isOpen={!!payingSalaryId} onClose={() => setPayingSalaryId(null)} title={payingSalary ? `Payments · ${payingSalary.profile?.full_name ?? payingSalary.profile?.email ?? ''}` : 'Payments'}>
+        {payingSalary && (
+          <SalaryPaymentsModal
+            salaryId={payingSalary.id}
+            currency={payingSalary.currency}
+            payments={payingSalary.payments ?? []}
+            canRecordNew={!payingSalary.effective_to}
+            onChanged={load}
+          />
+        )}
       </Modal>
     </div>
   )

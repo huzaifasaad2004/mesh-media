@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { canSeeFinance, isStaff, type Role } from '@/lib/roles'
+import { isAdmin, isStaff, type Role } from '@/lib/roles'
 import { hasPermission } from '@/lib/permissions'
 
 // Role sets mirror the database RLS policies in phase5_rbac.sql — keep in sync.
 export const OPS_WRITE: Role[] = ['owner', 'admin', 'manager', 'member'] // can_write_ops()
-export const FINANCE_WRITE: Role[] = ['owner', 'admin', 'manager']
 export const MANAGERS: Role[] = ['owner', 'admin', 'manager']
 
 export type Authed = { user: User; role: Role; db: ReturnType<typeof createClient> }
@@ -57,13 +56,24 @@ export async function requireRoles(roles: Role[], overridePermission?: string): 
   return deny(403, 'Not allowed')
 }
 
-/** Caller may view finance data (role or per-user finance.read override). */
-export async function requireFinanceRead(): Promise<Authed | Denied> {
+/** Owner/admin always pass; everyone else needs the effective permission —
+ *  no hardcoded role bypass, so revoking a permission in the permissions
+ *  matrix (`/settings/permissions`) actually takes effect for every role. */
+async function requirePermission(permission: string): Promise<Authed | Denied> {
   const auth = await requireUser()
   if ('res' in auth) return auth
-  if (canSeeFinance(auth.role)) return auth
-  if (isStaff(auth.role) && await hasPermission(serviceRole(), auth.user.id, auth.role, 'finance.read')) {
+  if (isAdmin(auth.role)) return auth
+  if (isStaff(auth.role) && await hasPermission(serviceRole(), auth.user.id, auth.role, permission)) {
     return auth
   }
   return deny(403, 'Not allowed')
 }
+
+/** Caller may view finance data (invoices, quotations, expenses). */
+export const requireFinanceRead = () => requirePermission('finance.read')
+/** Caller may create/edit/delete finance records. */
+export const requireFinanceWrite = () => requirePermission('finance.write')
+/** Caller may view salaries/payslips. */
+export const requirePayrollRead = () => requirePermission('payroll.read')
+/** Caller may manage salaries and record payments. */
+export const requirePayrollWrite = () => requirePermission('payroll.write')
