@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Search, ExternalLink } from 'lucide-react'
 import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
@@ -8,6 +8,7 @@ import type { Client } from '@/types/database'
 import InvitePortalButton from '@/components/clients/InvitePortalButton'
 import Pagination from '@/components/ui/Pagination'
 import EmptyState from '@/components/ui/EmptyState'
+import { CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR, type ChurnLevel } from '@/lib/churnRisk'
 
 const PAGE_SIZE = 10
 
@@ -15,6 +16,18 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [churnByClient, setChurnByClient] = useState<Record<string, { score: number; level: ChurnLevel }>>({})
+
+  useEffect(() => {
+    fetch('/api/clients/churn-risk')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => {
+        const map: Record<string, { score: number; level: ChurnLevel }> = {}
+        for (const row of rows) map[row.client_id] = { score: row.score, level: row.level }
+        setChurnByClient(map)
+      })
+      .catch(() => {})
+  }, [])
 
   const statusGroups = ['active', 'onboarding', 'lead', 'paused', 'churned']
   const counts = statusGroups.reduce((acc, s) => {
@@ -82,6 +95,7 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Company</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Industry</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
+              {Object.keys(churnByClient).length > 0 && <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Health</th>}
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Retainer</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Email</th>
               <th className="px-5 py-3" />
@@ -102,6 +116,15 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
                 </td>
                 <td className="px-5 py-3 text-gray-500">{client.industry ?? '—'}</td>
                 <td className="px-5 py-3"><span className={`badge ${statusColor(client.status)}`}>{statusLabel(client.status)}</span></td>
+                {Object.keys(churnByClient).length > 0 && (
+                  <td className="px-5 py-3">
+                    {churnByClient[client.id] ? (
+                      <span className={`badge ${CHURN_LEVEL_COLOR[churnByClient[client.id].level]}`} title={`Health score: ${churnByClient[client.id].score}/100`}>
+                        {CHURN_LEVEL_LABEL[churnByClient[client.id].level]}
+                      </span>
+                    ) : '—'}
+                  </td>
+                )}
                 <td className="px-5 py-3 font-medium">{client.monthly_retainer ? formatCurrency(client.monthly_retainer) + '/mo' : '—'}</td>
                 <td className="px-5 py-3 text-gray-500">{client.email ?? '—'}</td>
                 <td className="px-5 py-3">
@@ -119,7 +142,7 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
               </tr>
             )) : (
               <EmptyState
-                colSpan={6}
+                colSpan={Object.keys(churnByClient).length > 0 ? 7 : 6}
                 title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
                 helper={clients.length === 0 ? 'Add your first client to start tracking projects and invoices.' : 'Try a different search term or status filter.'}
                 action={clients.length === 0 ? <Link href="/clients/new" className="btn-primary btn-sm inline-flex"><Plus className="w-3 h-3" /> Add your first client</Link> : undefined}

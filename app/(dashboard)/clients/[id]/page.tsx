@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { ArrowLeft, ExternalLink, Phone, Mail, Globe, CheckCircle2, Circle } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Phone, Mail, Globe, CheckCircle2, Circle, Activity } from 'lucide-react'
 import PortalAccessCard from '@/components/clients/PortalAccessCard'
+import { computeChurnRisk, CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR } from '@/lib/churnRisk'
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -29,6 +30,20 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
   ])
 
   if (!client) notFound()
+
+  const sixMonthsAgo = new Date(Date.now() - 183 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [{ data: recentInvoicesForChurn }, { data: lastTaskRow }, { data: lastNoteRow }] = await Promise.all([
+    supabase.from('invoices').select('status, due_date, issue_date').eq('client_id', params.id).gte('issue_date', sixMonthsAgo),
+    supabase.from('tasks').select('created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('client_notes').select('created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ])
+  const churn = computeChurnRisk({
+    status: client.status,
+    monthlyRetainer: client.monthly_retainer,
+    invoices: recentInvoicesForChurn ?? [],
+    lastTaskAt: lastTaskRow?.created_at ?? null,
+    lastNoteAt: lastNoteRow?.created_at ?? null,
+  })
 
   const completedSteps = onboarding?.filter((s: any) => s.is_completed).length ?? 0
   const totalSteps = onboarding?.length ?? 0
@@ -71,6 +86,31 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column */}
         <div className="space-y-5">
+          {/* Client Pulse — churn/health signal */}
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center gap-2"><Activity className="w-4 h-4 text-gray-400" /> Client Pulse</h3>
+              <span className={`badge ${CHURN_LEVEL_COLOR[churn.level]}`}>{CHURN_LEVEL_LABEL[churn.level]}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5 mb-3">
+              <div
+                className="h-1.5 rounded-full transition-all"
+                style={{
+                  width: `${churn.score}%`,
+                  background: churn.level === 'healthy' ? 'var(--success, #4F7A4A)' : churn.level === 'watch' ? 'var(--warning, #B8801F)' : 'var(--danger, #B23A2E)',
+                }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mb-2">Health score: {churn.score}/100</p>
+            <ul className="space-y-1.5">
+              {churn.reasons.map((r, i) => (
+                <li key={i} className="text-xs text-gray-500 flex items-start gap-1.5">
+                  <span className="text-gray-300 mt-0.5">•</span> {r}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           {/* Client Info */}
           <div className="card p-5">
             <h3 className="mb-4">Client Info</h3>

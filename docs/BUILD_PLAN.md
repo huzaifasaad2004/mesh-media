@@ -63,7 +63,13 @@ Use this document as the master plan. Each phase below is written so you can han
 12. ✅ **Cash-flow forecast** widget on `/finance` (`components/finance/CashFlowForecast.tsx`, `/api/finance/cashflow`) — recurring retainer income + outstanding − payroll − recurring expenses, projected across this month / next month / month after.
 
 ### Tier 4 — flagship differentiators (see audit §4)
-13. Client Pulse churn radar · monthly branded Impact Report PDF per client · WhatsApp-native Aether · PR media-placement/EMV tracker. NOT STARTED.
+13a. ✅ **Client Pulse churn radar** — `lib/churnRisk.ts` (transparent, rule-based 0–100 score: overdue invoices, retainer-but-no-recent-invoices, task-activity gap, note/contact gap, paused status), `/api/clients/churn-risk` (bulk, gated by `finance.read`). "Health" badge column on the Clients list (`ClientsTable.tsx`, hides itself if the endpoint 403s), full breakdown card ("Client Pulse" — score bar + bullet reasons) on the client detail page.
+13b. ⬜ Monthly branded Impact Report PDF per client · WhatsApp-native Aether · PR media-placement/EMV tracker. NOT STARTED.
+14. ⬜ E-signature for contracts/quotations. NOT STARTED.
+15. ⬜ RAG/pgvector-grounded Aether (embeddings pipeline + Gemini function-calling agent). NOT STARTED.
+16. ⬜ CRM / leads pipeline (leads + pipeline_stages tables, pre-client stage). NOT STARTED.
+17. ⬜ Client onboarding workflows (templates → runs → steps). NOT STARTED.
+18. ⬜ Knowledge base / SOPs. NOT STARTED.
 
 ---
 
