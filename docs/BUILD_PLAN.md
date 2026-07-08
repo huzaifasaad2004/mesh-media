@@ -8,16 +8,33 @@ Use this document as the master plan. Each phase below is written so you can han
 
 ---
 
-## 🚨 URGENT — NEXT SESSION PRIORITY (requested 2026-07-08, NOT started)
+## 🚨 URGENT — NEXT SESSION PRIORITY (updated 2026-07-09, NOTHING BELOW STARTED YET)
 
-Huzaifa's brief below, plus grounded technical context from a fresh codebase scan so a new
-session can start building immediately instead of re-discovering this. **Start here before
-any "NEXT UP" roadmap item below.** Suggested order and why: **#1 (Files) first** — it's
-self-contained. **#2 (Content Approval) second** — it requires a real permissions change
-(see finding below) that's worth doing carefully on its own. **#3 (Email Notifications)
-third** — wire it into whatever new handoff points #2 creates rather than building it twice.
+Huzaifa's briefs below (2026-07-08 batch + 2026-07-09 batch), plus grounded technical context
+from fresh codebase scans so a new session can start building immediately instead of
+re-discovering this. **Start here before any "NEXT UP" roadmap item further down.**
 
-### 1. File Module Overhaul
+**Suggested overall order** — grouped by dependency, not by when each was requested:
+1. **Two quick bug fixes first** (§C, items 16–17 below) — small, isolated, unblock accurate
+   finance reporting immediately.
+2. **Permissions/roles pass** (§D, items 7, 9, 10, 15, plus the access-control finding under
+   item 2) — do this as one coherent piece of work since items 7/9/10/15 all touch the same
+   RLS policies and `lib/apiAuth.ts` gates; splitting it across sessions risks inconsistent
+   role behavior.
+3. **Files module** (§A item 1) — self-contained, no dependency on the above.
+4. **Task flow refinement** (§D item 8) — builds on the permissions pass in step 2.
+5. **Content approval workflow** (§A item 2) — depends on the tightened member permissions
+   from step 2.
+6. **Email notifications** (§A item 3) — wire into whatever handoff points step 5 creates.
+7. **Document module fixes** (§B items 4–6) — independent, do whenever convenient.
+8. **Salary module gaps** (§C items 11–13, minus the two bugs already pulled into step 1)
+   and **profile pictures** (§D item 14) — lower urgency, no dependencies.
+
+---
+
+### §A — Platform workflows (requested 2026-07-08)
+
+#### 1. File Module Overhaul
 > Huzaifa: *"The current file module is not functioning as intended, particularly regarding
 > storage and functionality. Should we utilize our database for smaller files and integrate
 > external solutions (e.g., Google Drive) for larger project files? Or is there a more robust,
@@ -45,7 +62,7 @@ call it; a "Link Drive file" action for the external-file case; a `category`-awa
 flag so client-visible files show in the portal's existing Files card and internal-only ones
 don't.
 
-### 2. Streamlined Content Approval Workflow via Client Portal
+#### 2. Streamlined Content Approval Workflow via Client Portal
 > Huzaifa: *"Social media managers or video editors create content and submit it to their
 > direct manager. The manager reviews and, upon approval, forwards it to the client's portal.
 > The client gets an email notification, and can approve, decline, or comment in their portal.
@@ -76,7 +93,7 @@ client-portal review view (approve/decline/comment — similar UX to the existin
 accept/decline-in-portal flow), notifications at each handoff (feeds into #3 below), and the
 tightened member-level client visibility above.
 
-### 3. Comprehensive Email Notification System
+#### 3. Comprehensive Email Notification System
 > Huzaifa: *"We need robust email notifications for task assignments/status updates, file
 > uploads, approval requests, and critical alerts — configurable for employees, clients, and
 > admins."*
@@ -95,14 +112,219 @@ notification-insert call sites (plus whatever #2 adds) to also send email when t
 has that channel enabled — reusing the existing Resend + `COMPANY` branding pattern already
 proven in the invoice-send emails.
 
+### §B — Document/e-signature module fixes (requested 2026-07-09)
+
+#### 4. Signature placement isn't visible during self-signing
+> Huzaifa: *"You can't see where the signature will be placed when you're signing yourself."*
+
+**Confirmed current state:** the signing UI (`app/documents/[id]/page.tsx` +
+`components/esign/SignaturePad.tsx`) shows the PDF read-only in a plain `<iframe>`, and the
+signature pad is a completely separate 400×140px canvas below it — there's **no positional
+link between the two at all**. A signature is captured as a base64 PNG blob
+(`document_signatures.signature_data`) with **no coordinates, page number, or field
+metadata** in the schema. Once signed, the signature renders as a small `h-12` thumbnail
+below a status card, not on the document itself. This matches item #6 below — neither
+placement-preview nor actual placeholder fields exist; it's currently "sign somewhere
+generic, we'll show a thumbnail after."
+
+#### 5. Client-facing signature-request email needs fixing
+> Huzaifa: *"There's a problem with the client-facing email for signatures."*
+
+**Confirmed current state:** the email (`app/api/documents/route.ts` POST handler) sends via
+Resend with a bare 3-paragraph HTML body (greeting, document title, a plain-text action link,
+company name) — no branding, no styling, no template system (hardcoded inline HTML, unlike
+the styled HTML template already used for invoice emails). Two concrete gaps: **Resend errors
+are silently swallowed** (`.catch(() => {})` with no logging, so a failed send looks
+identical to a successful one from the sender's side), and there's no fallback content if
+`NEXT_PUBLIC_APP_URL` is unset (falls back to `req.nextUrl.origin`, which is fine locally but
+worth confirming is correct in the Vercel production env). Needs a live test with a real
+client email to pin down exactly what "problem" Huzaifa is seeing — the code compiles and
+sends, but the styling gap and silent-failure risk are the two concrete leads to start from.
+
+#### 6. Placeholder fields for signature/name/date (self + client)
+> Huzaifa: *"Upload a document and place specific, distinct placeholders for signatures,
+> names, and dates — both for yourself and for the client."*
+
+**Confirmed current state:** zero placeholder concept exists today. `signable_documents`
+stores only the raw PDF (`file_url`/`storage_path`); `document_signatures` stores only
+`signer_name`/`signature_data`/`signed_at` — no page/x/y coordinates anywhere in the schema.
+The PDF is never annotated or modified; a signed document is just the original PDF plus
+separate signature rows shown next to it, not merged into it. This is the biggest lift of
+the three document-module items — needs a PDF annotation layer (place a box at a page/x/y
+position while uploading, of type signature/name/date, one set per party), then the signing
+UI renders those boxes as fillable fields directly on the document instead of a generic pad
+below it, and ideally a flattened/merged final PDF once both parties have signed. Worth
+scoping as its own small project rather than folding into #4/#5.
+
+### §C — Finance/salary bugs and gaps (requested 2026-07-09)
+
+#### 16. BUG: Finance dashboard "top paying client" is skewed (shows Waqas Siddique, AED 10,080)
+> Huzaifa: *"The finance dashboard is showing an incorrect 'high paying client' for this
+> month, which is skewing the revenue and net profit figures."*
+
+**Confirmed root cause:** `lib/reportPeriods.ts`'s `resolvePeriod('this_month')` returns
+`{ start: <1st of month>, end: null }` — the `null` end means **no upper bound** on the
+`paid_date` filter anywhere this period is used (`app/api/finance/reports/route.ts` and the
+`top_clients_by_revenue`/`get_financials` Aether tools in `lib/aiTools.ts` both do
+`if (end) query.lte('paid_date', end)`, which never fires). In practice this means "this
+month" silently includes any invoice with a `paid_date` on or after the 1st, **including one
+mistakenly dated in the future** — which would explain a specific client spiking the ranking
+without a real corresponding transaction. **Needs a data check as part of the fix**: query
+Waqas Siddique's invoices directly for one with `paid_date` unusually far in the future or
+just wrong, and confirm whether it's a genuine data-entry mistake or a leftover test artifact
+(worth noting: an earlier session created and deleted a test invoice, `INV-2026-1000`, against
+this production DB while verifying the auto-numbering fix — confirmed deleted via the API at
+the time, but worth double-checking nothing related survived). **The fix itself** is
+straightforward once the bad row is found: give `resolvePeriod` a real `end` date for
+`this_month` (today, or end-of-month) instead of `null`.
+
+#### 17. BUG: Salary totals mix currencies (PKR/AED) without conversion
+> Huzaifa: *"The currency discrepancy in the finance module's salary section, specifically
+> the PKR to AED conversion or consistent display."*
+
+**Confirmed root cause:** `app/(dashboard)/finance/salaries/page.tsx` sums every active
+salary's `amount` into one total (`salaries.filter(s => !s.effective_to).reduce((sum, s) =>
+sum + Number(s.amount), 0)`) with **no regard for each salary's `currency` column** (which
+does exist on the `salaries` table and IS correctly used for each individual row's display).
+The aggregate total is then labeled "(AED-denominated)" even though it's really just adding
+raw numbers regardless of currency — a PKR 100,000 salary and an AED 5,000 salary currently
+sum to a meaningless "AED 105,000". **Fix needs a decision from Huzaifa first**: either (a)
+maintain a manual FX rate setting (PKR→AED) and convert before summing, or (b) show separate
+subtotals per currency instead of one blended number — (b) is simpler and doesn't risk a
+stale FX rate silently understating payroll.
+
+#### 11. Salaries: allow editing payment date, period, and amount
+**Already built and working** — `components/finance/SalaryPaymentsModal.tsx` +
+`PUT /api/salary-payments/[id]` (confirmed via code read: accepts and updates both
+`payment_date` and `amount`, activity-logged). If Huzaifa is still hitting a problem here,
+it's likely a UX/discoverability issue rather than missing functionality — worth a quick
+live check before building anything new.
+
+#### 12. BUG: "Set Salary" dropdown shows client names alongside team members
+> Huzaifa: *"When setting a salary, it's currently showing client names alongside team
+> members. It should only display team members."*
+
+**Confirmed root cause:** `components/forms/SalaryForm.tsx` fetches `GET /api/profiles`,
+which returns **every row in `profiles` with zero role filtering**
+(`app/api/profiles/route.ts`: `.select('id, full_name, email, role').order('full_name')`,
+no `.in('role', STAFF_ROLES)` or similar). Client-portal users **do** get a `profiles` row
+with `role = 'client'` (confirmed: `phase5_rbac.sql` sets the `profiles.role` check
+constraint to `('owner','admin','manager','member','viewer','client')` — a schema.sql
+comment claiming only `admin/staff/viewer` is stale and superseded by this migration) — so
+their names leak into any UI that queries `/api/profiles` unfiltered, including this
+dropdown. **Fix is small and isolated**: filter `GET /api/profiles` (or add a query param) to
+exclude `role = 'client'` for staff-picker contexts like this one — worth checking whether
+any OTHER picker in the app (assignee dropdowns, etc.) has the same unfiltered-profiles bug
+while in there.
+
+#### 13. Salaries: support split/partial payments (e.g. 50% advance + 50% after two weeks)
+> Huzaifa: *"You need a way to properly record payments for team members on a monthly
+> retainer or project basis, particularly with split payments like 50% advance and 50%
+> after two weeks."*
+
+**Confirmed current state:** NOT supported. `salary_payments` has a
+`UNIQUE (salary_id, period) WHERE period IS NOT NULL` constraint (`phase14_payroll.sql`) that
+assumes **one payment fully covers one period** — recording a second payment for the same
+salary+period is currently blocked by this constraint, not just unsupported in the UI. Fixing
+this means relaxing that constraint (or restructuring to allow N payments per period that sum
+to the salary amount) and adding a "record partial payment" UX that shows the running
+total/remaining balance for the period, distinct from "record full payment."
+
+### §D — Roles, permissions & task flow (requested 2026-07-09)
+
+#### 7. Refined member/employee flow — specific permissions per module
+> Huzaifa: *"A refined member/employee flow, with specific permissions for viewing projects,
+> managing assigned tasks, time tracking, requests/approvals, viewing pay, and profile
+> settings."*
+
+**Confirmed current state — members are far more open than intended today:**
+- **Tasks**: a `member` sees **all** tasks system-wide, not just their own — the RLS policy
+  (`phase5_rbac.sql`) is `USING (is_staff())` with no `assigned_to = auth.uid()` scoping.
+- **Projects**: same — all projects, no assignment scoping.
+- **Clients**: full read access (see the finding under item #2 above).
+- **Invoices/finance**: correctly blocked today (`member` has no `finance.read` by default) —
+  **except** the project detail page (`app/(dashboard)/projects/[id]/page.tsx`) renders
+  invoice line items inline with no permission check of its own, so a member who can reach a
+  project's page sees financial data anyway. Directly relevant to item #9 below.
+- **Profile settings**: no self-service profile page exists at all today (no `/profile` or
+  similar) — not even to change your own name, let alone a picture (see item #14).
+- **Permissions matrix today**: a flat 9-key list (`clients.read/write`, `tasks.write`,
+  `finance.read/write`, `payroll.read/write`, `team.manage`, `settings.manage`) — module-level
+  only, no finer granularity (e.g. no separate `invoices.read` vs `quotations.read`).
+
+This item is really the umbrella for #9, #10, and part of #15 below — treat it as one RLS +
+permissions pass rather than four separate changes, since they all touch the same policies.
+
+#### 8. Task flow: admin-delegated tasks + manager-created tasks
+> Huzaifa: *"The task flow needs to support both admin-assigned tasks delegated by managers,
+> and managers creating and assigning tasks independently."*
+
+**Confirmed current state:** task creation is completely flat today. `OPS_WRITE` (which
+includes `owner`, `admin`, `manager`, `member`) can create a task and assign it to **anyone**,
+with no delegation hierarchy or "this task originated from an admin, delegated via a manager"
+concept — `components/forms/TaskForm.tsx`'s assignee dropdown shows every profile
+unfiltered. Needs a design decision: is this literally just provenance tracking (an optional
+`delegated_by`/`created_via` field for reporting), or should `member` actually lose the
+ability to create/assign tasks to others (only managers+ can assign; members can only update
+status on tasks already assigned to them)? The latter reading is more consistent with items
+#7/#9/#10's overall direction of a much more restricted member role.
+
+#### 9. Employees must never access the invoice module, even in project views
+> Huzaifa: *"Ensure employees cannot access invoice module in m3m.ae, even in project
+> views."*
+
+**Confirmed the gap:** the main `/finance/invoices` page is correctly gated
+(`requireFinanceRead`), but `app/(dashboard)/projects/[id]/page.tsx` renders invoice data
+inline in a project's activity/timeline without checking `finance.read` at all — a member
+who can view a project (which today is *any* project, per #7) sees invoice numbers and
+amounts through that side door. Fix: gate that section of the project detail page behind the
+same `finance.read` check used everywhere else, not just "don't link to /finance/invoices."
+
+#### 10. Employee task visibility restricted to assigned tasks only
+> Huzaifa: *"Restrict employee task visibility in m3m.ae to only assigned tasks."*
+
+**Confirmed the gap:** see item #7 — `member` currently has no `assigned_to` scoping in the
+`tasks` RLS policy at all. Fix: either a new RLS policy variant for `member` specifically
+(`is_staff() AND (role != 'member' OR assigned_to = auth.uid())`), or a permission-level
+distinction between "assigned-only" and "all tasks" visibility, consistent with wherever
+#15's granular access manager ends up living.
+
+#### 14. Profile settings — profile pictures for team members and clients
+> Huzaifa: *"Profile settings, including the ability to set profile pictures for both team
+> members and clients, is needed."*
+
+**Confirmed current state:** `profiles.avatar_url` column already exists in the schema and is
+already read in a couple of places (e.g. task assignee display falls back to initials since
+nothing populates it), but there's **no self-service profile page at all** — no upload UI, no
+`/profile` route, nothing. Same gap applies to clients (no equivalent column/UI on the
+`clients`/`client_contacts` side confirmed — worth checking during implementation). Needs: a
+new self-service "My Profile" page (name, avatar upload to a new small Storage bucket) for
+staff, plus a client-portal equivalent, plus wiring `avatar_url` into the places that already
+try to display it.
+
+#### 15. Highly detailed, module-level access manager
+> Huzaifa: *"A highly detailed access manager, allowing admins to control every module and
+> feature for managers, clients, and employees, is also critical."*
+
+**Confirmed current state:** the existing Permissions Matrix (`/settings/permissions`) is
+real and functional but flat — 9 module-level keys, no per-feature granularity (e.g. can't
+grant "view tasks" without "edit tasks", can't distinguish "view invoices" from "send
+invoices"). This is the largest single item in this whole urgent batch — realistically the
+capstone of the whole permissions pass (step 2 in the suggested order above), since #7/#9/#10
+are really specific instances of "the access manager isn't granular enough" that this item
+would subsume if built first. Worth discussing with Huzaifa whether to build the granular
+matrix first and derive #7/#9/#10's behavior from it, versus fixing those three narrowly now
+and generalizing into a matrix later — the former is more architecturally correct but bigger;
+the latter unblocks the urgent asks faster.
+
 ---
 
-> ## STATUS — as of 2026-07-08 (updated session 6 — see 🚨 URGENT section above first)
+> ## STATUS — as of 2026-07-09 (updated session 7 — see 🚨 URGENT section above first)
 > - ✅ **2026-07-07 (session 5): 3 urgent Finance/Tasks bugs fixed and verified live** — blank edit-form bug across 6 forms, invoice auto-numbering, paid-date; plus a bonus fix (blank line items could zero out an invoice's real total on save). Full detail was here and has been superseded by this summary — see git log commit `f139eaa` for the complete original write-up if needed.
 > - ✅ **2026-07-07 (session 6): Tier 4 #13b Monthly Impact Report PDF shipped and verified live** (`supabase/phase23_impact_reports.sql`, run in Supabase) — see full detail in the roadmap entry below.
 > - ✅ **2026-07-08 (session 6 cont'd): Tier 4 #17 Client onboarding workflows shipped and verified live** (`supabase/phase24_onboarding.sql`, run in Supabase) — see full detail in the roadmap entry below.
 > - ⏭️ **WhatsApp-native Aether** was fully scoped (Twilio WhatsApp API, staff-only, reusing Aether's existing service-role tool-calling engine) but **declined by Huzaifa — avoiding messaging/API costs for now**. Revisit if that changes; the plan doesn't need to be redone from scratch.
-> - 🚨 **2026-07-08: Huzaifa requested 3 new features, all NOT yet started** — see the urgent section at the very top of this file before doing anything else in a new session.
+> - 🚨 **2026-07-09 (session 7): Huzaifa requested 14 more items (2 confirmed bugs + document-module fixes + a big roles/permissions/task-flow pass + salary gaps + profile pictures) — all researched and documented, NONE built yet.** Combined with the 3 items from 2026-07-08, the 🚨 URGENT section above is now the single source of truth for what to build next — this is documentation only, no code was written this session.
 >
 > Much of this plan is now BUILT (migrations `phase2`–`phase24` written; see git log):
 > - ✅ Phase 0–1: stabilized; RBAC (`phase5_rbac.sql`), roles owner/admin/manager/member/viewer/client, per-user permission overrides (`phase12`)
