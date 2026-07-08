@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Save, RotateCcw, ShieldCheck, ArrowRight, Activity } from 'lucide-react'
+import { Save, RotateCcw, ShieldCheck, ArrowRight, Activity, ListChecks } from 'lucide-react'
 import { DEFAULT_TERMS, DEFAULT_INVOICE_NOTES, DEFAULT_QUOTE_NOTES, COMPANY } from '@/lib/company'
 
 const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent'
@@ -64,6 +64,19 @@ export default function SettingsPage() {
             <div>
               <h3 className="font-semibold text-gray-900">Permissions Matrix</h3>
               <p className="text-xs text-gray-500 mt-0.5">Control what each role can see and do, role by role</p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+        </Link>
+
+        <Link href="/settings/onboarding-templates" className="card p-6 flex items-center justify-between hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <ListChecks className="w-4.5 h-4.5 text-brand-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Onboarding Templates</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Reusable checklists to start a client's onboarding run</p>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-gray-300 flex-shrink-0" />

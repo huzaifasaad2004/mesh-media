@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { ArrowLeft, ExternalLink, Phone, Mail, Globe, CheckCircle2, Circle, Activity } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Phone, Mail, Globe, Activity } from 'lucide-react'
 import PortalAccessCard from '@/components/clients/PortalAccessCard'
+import OnboardingRun from '@/components/clients/OnboardingRun'
 import { computeChurnRisk, CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR } from '@/lib/churnRisk'
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
@@ -13,7 +14,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     { data: client },
     { data: contacts },
     { data: notes },
-    { data: onboarding },
     { data: tasks },
     { data: contracts },
     { data: invoices },
@@ -23,7 +23,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     supabase.from('clients').select('*').eq('id', params.id).single(),
     supabase.from('contacts').select('*').eq('client_id', params.id).order('is_primary', { ascending: false }),
     supabase.from('client_notes').select('*, author:profiles(full_name)').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
-    supabase.from('onboarding_steps').select('*').eq('client_id', params.id).order('sort_order'),
     supabase.from('tasks').select('id, title, status, priority, due_date').eq('client_id', params.id).neq('status', 'done').limit(5),
     supabase.from('contracts').select('id, title, status, value, start_date, end_date').eq('client_id', params.id).order('created_at', { ascending: false }).limit(3),
     supabase.from('invoices').select('id, invoice_number, total, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
@@ -47,8 +46,6 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     lastNoteAt: lastNoteRow?.created_at ?? null,
   })
 
-  const completedSteps = onboarding?.filter((s: any) => s.is_completed).length ?? 0
-  const totalSteps = onboarding?.length ?? 0
 
   const totalInvoiced = (invoices ?? []).reduce((s, i: any) => s + Number(i.total), 0)
   const totalPaid = (invoices ?? []).filter((i: any) => i.status === 'paid').reduce((s, i: any) => s + Number(i.total), 0)
@@ -172,28 +169,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
           <PortalAccessCard clientId={params.id} clientEmail={client.email} />
 
           {/* Onboarding */}
-          {totalSteps > 0 && (
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3>Onboarding</h3>
-                <span className="text-xs text-gray-500">{completedSteps}/{totalSteps}</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mb-4">
-                <div className="bg-brand-600 h-1.5 rounded-full transition-all" style={{ width: `${totalSteps ? (completedSteps / totalSteps) * 100 : 0}%` }} />
-              </div>
-              <div className="space-y-2">
-                {onboarding?.map((step: any) => (
-                  <div key={step.id} className="flex items-center gap-2.5">
-                    {step.is_completed
-                      ? <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      : <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                    }
-                    <span className={`text-sm ${step.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{step.title}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <OnboardingRun clientId={params.id} />
         </div>
 
         {/* Right column */}
