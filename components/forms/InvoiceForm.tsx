@@ -94,6 +94,12 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
   const taxAmount = taxable * (taxRate / 100)
   const grandTotal = taxable + taxAmount
 
+  // Invoices imported without a line-item breakdown (e.g. from Zoho Books)
+  // have a real stored total but zero invoice_items — the computed totals
+  // above would misleadingly show AED 0.00 until a breakdown is entered.
+  const hasStoredTotalWithNoBreakdown = !!initialData?.id && existingItems.length === 0 && items.every(i => !i.description.trim())
+  const storedTotal = Number(initialData?.total ?? 0)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const validItems = items.filter(i => i.description.trim() !== '')
@@ -190,6 +196,13 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
 
       {/* Line Items */}
       <div>
+        {hasStoredTotalWithNoBreakdown && (
+          <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--warning-bg, #FFF7E6)', color: 'var(--warning, #92600A)' }}>
+            This invoice was imported without a line-item breakdown. The real total is{' '}
+            <strong>AED {storedTotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</strong> — it will be kept as-is
+            unless you add line items below.
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <label className={labelClass + ' mb-0'}>Line Items</label>
           <button type="button" onClick={() => setItems(p => [...p, defaultItem()])} className="btn-ghost btn-sm">
@@ -257,18 +270,26 @@ export default function InvoiceForm({ onSuccess, clients, initialData }: Invoice
           </div>
 
           <div className="flex justify-end pt-2">
-            <table className="text-sm">
-              <tbody>
-                <tr><td className="text-gray-500 pr-4 text-right">Subtotal</td><td className="text-right font-medium">AED {subtotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
-                {discountAmount > 0 && (
-                  <tr><td className="text-gray-500 pr-4 text-right">Discount</td><td className="text-right font-medium text-red-600">−AED {discountAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
-                )}
-                {taxRate > 0 && (
-                  <tr><td className="text-gray-500 pr-4 text-right">VAT ({taxRate}%)</td><td className="text-right font-medium">AED {taxAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
-                )}
-                <tr><td className="text-gray-700 pr-4 text-right font-semibold pt-1">Grand Total</td><td className="text-right text-xl font-bold text-gray-900 pt-1">AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
-              </tbody>
-            </table>
+            {hasStoredTotalWithNoBreakdown ? (
+              <table className="text-sm">
+                <tbody>
+                  <tr><td className="text-gray-700 pr-4 text-right font-semibold pt-1">Grand Total <span className="font-normal text-gray-400">(stored, no breakdown)</span></td><td className="text-right text-xl font-bold text-gray-900 pt-1">AED {storedTotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                </tbody>
+              </table>
+            ) : (
+              <table className="text-sm">
+                <tbody>
+                  <tr><td className="text-gray-500 pr-4 text-right">Subtotal</td><td className="text-right font-medium">AED {subtotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                  {discountAmount > 0 && (
+                    <tr><td className="text-gray-500 pr-4 text-right">Discount</td><td className="text-right font-medium text-red-600">−AED {discountAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                  )}
+                  {taxRate > 0 && (
+                    <tr><td className="text-gray-500 pr-4 text-right">VAT ({taxRate}%)</td><td className="text-right font-medium">AED {taxAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                  )}
+                  <tr><td className="text-gray-700 pr-4 text-right font-semibold pt-1">Grand Total</td><td className="text-right text-xl font-bold text-gray-900 pt-1">AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td></tr>
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

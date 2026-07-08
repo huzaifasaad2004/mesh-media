@@ -83,7 +83,7 @@ export default async function TeamPage() {
                 </div>
                 <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-center">
                   <p className="text-sm font-bold text-gray-900">
-                    {salary ? formatCurrency(salary.amount) : '—'}
+                    {salary ? formatCurrency(salary.amount, salary.currency) : '—'}
                   </p>
                   <p className="text-xs text-gray-500">
                     {salary ? `per ${salary.pay_period.replace('ly', '')}` : 'No salary set'}
