@@ -30,12 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     created_by: user.id,
   }).select().single()
 
-  if (error) {
-    if (error.message.includes('duplicate') || error.message.includes('unique')) {
-      return NextResponse.json({ error: `Already paid for ${period}` }, { status: 400 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 400 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   const emailResult = await sendPayslipEmail({
     employeeName: salary.profile?.full_name ?? 'Team Member',

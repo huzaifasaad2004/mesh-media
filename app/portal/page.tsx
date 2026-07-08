@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { FileText, FolderOpen, FileSignature, FileBarChart } from 'lucide-react'
+import { FileText, FolderOpen, FileSignature, FileBarChart, ImageUp, ExternalLink } from 'lucide-react'
 import PortalQuoteActions from '@/components/portal/PortalQuoteActions'
+import PortalContentActions from '@/components/portal/PortalContentActions'
 import PortalRequests from '@/components/portal/PortalRequests'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ export default async function PortalPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   // RLS scopes every query below to this client's own rows
-  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }, { data: reports }] =
+  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }, { data: reports }, { data: contentItems }] =
     await Promise.all([
       supabase.from('clients').select('id, company_name'),
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
@@ -21,6 +22,7 @@ export default async function PortalPage() {
       supabase.from('files').select('*').order('created_at', { ascending: false }).limit(8),
       supabase.from('signable_documents').select('*, signatures:document_signatures(party, signed_at)').order('created_at', { ascending: false }).limit(10),
       supabase.from('client_reports').select('*').order('period', { ascending: false }).limit(12),
+      supabase.from('content_items').select('*').in('status', ['pending_client', 'client_approved', 'client_declined']).order('created_at', { ascending: false }).limit(10),
     ])
 
   const pendingDocuments = (documents ?? []).filter((d: any) => !d.signatures?.some((s: any) => s.party === 'client'))
@@ -147,6 +149,33 @@ export default async function PortalPage() {
                   <FileBarChart className="w-3.5 h-3.5" />
                   {new Date(`${r.period}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Content awaiting your review */}
+        {contentItems && contentItems.length > 0 && (
+          <div className="card p-5 md:col-span-2" style={contentItems.some((c: any) => c.status === 'pending_client') ? { borderColor: '#D98A8E' } : {}}>
+            <h2 className="text-lg font-semibold mb-1 flex items-center gap-2" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>
+              <ImageUp className="w-4 h-4 text-brand-600" /> Content review
+            </h2>
+            <div className="divide-y divide-paper-200 mt-2">
+              {contentItems.map((c: any) => (
+                <div key={c.id} className="py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-ink">{c.title}</p>
+                      {c.description && <p className="text-xs text-taupe-600 mt-0.5">{c.description}</p>}
+                    </div>
+                    {c.file_url && (
+                      <a href={c.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline inline-flex items-center gap-1 flex-shrink-0">
+                        <ExternalLink className="w-3 h-3" /> View
+                      </a>
+                    )}
+                  </div>
+                  <PortalContentActions itemId={c.id} itemStatus={c.status} />
+                </div>
               ))}
             </div>
           </div>

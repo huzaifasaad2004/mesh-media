@@ -41,6 +41,7 @@ export default function TasksPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [canManage, setCanManage] = useState(false)
   const toast = useToast()
 
   const fetchTasks = useCallback(async () => {
@@ -61,6 +62,7 @@ export default function TasksPage() {
     fetchTasks()
     fetch('/api/clients').then(r => r.json()).then(d => setClients(Array.isArray(d) ? d : []))
     fetch('/api/profiles').then(r => r.json()).then(d => setProfiles(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch('/api/profiles/me').then(r => r.json()).then(d => setCanManage(['owner', 'admin', 'manager'].includes(d.role))).catch(() => {})
   }, [fetchTasks])
 
   const moveTask = async (taskId: string, status: string) => {
@@ -118,10 +120,12 @@ export default function TasksPage() {
         <p className={`text-sm font-medium leading-snug ${task.status === 'done' ? 'line-through text-taupe-500' : 'text-ink'}`}>
           {task.title}
         </p>
-        <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
-          className="opacity-0 group-hover:opacity-100 text-taupe-500 hover:text-red-500 transition-opacity flex-shrink-0">
-          <Trash2 className="w-3 h-3" />
-        </button>
+        {canManage && (
+          <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
+            className="opacity-0 group-hover:opacity-100 text-taupe-500 hover:text-red-500 transition-opacity flex-shrink-0">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
       </div>
       {task.client?.company_name && (
         <p className="text-xs text-taupe-500 mt-1">{task.client.company_name}</p>
@@ -137,9 +141,9 @@ export default function TasksPage() {
           )}
         </div>
         {task.assignee && (
-          <div className="w-5.5 h-5.5 bg-brand-600 text-paper-100 rounded-full flex items-center justify-center text-[10px] font-bold"
+          <div className="w-5.5 h-5.5 bg-brand-600 text-paper-100 rounded-full flex items-center justify-center text-[10px] font-bold overflow-hidden"
             style={{ width: 22, height: 22 }} title={task.assignee.full_name}>
-            {getInitials(task.assignee.full_name)}
+            {task.assignee.avatar_url ? <img src={task.assignee.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(task.assignee.full_name)}
           </div>
         )}
       </div>
@@ -168,9 +172,11 @@ export default function TasksPage() {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <button className="btn-primary" onClick={() => { setEditingTask(null); setShowModal(true) }}>
-            <Plus className="w-4 h-4" /> New Task
-          </button>
+          {canManage && (
+            <button className="btn-primary" onClick={() => { setEditingTask(null); setShowModal(true) }}>
+              <Plus className="w-4 h-4" /> New Task
+            </button>
+          )}
         </div>
       </div>
 
@@ -255,8 +261,8 @@ export default function TasksPage() {
                   <td className="px-5 py-3">
                     {task.assignee ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 bg-brand-600 text-paper-100 rounded-full flex items-center justify-center text-[10px] font-bold">
-                          {getInitials(task.assignee.full_name)}
+                        <div className="w-5 h-5 bg-brand-600 text-paper-100 rounded-full flex items-center justify-center text-[10px] font-bold overflow-hidden">
+                          {task.assignee.avatar_url ? <img src={task.assignee.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(task.assignee.full_name)}
                         </div>
                         <span className="text-umber-700">{task.assignee.full_name}</span>
                       </div>
@@ -280,9 +286,11 @@ export default function TasksPage() {
                       <button onClick={() => openEdit(task)} className="w-7 h-7 flex items-center justify-center rounded text-taupe-500 hover:text-brand-600 hover:bg-brand-50 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => deleteTask(task.id)} className="w-7 h-7 flex items-center justify-center rounded text-taupe-500 hover:text-red-600 hover:bg-red-50 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canManage && (
+                        <button onClick={() => deleteTask(task.id)} className="w-7 h-7 flex items-center justify-center rounded text-taupe-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -290,8 +298,8 @@ export default function TasksPage() {
                 <EmptyState
                   colSpan={7}
                   title={tasks.length === 0 ? 'No tasks yet' : 'No tasks match your search'}
-                  helper={tasks.length === 0 ? 'Create a task to start tracking work.' : 'Try a different search term or status filter.'}
-                  action={tasks.length === 0 ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditingTask(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Task</button> : undefined}
+                  helper={tasks.length === 0 ? (canManage ? 'Create a task to start tracking work.' : 'No tasks are assigned to you yet.') : 'Try a different search term or status filter.'}
+                  action={tasks.length === 0 && canManage ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditingTask(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Task</button> : undefined}
                 />
               )}
             </tbody>
@@ -312,6 +320,7 @@ export default function TasksPage() {
           clients={clients}
           profiles={profiles}
           initialData={editingTask ?? undefined}
+          statusOnly={!canManage}
         />
       </Modal>
     </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireStaff, requireRoles, serviceRole, stripProtected, OPS_WRITE } from '@/lib/apiAuth'
+import { requireStaff, requireRoles, serviceRole, stripProtected, MANAGERS } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
+import { notifyUsers } from '@/lib/notify'
 
 export async function GET() {
   const auth = await requireStaff()
@@ -14,11 +15,25 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRoles(OPS_WRITE)
+  // Only managers+ can create/assign tasks — members can update status on
+  // tasks already assigned to them (see PUT), not create or assign new ones.
+  const auth = await requireRoles(MANAGERS)
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
-  const { data, error } = await serviceRole().from('tasks').insert(body).select().single()
+  const db = serviceRole()
+  const { data, error } = await db.from('tasks').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   await logActivity(auth.user, 'create', 'task', data.id, data.title)
+
+  if (data.assigned_to && data.assigned_to !== auth.user.id) {
+    await notifyUsers(db, {
+      userIds: [data.assigned_to],
+      title: 'New task assigned to you',
+      body: data.title,
+      href: '/tasks',
+      category: 'task_assignment',
+    })
+  }
+
   return NextResponse.json(data)
 }

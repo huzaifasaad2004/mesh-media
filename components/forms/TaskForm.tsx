@@ -10,9 +10,11 @@ interface TaskFormProps {
   clients: { id: string; company_name: string }[]
   profiles: { id: string; full_name: string | null; email: string | null }[]
   initialData?: Record<string, unknown>
+  /** Members may only change the status of a task already assigned to them. */
+  statusOnly?: boolean
 }
 
-export default function TaskForm({ onSuccess, clients, profiles, initialData }: TaskFormProps) {
+export default function TaskForm({ onSuccess, clients, profiles, initialData, statusOnly }: TaskFormProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [projects, setProjects] = useState<{ id: string; name: string; client_id: string | null }[]>([])
@@ -49,11 +51,35 @@ export default function TaskForm({ onSuccess, clients, profiles, initialData }: 
     const id = initialData?.id as string | undefined
     const url = id ? `/api/tasks/${id}` : '/api/tasks'
     const method = id ? 'PUT' : 'POST'
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statusOnly ? { status: form.status } : payload) })
     const data = await res.json()
     setSaving(false)
     if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
     onSuccess()
+  }
+
+  if (statusOnly) {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{form.title}</p>
+          {form.description && <p className="text-sm text-gray-500 mt-1 whitespace-pre-wrap">{form.description}</p>}
+        </div>
+        <div>
+          <label className={labelClass}>Status</label>
+          <select className={inputClass} value={form.status} onChange={set('status')}>
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="review">Review</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+        <button type="submit" className="btn-primary w-full justify-center" disabled={saving}>
+          {saving ? 'Saving…' : 'Update Status'}
+        </button>
+      </form>
+    )
   }
 
   return (

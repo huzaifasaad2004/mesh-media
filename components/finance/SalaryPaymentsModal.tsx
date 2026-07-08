@@ -11,10 +11,11 @@ const inputClass = 'border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focu
 const labelClass = 'block text-xs font-medium text-gray-500 mb-1'
 
 export default function SalaryPaymentsModal({
-  salaryId, currency, payments, canRecordNew, onChanged,
+  salaryId, currency, salaryAmount, payments, canRecordNew, onChanged,
 }: {
   salaryId: string
   currency: string
+  salaryAmount: number
   payments: Payment[]
   canRecordNew: boolean
   onChanged: () => void
@@ -30,6 +31,11 @@ export default function SalaryPaymentsModal({
   const [recording, setRecording] = useState(false)
 
   const sorted = [...payments].sort((a, b) => b.payment_date.localeCompare(a.payment_date))
+
+  const newPeriod = newDate.slice(0, 7)
+  const paidThisPeriod = payments.filter(p => p.period === newPeriod).reduce((sum, p) => sum + Number(p.amount), 0)
+  const remainingThisPeriod = Math.max(0, salaryAmount - paidThisPeriod)
+  const isPartialSoFar = paidThisPeriod > 0 && paidThisPeriod < salaryAmount
 
   const startEdit = (p: Payment) => {
     setEditingId(p.id)
@@ -52,10 +58,11 @@ export default function SalaryPaymentsModal({
 
   const recordPayment = async () => {
     setRecording(true)
+    const amount = newAmount || (isPartialSoFar ? String(remainingThisPeriod) : undefined)
     const res = await fetch(`/api/salaries/${salaryId}/pay`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payment_date: newDate, amount: newAmount || undefined }),
+      body: JSON.stringify({ payment_date: newDate, amount }),
     })
     const d = await res.json()
     setRecording(false)
@@ -67,20 +74,30 @@ export default function SalaryPaymentsModal({
     <div className="space-y-5">
       {canRecordNew && (
         <div className="border border-gray-200 rounded-lg p-4">
-          <p className="text-sm font-semibold text-gray-900 mb-3">Record a payment</p>
+          <p className="text-sm font-semibold text-gray-900 mb-1">Record a payment</p>
+          <p className="text-xs text-gray-500 mb-3">
+            {paidThisPeriod > 0
+              ? `${formatCurrency(paidThisPeriod, currency)} of ${formatCurrency(salaryAmount, currency)} paid for ${newPeriod} · ${formatCurrency(remainingThisPeriod, currency)} remaining`
+              : `Full period amount: ${formatCurrency(salaryAmount, currency)} — enter a smaller amount for a partial/advance payment`}
+          </p>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className={labelClass}>Payment Date</label>
               <input type="date" className={`${inputClass} w-full`} value={newDate} onChange={(e) => setNewDate(e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Amount (optional override)</label>
-              <input type="number" className={`${inputClass} w-full`} placeholder="Default salary amount" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
+              <label className={labelClass}>Amount {isPartialSoFar ? '(remaining balance)' : '(optional override)'}</label>
+              <input type="number" className={`${inputClass} w-full`}
+                placeholder={isPartialSoFar ? String(remainingThisPeriod) : 'Default salary amount'}
+                value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
             </div>
           </div>
-          <button onClick={recordPayment} disabled={recording} className="btn-primary btn-sm">
-            {recording ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Record Payment
+          <button onClick={recordPayment} disabled={recording || remainingThisPeriod === 0} className="btn-primary btn-sm">
+            {recording ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Record {isPartialSoFar ? 'Remaining' : ''} Payment
           </button>
+          {remainingThisPeriod === 0 && paidThisPeriod > 0 && (
+            <p className="text-xs mt-2" style={{ color: 'var(--success, #2E7D32)' }}>{newPeriod} is fully paid.</p>
+          )}
         </div>
       )}
 

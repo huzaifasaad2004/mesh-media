@@ -64,8 +64,8 @@ export default async function TeamPage() {
           return (
             <div key={member.id} className="card p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start gap-4 mb-4">
-                <div className="w-12 h-12 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0">
-                  {getInitials(member.full_name ?? member.email)}
+                <div className="w-12 h-12 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0 overflow-hidden">
+                  {member.avatar_url ? <img src={member.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(member.full_name ?? member.email)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

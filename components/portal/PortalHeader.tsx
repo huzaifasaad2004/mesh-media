@@ -2,10 +2,11 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LogOut } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 
-export default function PortalHeader({ name }: { name: string }) {
+export default function PortalHeader({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -26,10 +27,12 @@ export default function PortalHeader({ name }: { name: string }) {
           <span className="text-xs text-taupe-500 border-l border-sand-300 pl-2.5 ml-0.5 hidden sm:inline">Client portal</span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-brand-600 text-paper-100 flex items-center justify-center text-xs font-semibold">
-            {getInitials(name)}
-          </div>
-          <span className="text-sm text-umber-700 hidden sm:inline">{name}</span>
+          <Link href="/portal/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="w-8 h-8 rounded-full bg-brand-600 text-paper-100 flex items-center justify-center text-xs font-semibold overflow-hidden">
+              {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : getInitials(name)}
+            </div>
+            <span className="text-sm text-umber-700 hidden sm:inline">{name}</span>
+          </Link>
           <button onClick={signOut} className="text-taupe-500 hover:text-umber-700 p-1.5 rounded-lg hover:bg-paper-200 transition-colors" title="Sign out">
             <LogOut className="w-4 h-4" />
           </button>

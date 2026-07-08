@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { isAdmin } from '@/lib/roles'
+import { notifyUsers } from '@/lib/notify'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -76,12 +77,13 @@ export async function POST(req: NextRequest) {
   // Notify staff of new request
   const { data: staff } = await db.from('profiles').select('id').in('role', ['owner', 'admin', 'manager'])
   if (staff?.length) {
-    await db.from('notifications').insert(staff.map(s => ({
-      user_id: s.id,
+    await notifyUsers(db, {
+      userIds: staff.map(s => s.id),
       title: `New request: ${subject}`,
       body: `From ${(data as any).client?.company_name ?? 'a client'}`,
       href: '/requests',
-    })))
+      category: 'critical_alert',
+    })
   }
 
   return NextResponse.json(data)

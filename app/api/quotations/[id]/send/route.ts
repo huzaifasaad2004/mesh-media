@@ -5,6 +5,7 @@ import { COMPANY } from '@/lib/company'
 import { requireFinanceWrite } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
 import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
+import { notifyUsers } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 
@@ -119,12 +120,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Notify admins in-app
   const { data: admins } = await db.from('profiles').select('id').in('role', ['owner', 'admin'])
   if (admins?.length) {
-    await db.from('notifications').insert(admins.map(a => ({
-      user_id: a.id,
+    await notifyUsers(db, {
+      userIds: admins.map(a => a.id),
       title: `Quotation ${q.quote_number} emailed`,
       body: `Sent to ${q.client.email} · AED ${Number(q.total).toLocaleString()}`,
       href: '/finance/quotations',
-    })))
+      category: 'critical_alert',
+    })
   }
 
   return NextResponse.json({ success: true, to: q.client.email })

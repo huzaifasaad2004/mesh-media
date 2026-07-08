@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { notifyUsers } from '@/lib/notify'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -57,12 +58,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const body = status === 'declined'
       ? `${company} declined · AED ${Number(quote.total).toLocaleString()} · Reason: ${reason.trim()}`
       : `${company} accepted the quotation · AED ${Number(quote.total).toLocaleString()}`
-    await db.from('notifications').insert(staff.map(s => ({
-      user_id: s.id,
+    await notifyUsers(db, {
+      userIds: staff.map(s => s.id),
       title: `Quotation ${quote.quote_number} ${status}`,
       body,
       href: '/finance/quotations',
-    })))
+      category: 'critical_alert',
+    })
   }
 
   return NextResponse.json({ success: true, status })

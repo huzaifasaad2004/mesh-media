@@ -4,18 +4,26 @@ import { useRef, useState, useEffect } from 'react'
 import { Eraser, Loader2 } from 'lucide-react'
 
 export default function SignaturePad({
-  defaultName, onSubmit, submitting, submitLabel = 'Sign',
+  defaultName, onSubmit, submitting, submitLabel = 'Sign', onLiveChange,
 }: {
   defaultName?: string
   onSubmit: (payload: { name: string; dataUrl: string | null }) => void
   submitting?: boolean
   submitLabel?: string
+  /** Fires on every keystroke/stroke so a parent can show a live "where this will land" preview. */
+  onLiveChange?: (payload: { name: string; dataUrl: string | null }) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const hasDrawn = useRef(false)
   const [name, setName] = useState(defaultName ?? '')
   const [mode, setMode] = useState<'draw' | 'type'>('draw')
+  const [liveDataUrl, setLiveDataUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    onLiveChange?.({ name, dataUrl: mode === 'draw' ? liveDataUrl : null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, mode, liveDataUrl])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -50,7 +58,10 @@ export default function SignaturePad({
     ctx.stroke()
   }
 
-  const end = () => { drawing.current = false }
+  const end = () => {
+    drawing.current = false
+    if (hasDrawn.current) setLiveDataUrl(canvasRef.current!.toDataURL('image/png'))
+  }
 
   const clear = () => {
     const canvas = canvasRef.current
@@ -58,6 +69,7 @@ export default function SignaturePad({
     const ctx = canvas.getContext('2d')!
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     hasDrawn.current = false
+    setLiveDataUrl(null)
   }
 
   const submit = () => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { isStaff } from '@/lib/roles'
+import { notifyUsers } from '@/lib/notify'
 
 // Body: { party: 'agency' | 'client', signer_name, signature_data? }
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -50,12 +51,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (party === 'client') {
     const { data: staff } = await db.from('profiles').select('id').in('role', ['owner', 'admin', 'manager'])
     if (staff?.length) {
-      await db.from('notifications').insert(staff.map((s) => ({
-        user_id: s.id,
+      await notifyUsers(db, {
+        userIds: staff.map((s) => s.id),
         title: 'Document signed by client',
         body: `${signer_name.trim()} signed`,
         href: `/documents/${params.id}`,
-      })))
+        category: 'critical_alert',
+      })
     }
   }
 

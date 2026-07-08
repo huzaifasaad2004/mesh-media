@@ -11,7 +11,7 @@ import NotificationBell from '@/components/NotificationBell'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet,
-  Menu, X, Search, FileSignature
+  Menu, X, Search, FileSignature, ImageUp
 } from 'lucide-react'
 
 const openCommandPalette = () => window.dispatchEvent(new Event('mm:open-command-palette'))
@@ -21,6 +21,7 @@ const navItems = [
   { href: '/clients',    label: 'Clients',     icon: Users },
   { href: '/projects',   label: 'Projects',    icon: FolderKanban },
   { href: '/tasks',      label: 'Tasks',       icon: CheckSquare },
+  { href: '/content',    label: 'Content',     icon: ImageUp },
   { href: '/time',       label: 'Time',        icon: Clock },
   { href: '/approvals',  label: 'Approvals',   icon: CheckCircle2 },
   { href: '/requests',   label: 'Requests',    icon: Inbox },
@@ -129,19 +130,21 @@ export function Sidebar({ profile, permissions }: SidebarProps) {
 
         {/* User profile */}
         <div className="px-3 py-4 border-t border-sand-300" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}>
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg">
-            <div className="w-8 h-8 bg-brand-600 text-paper-100 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-              {getInitials(profile?.full_name ?? profile?.email)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-ink truncate">
-                {profile?.full_name ?? 'Team Member'}
-              </p>
-              <p className="text-xs text-taupe-500 truncate capitalize">{profile?.role ?? 'staff'}</p>
-            </div>
+          <div className="flex items-center gap-1 px-1 py-1 rounded-lg">
+            <Link href="/profile" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 flex-1 min-w-0 px-2 py-1 rounded-lg hover:bg-paper-200 transition-colors">
+              <div className="w-8 h-8 bg-brand-600 text-paper-100 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden">
+                {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : getInitials(profile?.full_name ?? profile?.email)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-ink truncate">
+                  {profile?.full_name ?? 'Team Member'}
+                </p>
+                <p className="text-xs text-taupe-500 truncate capitalize">{profile?.role ?? 'staff'}</p>
+              </div>
+            </Link>
             <button
               onClick={handleSignOut}
-              className="text-taupe-500 hover:text-umber-700 transition-colors p-2 rounded"
+              className="text-taupe-500 hover:text-umber-700 transition-colors p-2 rounded flex-shrink-0"
               title="Sign out"
               aria-label="Sign out"
             >

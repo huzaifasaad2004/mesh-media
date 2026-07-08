@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { notifyUsers } from '@/lib/notify'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -48,12 +49,13 @@ export async function POST(req: NextRequest) {
   const { data: approvers } = await db.from('profiles').select('id, full_name').in('role', ['owner', 'admin', 'manager'])
   const { data: mine } = await db.from('profiles').select('full_name').eq('id', user.id).single()
   if (approvers?.length) {
-    await db.from('notifications').insert(approvers.filter(a => a.id !== user.id).map(a => ({
-      user_id: a.id,
+    await notifyUsers(db, {
+      userIds: approvers.filter(a => a.id !== user.id).map(a => a.id),
       title: `Approval needed: ${b.title}`,
       body: `${mine?.full_name ?? 'A team member'} submitted a ${b.type.replace('_', ' ')} request`,
       href: '/approvals',
-    })))
+      category: 'approval_request',
+    })
   }
   return NextResponse.json(data)
 }

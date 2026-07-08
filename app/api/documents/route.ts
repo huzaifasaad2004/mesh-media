@@ -51,19 +51,48 @@ export async function POST(req: NextRequest) {
   await logActivity(auth.user, 'create', 'signable_document', document.id, `${title} · ${document.client?.company_name ?? ''}`)
 
   // Let the client know there's something to sign, if we have an email on file.
-  if (process.env.RESEND_API_KEY && document.client?.email) {
+  let emailSent = false
+  let emailError: string | null = null
+  if (!process.env.RESEND_API_KEY) {
+    emailError = 'RESEND_API_KEY not configured'
+  } else if (!document.client?.email) {
+    emailError = 'No email on file for this client'
+  } else {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
-    await resend.emails.send({
+    const recipient = document.client.contact_person ?? document.client.company_name
+    const { error: sendError } = await resend.emails.send({
       from: `MeshMedia <${process.env.RESEND_FROM_EMAIL ?? 'hello@m3m.ae'}>`,
       to: document.client.email,
       subject: `Please review & sign: ${title}`,
-      html: `<p>Dear ${document.client.contact_person ?? document.client.company_name},</p>
-<p>We've sent over a document that needs your signature: <strong>${title}</strong>.</p>
-<p><a href="${baseUrl}/documents/${document.id}">Review &amp; sign →</a></p>
-<p>${COMPANY.name}</p>`,
-    }).catch(() => {})
+      html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>
+  body { font-family: Inter, Arial, sans-serif; margin:0; background:#f5f5f5; color:#1a1a1a; }
+  .wrap { max-width:520px; margin:32px auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .header { background:#6E1318; padding:28px 32px; }
+  .header h1 { color:#fff; margin:0; font-size:20px; font-weight:700; }
+  .body { padding:28px 32px; font-size:14px; line-height:1.6; }
+  .cta { display:inline-block; background:#6E1318; color:#fff !important; text-decoration:none; padding:13px 26px; border-radius:8px; font-weight:600; margin:18px 0; }
+  .footer { background:#f9f9f9; border-top:1px solid #eee; padding:16px 32px; font-size:11px; color:#999; text-align:center; }
+</style></head><body>
+<div class="wrap">
+  <div class="header"><h1>${COMPANY.name}</h1></div>
+  <div class="body">
+    <p>Dear ${recipient},</p>
+    <p>We've sent over a document that needs your signature: <strong>${title}</strong>.</p>
+    <p><a href="${baseUrl}/documents/${document.id}" class="cta">Review &amp; sign →</a></p>
+    <p style="color:#888;font-size:12px;">If the button doesn't work, copy and paste this URL into your browser:<br>${baseUrl}/documents/${document.id}</p>
+  </div>
+  <div class="footer">${COMPANY.name} · ${COMPANY.email} · ${COMPANY.phone}</div>
+</div>
+</body></html>`,
+    })
+    if (sendError) {
+      emailError = sendError.message
+      console.error(`[documents] Failed to email signature request for document ${document.id}:`, sendError)
+    } else {
+      emailSent = true
+    }
   }
 
-  return NextResponse.json(document)
+  return NextResponse.json({ ...document, emailSent, emailError })
 }

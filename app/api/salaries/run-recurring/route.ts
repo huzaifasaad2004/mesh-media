@@ -5,7 +5,8 @@ import { logActivity } from '@/lib/activityLog'
 
 // Generates this month's payment for every active MONTHLY salary that
 // doesn't already have one for the current period. Safe to call repeatedly —
-// the unique (salary_id, period) index means it can never double-pay anyone.
+// skips a period the moment ANY payment exists for it (partial or full);
+// finishing a split payment is left to a manual "Record a payment" action.
 export async function POST(_req: NextRequest) {
   const auth = await requirePayrollWrite()
   if ('res' in auth) return auth.res
@@ -26,8 +27,8 @@ export async function POST(_req: NextRequest) {
   const skipped: string[] = []
 
   for (const salary of salaries ?? []) {
-    const { data: existing } = await db.from('salary_payments').select('id').eq('salary_id', salary.id).eq('period', period).maybeSingle()
-    if (existing) { skipped.push(salary.profile?.full_name ?? salary.profile_id); continue }
+    const { data: existing } = await db.from('salary_payments').select('id').eq('salary_id', salary.id).eq('period', period).limit(1)
+    if (existing && existing.length > 0) { skipped.push(salary.profile?.full_name ?? salary.profile_id); continue }
 
     const { data: payment, error } = await db.from('salary_payments').insert({
       profile_id: salary.profile_id,

@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
 import { requireFinanceWrite } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
+import { notifyUsers } from '@/lib/notify'
 import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
 
 export const runtime = 'nodejs'
@@ -122,15 +123,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const db = admin()
   await db.from('invoices').update({ status: 'sent' }).eq('id', params.id)
 
-  // Notify admins in-app
+  // Notify admins
   const { data: admins } = await db.from('profiles').select('id').in('role', ['owner', 'admin'])
   if (admins?.length) {
-    await db.from('notifications').insert(admins.map(a => ({
-      user_id: a.id,
+    await notifyUsers(db, {
+      userIds: admins.map(a => a.id),
       title: `Invoice ${inv.invoice_number} emailed`,
       body: `Sent to ${inv.client.email} · AED ${Number(inv.total).toLocaleString()}`,
       href: '/finance/invoices',
-    })))
+      category: 'critical_alert',
+    })
   }
 
   return NextResponse.json({ success: true, to: inv.client.email })

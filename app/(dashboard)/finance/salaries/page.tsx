@@ -31,7 +31,13 @@ export default function SalariesPage() {
 
   useEffect(() => { load() }, [load])
 
-  const monthlyTotal = salaries.filter(s => !s.effective_to).reduce((sum, s) => sum + Number(s.amount), 0)
+  const monthlyTotalsByCurrency = salaries
+    .filter(s => !s.effective_to)
+    .reduce((totals: Record<string, number>, s) => {
+      const currency = s.currency ?? 'AED'
+      totals[currency] = (totals[currency] ?? 0) + Number(s.amount)
+      return totals
+    }, {})
 
   const runPayroll = async () => {
     if (!confirm("Generate this month's payroll for every active monthly salary that hasn't been paid yet?")) return
@@ -52,7 +58,11 @@ export default function SalariesPage() {
           <Link href="/finance" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-4 h-4" /></Link>
           <div>
             <h1>Salaries</h1>
-            <p className="text-gray-500 text-sm mt-0.5">{formatCurrency(monthlyTotal)}/month total payroll (AED-denominated)</p>
+            <p className="text-gray-500 text-sm mt-0.5">
+              {Object.keys(monthlyTotalsByCurrency).length > 0
+                ? Object.entries(monthlyTotalsByCurrency).map(([currency, total]) => formatCurrency(total, currency)).join(' + ') + '/month total payroll'
+                : 'No active payroll'}
+            </p>
           </div>
         </div>
         {canManage && (
@@ -150,6 +160,7 @@ export default function SalariesPage() {
           <SalaryPaymentsModal
             salaryId={payingSalary.id}
             currency={payingSalary.currency}
+            salaryAmount={Number(payingSalary.amount)}
             payments={payingSalary.payments ?? []}
             canRecordNew={!payingSalary.effective_to}
             onChanged={load}

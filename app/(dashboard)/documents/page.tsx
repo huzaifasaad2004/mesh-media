@@ -54,7 +54,11 @@ export default function DocumentsPage() {
         body: JSON.stringify({ client_id: clientId, title: title.trim(), file_base64, file_name: file.name, mime_type: file.type }),
       })
       const d = await res.json()
-      if (res.ok) { toast.success('Document uploaded'); setShowModal(false); resetForm(); load() }
+      if (res.ok) {
+        if (d.emailSent) toast.success('Document uploaded and emailed to the client')
+        else toast.error(`Document uploaded, but the client email failed to send: ${d.emailError ?? 'unknown error'}`)
+        setShowModal(false); resetForm(); load()
+      }
       else toast.error(d.error ?? 'Upload failed')
     } finally { setUploading(false) }
   }

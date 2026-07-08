@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
@@ -80,8 +80,12 @@ export default function NotificationBell() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-9 z-50 w-72 card overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-paper-200 text-xs font-semibold text-taupe-600 uppercase tracking-wider">
-              Notifications
+            <div className="px-4 py-2.5 border-b border-paper-200 flex items-center justify-between">
+              <span className="text-xs font-semibold text-taupe-600 uppercase tracking-wider">Notifications</span>
+              <Link href="/notification-preferences" onClick={() => setOpen(false)} title="Notification settings"
+                className="text-taupe-500 hover:text-ink">
+                <Settings className="w-3.5 h-3.5" />
+              </Link>
             </div>
             <div className="max-h-80 overflow-y-auto">
               {items.length > 0 ? items.map(n => (

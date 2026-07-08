@@ -18,13 +18,15 @@ export default async function FinancePage() {
     supabase.from('invoices').select('total, status, due_date'),
     supabase.from('expenses').select('amount'),
     supabase.from('quotations').select('total, status'),
-    supabase.from('salaries').select('amount').is('effective_to', null),
+    supabase.from('salaries').select('amount, currency').is('effective_to', null),
   ])
 
   const outstanding = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0)
   const overdueCount = (invoices ?? []).filter(i => i.status === 'overdue' || (i.status === 'sent' && i.due_date && i.due_date < today)).length
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
-  const totalSalaries = (salaries ?? []).reduce((s, sal) => s + (sal.amount ?? 0), 0)
+  // AED-only: mixing currencies into one number would misrepresent payroll (see docs/BUILD_PLAN.md §C #17)
+  const totalSalariesAED = (salaries ?? []).filter(sal => (sal.currency ?? 'AED') === 'AED').reduce((s, sal) => s + (sal.amount ?? 0), 0)
+  const hasNonAedSalaries = (salaries ?? []).some(sal => (sal.currency ?? 'AED') !== 'AED')
 
   const modules = [
     {
@@ -60,8 +62,8 @@ export default async function FinancePage() {
       description: `${(salaries ?? []).length} active`,
       icon: Users,
       accent: '#059669',
-      stat: formatCurrency(totalSalaries),
-      statLabel: 'per month',
+      stat: formatCurrency(totalSalariesAED) + (hasNonAedSalaries ? ' +' : ''),
+      statLabel: hasNonAedSalaries ? 'per month (AED only, see Salaries for other currencies)' : 'per month',
     },
   ]
 

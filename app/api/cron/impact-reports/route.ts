@@ -4,6 +4,7 @@ import { serviceRole } from '@/lib/apiAuth'
 import { requireCronOrFinanceWrite } from '@/lib/cron'
 import { logActivity } from '@/lib/activityLog'
 import { COMPANY } from '@/lib/company'
+import { notifyUsers } from '@/lib/notify'
 import { computeClientStats } from '@/lib/impactReport'
 import { renderImpactReportPdf } from '@/lib/pdf/ImpactReportPdf'
 
@@ -80,14 +81,14 @@ async function run(req: NextRequest) {
       if (!sendError) await db.from('client_reports').update({ emailed_at: new Date().toISOString() }).eq('id', report.id)
     }
 
-    await db.from('notifications').insert(
-      (await db.from('profiles').select('id').in('role', ['owner', 'admin'])).data?.map((a) => ({
-        user_id: a.id,
-        title: `Impact report generated`,
-        body: `${client.company_name} · ${monthLabel}`,
-        href: '/clients',
-      })) ?? []
-    )
+    const { data: cronAdmins } = await db.from('profiles').select('id').in('role', ['owner', 'admin'])
+    await notifyUsers(db, {
+      userIds: (cronAdmins ?? []).map((a) => a.id),
+      title: `Impact report generated`,
+      body: `${client.company_name} · ${monthLabel}`,
+      href: '/clients',
+      category: 'critical_alert',
+    })
 
     generated.push(client.company_name)
   }

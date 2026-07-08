@@ -18,6 +18,7 @@ export default function DocumentSignerPage() {
   const [error, setError] = useState('')
   const [signingParty, setSigningParty] = useState<'agency' | 'client' | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [live, setLive] = useState<{ name: string; dataUrl: string | null }>({ name: '', dataUrl: null })
   const toast = useToast()
 
   const load = async () => {
@@ -84,9 +85,44 @@ export default function DocumentSignerPage() {
           <span className={`badge ${statusColor(doc.status)}`}>{statusLabel(doc.status)}</span>
         </div>
 
-        {/* Document preview */}
-        <div className="card overflow-hidden mb-5" style={{ height: 600 }}>
+        {/* Document preview — a signature stamp strip overlays the bottom so it's
+            clear where each party's signature actually lands, live as you sign. */}
+        <div className="card overflow-hidden mb-5 relative" style={{ height: 600 }}>
           <iframe src={doc.file_url} title={doc.title} className="w-full h-full border-0" />
+          <div className="absolute left-0 right-0 bottom-0 grid grid-cols-2 border-t border-sand-300 bg-white/95 backdrop-blur-sm text-xs">
+            <div className="px-3 py-2 border-r border-sand-200">
+              <p className="text-[10px] uppercase tracking-wider text-taupe-500 mb-1">Agency signs here</p>
+              {agencySig ? (
+                <div className="flex items-center gap-2">
+                  {agencySig.signature_data && <img src={agencySig.signature_data} alt="" className="h-8" />}
+                  <span className="text-umber-700 font-medium" style={agencySig.signature_data ? {} : { fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: 16 }}>{agencySig.signer_name}</span>
+                </div>
+              ) : signingParty === 'agency' && (live.name || live.dataUrl) ? (
+                <div className="flex items-center gap-2 opacity-60">
+                  {live.dataUrl && <img src={live.dataUrl} alt="" className="h-8" />}
+                  <span className="text-umber-700" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: 16 }}>{live.name}</span>
+                </div>
+              ) : (
+                <span className="text-taupe-400">Unsigned</span>
+              )}
+            </div>
+            <div className="px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-taupe-500 mb-1">Client signs here</p>
+              {clientSig ? (
+                <div className="flex items-center gap-2">
+                  {clientSig.signature_data && <img src={clientSig.signature_data} alt="" className="h-8" />}
+                  <span className="text-umber-700 font-medium" style={clientSig.signature_data ? {} : { fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: 16 }}>{clientSig.signer_name}</span>
+                </div>
+              ) : signingParty === 'client' && (live.name || live.dataUrl) ? (
+                <div className="flex items-center gap-2 opacity-60">
+                  {live.dataUrl && <img src={live.dataUrl} alt="" className="h-8" />}
+                  <span className="text-umber-700" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: 16 }}>{live.name}</span>
+                </div>
+              ) : (
+                <span className="text-taupe-400">Unsigned</span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Signature status */}
@@ -102,7 +138,7 @@ export default function DocumentSignerPage() {
                 <p className="text-xs text-gray-500">Signed by {agencySig.signer_name} · {formatDate(agencySig.signed_at)}</p>
               </div>
             ) : canSignAgency ? (
-              <button className="btn-primary btn-sm" onClick={() => setSigningParty('agency')}>Sign as Agency</button>
+              <button className="btn-primary btn-sm" onClick={() => { setSigningParty('agency'); setLive({ name: '', dataUrl: null }) }}>Sign as Agency</button>
             ) : (
               <p className="text-xs text-gray-400">Awaiting signature</p>
             )}
@@ -119,7 +155,7 @@ export default function DocumentSignerPage() {
                 <p className="text-xs text-gray-500">Signed by {clientSig.signer_name} · {formatDate(clientSig.signed_at)}</p>
               </div>
             ) : canSignClient ? (
-              <button className="btn-primary btn-sm" onClick={() => setSigningParty('client')}>Sign as Client</button>
+              <button className="btn-primary btn-sm" onClick={() => { setSigningParty('client'); setLive({ name: '', dataUrl: null }) }}>Sign as Client</button>
             ) : (
               <p className="text-xs text-gray-400">Awaiting signature</p>
             )}
@@ -129,13 +165,17 @@ export default function DocumentSignerPage() {
         {signingParty && (
           <div className="card p-5">
             <h3 className="mb-3">Sign as {signingParty === 'agency' ? 'Agency' : 'Client'}</h3>
+            <p className="text-xs text-taupe-500 mb-3">
+              Watch the {signingParty === 'agency' ? 'left' : 'right'} side of the document preview above — that&apos;s exactly where this signature will be stamped.
+            </p>
             <SignaturePad
               defaultName={me?.full_name ?? ''}
               submitting={submitting}
               onSubmit={(payload) => submitSignature(signingParty, payload)}
+              onLiveChange={setLive}
               submitLabel="Confirm Signature"
             />
-            <button className="btn-ghost btn-sm mt-2" onClick={() => setSigningParty(null)}>Cancel</button>
+            <button className="btn-ghost btn-sm mt-2" onClick={() => { setSigningParty(null); setLive({ name: '', dataUrl: null }) }}>Cancel</button>
           </div>
         )}
       </div>

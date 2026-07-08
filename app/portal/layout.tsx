@@ -44,7 +44,7 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <div className={`min-h-screen bg-paper-0 ${impersonation ? 'pt-9' : ''}`}>
       {impersonation && <ImpersonationBanner targetEmail={impersonation.target_email} />}
-      <PortalHeader name={profile?.full_name ?? user.email ?? 'Client'} />
+      <PortalHeader name={profile?.full_name ?? user.email ?? 'Client'} avatarUrl={profile?.avatar_url} />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {children}
       </main>
