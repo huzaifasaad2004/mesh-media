@@ -8,55 +8,103 @@ Use this document as the master plan. Each phase below is written so you can han
 
 ---
 
-## ✅ URGENT bugs — FIXED 2026-07-07 (session 5)
+## 🚨 URGENT — NEXT SESSION PRIORITY (requested 2026-07-08, NOT started)
 
-Huzaifa reported these live on production. Both root causes below were fixed and verified locally (dev server, which points at the production Supabase DB — a test invoice was created to verify auto-numbering, then deleted via the API immediately after).
+Huzaifa's brief below, plus grounded technical context from a fresh codebase scan so a new
+session can start building immediately instead of re-discovering this. **Start here before
+any "NEXT UP" roadmap item below.** Suggested order and why: **#1 (Files) first** — it's
+self-contained. **#2 (Content Approval) second** — it requires a real permissions change
+(see finding below) that's worth doing carefully on its own. **#3 (Email Notifications)
+third** — wire it into whatever new handoff points #2 creates rather than building it twice.
 
-- **#1 blank edit form**: added `key={editing?.id ?? 'new'}` to the form element in all six pages (`InvoiceForm`, `QuotationForm`, `ExpenseForm`, `TaskForm`, `ContractForm`, `ProjectForm`), forcing React to remount with fresh `initialData` on every edit. Verified: opened two different invoices' edit modals back-to-back, each correctly showed its own data.
-- **#2 invoice numbers**: `components/forms/InvoiceForm.tsx` now defaults `invoice_number` to `''` and shows it as read-only (existing invoices) or "Auto-generated on save" (new invoices) instead of an editable text input — matching `QuotationForm`. Verified: creating a new invoice via the form triggered the DB's `generate_invoice_number()` and produced `INV-2026-1000` automatically.
-- **#3 paid-date**: re-verified live — opening an overdue invoice, switching status to Paid, and setting an explicit Paid Date correctly saves and persists that date (not just today's date); reverted the test invoice back to its original overdue state afterward.
+### 1. File Module Overhaul
+> Huzaifa: *"The current file module is not functioning as intended, particularly regarding
+> storage and functionality. Should we utilize our database for smaller files and integrate
+> external solutions (e.g., Google Drive) for larger project files? Or is there a more robust,
+> unified solution you'd recommend? How can files stored externally be seamlessly attached,
+> viewed, and managed through the front-end of m3m.ae?"*
 
-**Bonus fix found during the general Finance/Tasks pass**: `InvoiceForm`/`QuotationForm` always submitted an `items` array with at least one blank line item (qty 1 × price 0), even for invoices that legitimately have zero line items (the "Imported from Zoho Books" ones). Two problems: (1) the blank line item's required `Description` field silently blocked saving *any* edit — including just changing status — on those invoices, and (2) if forced through, it would have overwritten the invoice's real total with 0. Fixed in both forms: blank line items are filtered out before submit, and `items` is omitted entirely from the payload when there's nothing meaningful to send and the record already had none — so the API's total-recompute never fires and the existing total is preserved. Verified live: marked a 0-item, AED 4,420 overdue invoice as Paid — total stayed at 4,420 instead of zeroing out.
+**Confirmed current state:** the `files` table (`supabase/schema.sql`) already has both
+`storage_path` and `drive_url` columns — the schema half-anticipates a hybrid, but neither is
+actually wired up. `app/(dashboard)/files/page.tsx` renders a file list and an upload dropzone,
+but **the dropzone has no handler and there's no upload API route — it's a visual stub**. No
+Supabase Storage bucket exists for general files (only the single-purpose `signable-documents`,
+`receipts`, `client-reports` buckets from other features). `clients.drive_folder_url` is the
+only working "external storage" link today (one Drive folder per client, shown on the client
+detail page) — individual per-file Drive links are not wired up either.
 
-**General Finance/Tasks pass**: spot-checked create/edit/delete/status-change on Invoices, Expenses, and Tasks directly against production (via UI where reliable, via the same API calls the UI makes otherwise) — all working, all test records cleaned up afterward. Contracts and Projects only got the key-prop fix + a quick read-through (not full CRUD cycle) — worth a closer look if issues surface there.
+**Recommendation:** hybrid, matching what the schema already anticipates — small files
+(documents, images, under a size threshold like 20MB) go into a new `project-files` Storage
+bucket with `storage_path` populated; large video/design files stay on Drive with `drive_url`
+populated instead (reusing the Drive-per-client pattern already in use). One `files` table,
+one list UI either way — each row just has one of the two populated, and "view" branches on
+which one is set.
 
-Original bug descriptions kept below for reference.
+**To build:** the upload API route + `project-files` bucket + wiring the existing dropzone to
+call it; a "Link Drive file" action for the external-file case; a `category`-aware visibility
+flag so client-visible files show in the portal's existing Files card and internal-only ones
+don't.
 
-### 1. Editing an invoice/quotation/task shows a blank "new" form instead of the existing data
-**Symptom:** click the edit (pencil) icon on an invoice, quotation, or task → the modal opens as if creating a brand-new record — every field is blank/default, not the record's actual data.
+### 2. Streamlined Content Approval Workflow via Client Portal
+> Huzaifa: *"Social media managers or video editors create content and submit it to their
+> direct manager. The manager reviews and, upon approval, forwards it to the client's portal.
+> The client gets an email notification, and can approve, decline, or comment in their portal.
+> Team members are notified of the client's decision. Crucially, individual employees must
+> never have direct access to client information or be able to submit content directly to a
+> client — only to their manager."*
 
-**Root cause (confirmed):** `components/ui/Modal.tsx` always renders `{children}` and only *hides* the modal via CSS (`opacity-0`/`translate-x-full`) when `isOpen` is false — it never unmounts them. That means `InvoiceForm`, `QuotationForm`, and `TaskForm` (etc.) mount **once**, on the very first page render, when `editing` is still `null` — so their `useState({...initialData})` initializer runs exactly once with `initialData = undefined`. React never re-runs a `useState` initializer just because a prop changed on a later render, so every subsequent "Edit" click passes a new `initialData` prop into an *already-mounted* form component whose internal state is permanently stuck at its first ("New") values. Confirmed by grepping every page using this `<Modal><XForm initialData={editing}/></Modal>` pattern — **all of these share the exact same bug**:
-- `app/(dashboard)/finance/invoices/page.tsx` (InvoiceForm)
-- `app/(dashboard)/finance/quotations/page.tsx` (QuotationForm)
-- `app/(dashboard)/finance/expenses/page.tsx` (ExpenseForm)
-- `app/(dashboard)/tasks/page.tsx` (TaskForm)
-- `app/(dashboard)/contracts/page.tsx` (ContractForm)
-- `app/(dashboard)/projects/page.tsx` (ProjectForm)
+**Confirmed current state:** `phase9_approvals.sql` already built a generic approval-request
+system (`approvals` table: requester → manager decides → in-app notification both ways) — a
+reasonable pattern to extend rather than duplicating, but scoped today to
+`type IN ('time_off','expense','other')` for internal HR use, with no client-facing half at
+all (the table and its RLS are staff-only).
 
-**Fix:** give each form a `key` prop tied to the record being edited, e.g. `key={editing?.id ?? 'new'}`, on the `<XForm .../>` element (not the `<Modal>` itself). A changed `key` forces React to unmount the old component instance and mount a fresh one, which correctly re-runs the `useState` initializer with the new `initialData`. Minimal, low-risk, one line per page — apply to all six pages above. Test each one: open "New", cancel, open "Edit" on an existing record, confirm the form is pre-filled, save, re-open edit on a *different* record, confirm it shows that record's data (not the previous one — this is the part that's easy to get wrong if only tested once).
+**Important finding — this needs a real permissions change, not just a new feature:**
+Huzaifa's requirement that employees never see client info **is not true today**. The
+`member` role currently has full read access to `clients` and `contacts` via `is_staff()` in
+`phase5_rbac.sql`'s RLS policies — same access as owner/admin/manager for those tables. Any
+content-approval build needs to *also* tighten this: a `member` should see only the
+client(s)/project(s) they're actually assigned to (via task or project assignment), and should
+have no path to submit or view anything client-facing directly — only to their manager, who
+becomes the only role that can forward to a client. This is worth scoping and testing
+carefully (impersonate a `member` before/after, confirm they lose general client visibility
+without breaking their ability to do their actual assigned work).
 
-### 2. Invoice numbers are not auto-generated (unlike quotations)
-**Symptom:** creating a new invoice requires manually typing an invoice number; it's not automatic like quotation numbers are.
+**To build:** a new content-submission table (e.g. `content_items`: creator → manager review →
+client review, with status states covering each hop), a manager "forward to client" action, a
+client-portal review view (approve/decline/comment — similar UX to the existing quotation
+accept/decline-in-portal flow), notifications at each handoff (feeds into #3 below), and the
+tightened member-level client visibility above.
 
-**Root cause (confirmed):** the DB already has an auto-numbering trigger for invoices (`generate_invoice_number()` in `supabase/schema.sql`, fires `IF new.invoice_number IS NULL OR new.invoice_number = ''`) — identical in spirit to the one quotations already use successfully (`generate_quote_number()`, `supabase/phase2_migration.sql`). The difference is purely in the frontend form:
-- `components/forms/QuotationForm.tsx` defaults `quote_number` to `''` (empty) and **does not render an input for it** — so the DB trigger always fires and auto-assigns `MM-QT-######`. This is the correct pattern.
-- `components/forms/InvoiceForm.tsx` instead defaults `invoice_number` to the literal string `` `MM-INV-${year}-` `` and renders it as an **editable text input** the user is expected to finish typing — so the field is never empty, the DB trigger never fires, and numbering is entirely manual (and prone to typos/collisions, though the `invoices_invoice_number_key` unique index at least prevents duplicates crashing silently).
+### 3. Comprehensive Email Notification System
+> Huzaifa: *"We need robust email notifications for task assignments/status updates, file
+> uploads, approval requests, and critical alerts — configurable for employees, clients, and
+> admins."*
 
-**Fix:** make `InvoiceForm` match `QuotationForm` — default `invoice_number` to `''`, remove the manual input (or only show it read-only once `initialData?.id` exists, for editing an already-created invoice), and stop sending a placeholder value in the POST payload. Verify a newly created invoice gets `MM-INV-YYYY-NNNNN` automatically.
+**Confirmed current state:** in-app notifications are fully built — `notifications` table,
+real-time bell UI (`components/NotificationBell.tsx`) — but narrowly scoped (mostly finance
+events: invoice/quotation sent, document signed, salary paid, plus the existing HR approvals)
+and **entirely in-app**. Resend is already wired up for client-facing transactional email
+(invoices, quotations, signature requests), but **zero emails currently go to staff** for
+anything — a manager doesn't get emailed when an approval needs attention today, only an
+in-app bell ping.
 
-### 3. Invoice paid-date / due-date — verify after fixing #1
-Huzaifa reported not being able to set "when payment was received" on an invoice. A `paid_date` field **was already added** to `InvoiceForm` (shown only when `status = 'paid'`) in the 2026-07-06 evening session — but if bug #1 (blank edit form) was masking it the whole time, he may never have actually seen that field. **Once #1 is fixed, re-verify**: open an existing sent/overdue invoice, change status to "Paid", confirm a "Paid Date" input appears and saves correctly (`app/api/invoices/[id]/route.ts` PUT already respects an explicit `paid_date` instead of always stamping "today" — this logic should already be correct, just needs to actually be reachable in the UI).
-
-### General ask
-Huzaifa also asked to double-check the rest of the Finance and Tasks modules are otherwise solid while in there — no other specific bugs reported, but worth a quick pass (create/edit/delete/status-change on each) since the edit-blank-form bug went unnoticed for a while.
+**To build:** a lightweight per-user preference layer (task assignment, file upload, approval
+request, critical alerts — on/off per channel), and wire the ~9 existing
+notification-insert call sites (plus whatever #2 adds) to also send email when the recipient
+has that channel enabled — reusing the existing Resend + `COMPANY` branding pattern already
+proven in the invoice-send emails.
 
 ---
 
-> ## STATUS — as of 2026-07-07 (updated session 4 — see 🚨 URGENT section above first)
-> - ✅ **2026-07-07 (session 4): Tier 4 #14 e-signature shipped** (document upload + dual-party signing, quotation signing-at-acceptance) — `supabase/phase22_esignature.sql` still needs to be run in Supabase (see migrations list below).
-> - 🚨 **Same session: Huzaifa reported 3 bugs in the Finance/Tasks modules, diagnosed but NOT yet fixed** — see the urgent section at the very top of this file before doing anything else.
+> ## STATUS — as of 2026-07-08 (updated session 6 — see 🚨 URGENT section above first)
+> - ✅ **2026-07-07 (session 5): 3 urgent Finance/Tasks bugs fixed and verified live** — blank edit-form bug across 6 forms, invoice auto-numbering, paid-date; plus a bonus fix (blank line items could zero out an invoice's real total on save). Full detail was here and has been superseded by this summary — see git log commit `f139eaa` for the complete original write-up if needed.
+> - ✅ **2026-07-07 (session 6): Tier 4 #13b Monthly Impact Report PDF shipped and verified live** (`supabase/phase23_impact_reports.sql`, run in Supabase) — see full detail in the roadmap entry below.
+> - ✅ **2026-07-08 (session 6 cont'd): Tier 4 #17 Client onboarding workflows shipped and verified live** (`supabase/phase24_onboarding.sql`, run in Supabase) — see full detail in the roadmap entry below.
+> - ⏭️ **WhatsApp-native Aether** was fully scoped (Twilio WhatsApp API, staff-only, reusing Aether's existing service-role tool-calling engine) but **declined by Huzaifa — avoiding messaging/API costs for now**. Revisit if that changes; the plan doesn't need to be redone from scratch.
+> - 🚨 **2026-07-08: Huzaifa requested 3 new features, all NOT yet started** — see the urgent section at the very top of this file before doing anything else in a new session.
 >
-> Much of this plan is now BUILT (migrations `phase2`–`phase19` written; see git log):
+> Much of this plan is now BUILT (migrations `phase2`–`phase24` written; see git log):
 > - ✅ Phase 0–1: stabilized; RBAC (`phase5_rbac.sql`), roles owner/admin/manager/member/viewer/client, per-user permission overrides (`phase12`)
 > - ✅ Phase 2: projects layer (`phase6_projects.sql`)
 > - ✅ Phase 3: client portal (`phase7_portal.sql`), quotations with VAT/discount/decline-reason
@@ -68,13 +116,9 @@ Huzaifa also asked to double-check the rest of the Finance and Tasks modules are
 > - ✅ 2026-07-06 evening (session 1): click-to-confirm invite flow (`/auth/confirm`), admin password set/reset on Team page, real server-generated PDF downloads, WhatsApp on both doc pages
 > - ✅ **2026-07-06 evening (session 2): Tier 1 + Tier 2 fully shipped, Tier 3 fully code-complete (all of #10–12)** — see "DONE" list below.
 > - ✅ **2026-07-06 evening (session 3): critical permission-leak fix** (see detail below) + Tier 3 #11/#12 (recurring retainer invoices/dunning, cash-flow forecast).
-> - ❌ NOT done: RAG/pgvector for Aether, CRM/leads, onboarding workflows, knowledge base, remaining Tier 4 flagship differentiators (impact reports, WhatsApp Aether, PR tracker)
+> - ❌ NOT done: RAG/pgvector for Aether (#15), CRM/leads pipeline (#16), PR media-placement/EMV tracker (#13b, remaining piece), knowledge base (#18) — plus the 3 new urgent items at the top of this file (files module, content approval workflow, email notifications)
 >
-> **✅ Already run in Supabase (confirmed by Huzaifa):** `phase18_portal_access.sql`, `phase19_activity_log.sql`.
->
-> **⚠️ Two migrations are written but NOT yet confirmed run in Supabase** — paste these into the Supabase SQL editor when convenient (nothing is broken in the meantime, both degrade gracefully):
-> - `supabase/phase21_recurring_invoices.sql` — adds `clients.auto_invoice_retainer`, `invoices.retainer_period`/`dunning_stage`/`last_reminder_sent_at`; until run, recurring invoices/dunning cron jobs will error (manual "Run Retainer Invoices" button will show the DB error).
-> - `supabase/phase22_esignature.sql` — adds `signable_documents`/`document_signatures` tables + storage bucket + `quotations.signature_name`/`signature_data`; until run, `/documents` and quotation signing will show a clear "table not found" error.
+> **✅ Already run in Supabase (confirmed by Huzaifa):** `phase18_portal_access.sql`, `phase19_activity_log.sql`, `phase21_recurring_invoices.sql`, `phase22_esignature.sql`, `phase23_impact_reports.sql`, `phase24_onboarding.sql`.
 >
 > **⚠️ Online payments (Tier 3 #10) needs Stripe keys** — code is fully built (Checkout session creation, webhook handler, Pay Now button, idempotent paid-status update) but inert until you add to the environment: `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` (the last one only after registering a webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for the `checkout.session.completed` event in the Stripe dashboard).
 >
