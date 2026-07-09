@@ -201,6 +201,16 @@ function InvoicePrintContent() {
         </div>
       )}
 
+      {invoice.status === 'partially_paid' && (
+        <div className="no-print" style={{
+          position: 'fixed', top: 48, left: 0, right: 0, zIndex: 99,
+          background: '#B8801F', color: 'white', padding: '8px 20px',
+          fontSize: 12, fontFamily: 'Inter, sans-serif',
+        }}>
+          Partially paid: AED {Number(invoice.amount_paid ?? 0).toLocaleString()} of {total.toLocaleString()} received — AED {(total - Number(invoice.amount_paid ?? 0)).toLocaleString()} remaining.
+        </div>
+      )}
+
       {justPaid && (
         <div className="no-print" style={{
           position: 'fixed', top: 48, left: 0, right: 0, zIndex: 99,

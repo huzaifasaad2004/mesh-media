@@ -14,13 +14,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const db = serviceRole()
   const { data: invoice, error } = await db
     .from('invoices')
-    .select('id, invoice_number, total, status, client:clients(company_name, email)')
+    .select('id, invoice_number, total, amount_paid, status, client:clients(company_name, email)')
     .eq('id', params.id)
     .single()
   if (error || !invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
   if (invoice.status === 'paid') return NextResponse.json({ error: 'This invoice is already paid' }, { status: 400 })
   if (invoice.status === 'cancelled') return NextResponse.json({ error: 'This invoice was cancelled' }, { status: 400 })
 
+  const remaining = Number(invoice.total) - Number(invoice.amount_paid ?? 0)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
   const client = invoice.client as any
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     line_items: [{
       price_data: {
         currency: 'aed',
-        unit_amount: Math.round(Number(invoice.total) * 100),
+        unit_amount: Math.round(remaining * 100),
         product_data: {
           name: `Invoice ${invoice.invoice_number}`,
           description: client?.company_name ? `${client.company_name} · MeshMedia` : 'MeshMedia',

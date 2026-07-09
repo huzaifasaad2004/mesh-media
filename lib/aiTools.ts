@@ -142,12 +142,12 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
 
       const [{ data: paidInvoices }, { data: allInvoices }, { data: clients }, { data: expenses }] = await Promise.all([
         paidQuery,
-        db.from('invoices').select('status'),
+        db.from('invoices').select('status, total, amount_paid'),
         db.from('clients').select('status'),
         expenseQuery,
       ])
       const paid = (paidInvoices ?? []).reduce((s, i) => s + (Number(i.total) - Number(i.tax_amount ?? 0)), 0)
-      const outstanding = (allInvoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i: any) => s + Number(i.total ?? 0), 0)
+      const outstanding = (allInvoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i: any) => s + (Number(i.total ?? 0) - Number(i.amount_paid ?? 0)), 0)
       const totalExp = (expenses ?? []).reduce((s, e) => s + Number(e.amount), 0)
       return {
         period,
@@ -186,10 +186,10 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
     case 'get_client_statement': {
       const { data: client } = await db.from('clients').select('id, company_name').ilike('company_name', `%${args.name}%`).limit(1).maybeSingle()
       if (!client) return { found: false, message: `No client matching "${args.name}"` }
-      const { data: invoices } = await db.from('invoices').select('invoice_number, status, total, issue_date, due_date, paid_date').eq('client_id', client.id).order('issue_date', { ascending: false })
+      const { data: invoices } = await db.from('invoices').select('invoice_number, status, total, amount_paid, issue_date, due_date, paid_date').eq('client_id', client.id).order('issue_date', { ascending: false })
       const totalInvoiced = (invoices ?? []).reduce((s, i) => s + Number(i.total), 0)
-      const totalPaid = (invoices ?? []).filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total), 0)
-      const outstandingBalance = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0)
+      const totalPaid = (invoices ?? []).reduce((s, i) => s + Number(i.status === 'paid' ? i.total : i.amount_paid ?? 0), 0)
+      const outstandingBalance = (invoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i) => s + (Number(i.total) - Number(i.amount_paid ?? 0)), 0)
       return {
         found: true,
         company_name: client.company_name,
@@ -203,13 +203,13 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
     case 'list_overdue_invoices': {
       const { data } = await db
         .from('invoices')
-        .select('invoice_number, total, status, due_date, client:clients(company_name)')
-        .in('status', ['sent', 'overdue'])
+        .select('invoice_number, total, amount_paid, status, due_date, client:clients(company_name)')
+        .in('status', ['sent', 'overdue', 'partially_paid'])
         .order('due_date', { ascending: true })
       return (data ?? []).map((i: any) => ({
         invoice_number: i.invoice_number,
         client: i.client?.company_name ?? 'Unknown',
-        amount: Number(i.total),
+        amount: Number(i.total) - Number(i.amount_paid ?? 0),
         due_date: i.due_date,
         status: i.status,
       }))
@@ -219,7 +219,7 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
       const { data: client } = await db.from('clients').select('*').ilike('company_name', `%${args.name}%`).limit(1).maybeSingle()
       if (!client) return { found: false, message: `No client matching "${args.name}"` }
       const [{ data: invoices }, { data: projects }] = await Promise.all([
-        db.from('invoices').select('invoice_number, total, status').eq('client_id', client.id).in('status', ['sent', 'overdue', 'draft']),
+        db.from('invoices').select('invoice_number, total, status').eq('client_id', client.id).in('status', ['sent', 'overdue', 'draft', 'partially_paid']),
         db.from('projects').select('name, status').eq('client_id', client.id),
       ])
       return {

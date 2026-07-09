@@ -25,7 +25,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     supabase.from('client_notes').select('*, author:profiles(full_name)').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('tasks').select('id, title, status, priority, due_date').eq('client_id', params.id).neq('status', 'done').limit(5),
     supabase.from('contracts').select('id, title, status, value, start_date, end_date').eq('client_id', params.id).order('created_at', { ascending: false }).limit(3),
-    supabase.from('invoices').select('id, invoice_number, total, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
+    supabase.from('invoices').select('id, invoice_number, total, amount_paid, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
     supabase.from('files').select('id, name, file_type, category, created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('client_reports').select('id, period, pdf_url').eq('client_id', params.id).order('period', { ascending: false }).limit(12),
   ])
@@ -48,8 +48,8 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
 
   const totalInvoiced = (invoices ?? []).reduce((s, i: any) => s + Number(i.total), 0)
-  const totalPaid = (invoices ?? []).filter((i: any) => i.status === 'paid').reduce((s, i: any) => s + Number(i.total), 0)
-  const outstandingBalance = (invoices ?? []).filter((i: any) => ['sent', 'overdue'].includes(i.status)).reduce((s, i: any) => s + Number(i.total), 0)
+  const totalPaid = (invoices ?? []).reduce((s, i: any) => s + Number(i.status === 'paid' ? i.total : i.amount_paid ?? 0), 0)
+  const outstandingBalance = (invoices ?? []).filter((i: any) => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i: any) => s + (Number(i.total) - Number(i.amount_paid ?? 0)), 0)
 
   return (
     <div>

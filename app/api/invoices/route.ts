@@ -8,7 +8,7 @@ export async function GET() {
   if ('res' in auth) return auth.res
   const { data, error } = await serviceRole()
     .from('invoices')
-    .select('*, client:clients(company_name), items:invoice_items(*)')
+    .select('*, client:clients(company_name), items:invoice_items(*), payments:invoice_payments(*)')
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)

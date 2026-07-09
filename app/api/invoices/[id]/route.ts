@@ -49,9 +49,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // Revenue reporting is keyed off paid_date, not status — stamp it the
   // moment an invoice is marked paid (unless already set / explicitly
   // provided), and clear it if the status is reverted away from paid.
-  if (invoiceData.status === 'paid' && !invoiceData.paid_date) {
-    const { data: existing } = await admin().from('invoices').select('paid_date').eq('id', params.id).single()
-    if (!existing?.paid_date) invoiceData.paid_date = new Date().toISOString().split('T')[0]
+  if (invoiceData.status === 'paid') {
+    if (!invoiceData.paid_date) {
+      const { data: existing } = await admin().from('invoices').select('paid_date').eq('id', params.id).single()
+      if (!existing?.paid_date) invoiceData.paid_date = new Date().toISOString().split('T')[0]
+    }
+    // Manually marking paid (without going through the payments flow) should
+    // still leave the running total consistent for outstanding-balance math.
+    const { data: existingTotal } = await admin().from('invoices').select('total').eq('id', params.id).single()
+    if (existingTotal) invoiceData.amount_paid = existingTotal.total
   } else if (invoiceData.status && invoiceData.status !== 'paid') {
     invoiceData.paid_date = null
   }

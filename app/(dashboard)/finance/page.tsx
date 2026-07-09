@@ -15,13 +15,13 @@ export default async function FinancePage() {
     { data: quotations },
     { data: salaries },
   ] = await Promise.all([
-    supabase.from('invoices').select('total, status, due_date'),
+    supabase.from('invoices').select('total, amount_paid, status, due_date'),
     supabase.from('expenses').select('amount'),
     supabase.from('quotations').select('total, status'),
     supabase.from('salaries').select('amount, currency').is('effective_to', null),
   ])
 
-  const outstanding = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0)
+  const outstanding = (invoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i) => s + ((i.total ?? 0) - (i.amount_paid ?? 0)), 0)
   const overdueCount = (invoices ?? []).filter(i => i.status === 'overdue' || (i.status === 'sent' && i.due_date && i.due_date < today)).length
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
   // AED-only: mixing currencies into one number would misrepresent payroll (see docs/BUILD_PLAN.md §C #17)

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, Search, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Send, ArrowLeft, ChevronDown, Loader2, Search, RefreshCw, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import InvoiceForm from '@/components/forms/InvoiceForm'
+import InvoicePaymentsModal from '@/components/finance/InvoicePaymentsModal'
 import Pagination from '@/components/ui/Pagination'
 import EmptyState from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
@@ -26,6 +27,7 @@ export default function InvoicesPage() {
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
   const [runningRetainers, setRunningRetainers] = useState(false)
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null)
   const toast = useToast()
 
   const fetchData = useCallback(async () => {
@@ -87,7 +89,7 @@ export default function InvoicesPage() {
 
   const totals = {
     paid: invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.total ?? 0), 0),
-    outstanding: invoices.filter(i => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0),
+    outstanding: invoices.filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i) => s + ((i.total ?? 0) - (i.amount_paid ?? 0)), 0),
     overdue: invoices.filter(i => i.status === 'overdue').length,
   }
 
@@ -108,6 +110,7 @@ export default function InvoicesPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount)
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const payingInvoice = invoices.find(i => i.id === payingInvoiceId)
 
   return (
     <div>
@@ -175,7 +178,12 @@ export default function InvoicesPage() {
                     <p className="font-medium text-brand-600 truncate">{inv.invoice_number}</p>
                     <p className="text-sm text-gray-700 truncate">{inv.client?.company_name ?? '—'}</p>
                   </div>
-                  <span className="font-semibold flex-shrink-0">{formatCurrency(inv.total)}</span>
+                  <div className="text-right flex-shrink-0">
+                    <span className="font-semibold">{formatCurrency(inv.total)}</span>
+                    {inv.status === 'partially_paid' && (
+                      <p className="text-xs text-orange-600 mt-0.5">{formatCurrency(inv.total - (inv.amount_paid ?? 0))} left</p>
+                    )}
+                  </div>
                 </div>
                 {(inv.subject ?? inv.notes) && <p className="text-xs text-gray-500 mt-1.5 truncate">{inv.subject ?? inv.notes}</p>}
                 <div className="flex items-center justify-between mt-3">
@@ -214,6 +222,11 @@ export default function InvoicesPage() {
                       {sending === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
                   )}
+                  {!['draft', 'cancelled'].includes(inv.status) && (
+                    <button onClick={() => setPayingInvoiceId(inv.id)} className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors" style={{ minHeight: 40 }} title="Record / view payments">
+                      <Wallet className="w-4 h-4" />
+                    </button>
+                  )}
                   <button onClick={() => openEdit(inv)} className="flex-1 flex items-center justify-center rounded text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors" style={{ minHeight: 40 }}>
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -248,7 +261,12 @@ export default function InvoicesPage() {
                     <td className="px-5 py-3 font-medium text-brand-600">{inv.invoice_number}</td>
                     <td className="px-5 py-3 text-gray-700">{inv.client?.company_name ?? '—'}</td>
                     <td className="px-5 py-3 text-gray-500 text-xs max-w-[160px] truncate">{inv.subject ?? inv.notes ?? '—'}</td>
-                    <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
+                    <td className="px-5 py-3 font-semibold">
+                      {formatCurrency(inv.total)}
+                      {inv.status === 'partially_paid' && (
+                        <p className="text-xs font-normal text-orange-600 mt-0.5">{formatCurrency(inv.total - (inv.amount_paid ?? 0))} left</p>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(inv.issue_date)}</td>
                     <td className="px-5 py-3">
                       <div className="relative inline-block">
@@ -288,6 +306,11 @@ export default function InvoicesPage() {
                             {sending === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                           </button>
                         )}
+                        {!['draft', 'cancelled'].includes(inv.status) && (
+                          <button onClick={() => setPayingInvoiceId(inv.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="Record / view payments">
+                            <Wallet className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button onClick={() => openEdit(inv)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -320,6 +343,19 @@ export default function InvoicesPage() {
           clients={clients}
           initialData={editing ?? undefined}
         />
+      </Modal>
+
+      <Modal isOpen={!!payingInvoiceId} onClose={() => setPayingInvoiceId(null)} title={payingInvoice ? `Payments · ${payingInvoice.invoice_number}` : 'Payments'}>
+        {payingInvoice && (
+          <InvoicePaymentsModal
+            invoiceId={payingInvoice.id}
+            total={Number(payingInvoice.total)}
+            amountPaid={Number(payingInvoice.amount_paid ?? 0)}
+            payments={payingInvoice.payments ?? []}
+            canRecordNew={!['cancelled'].includes(payingInvoice.status)}
+            onChanged={fetchData}
+          />
+        )}
       </Modal>
     </div>
   )

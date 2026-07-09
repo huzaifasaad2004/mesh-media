@@ -13,13 +13,13 @@ export async function GET() {
   const db = serviceRole()
   const [{ data: clients }, { data: outstandingInvoices }, { data: salaries }, { data: recurringExpenses }] = await Promise.all([
     db.from('clients').select('monthly_retainer').eq('status', 'active').gt('monthly_retainer', 0),
-    db.from('invoices').select('total').in('status', ['sent', 'overdue']),
+    db.from('invoices').select('total, amount_paid').in('status', ['sent', 'overdue', 'partially_paid']),
     db.from('salaries').select('amount, currency').is('effective_to', null),
     db.from('expenses').select('amount').eq('is_recurring', true),
   ])
 
   const retainerIncome = (clients ?? []).reduce((s, c) => s + Number(c.monthly_retainer ?? 0), 0)
-  const outstanding = (outstandingInvoices ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0)
+  const outstanding = (outstandingInvoices ?? []).reduce((s, i) => s + (Number(i.total ?? 0) - Number(i.amount_paid ?? 0)), 0)
   const monthlyPayroll = (salaries ?? []).filter((s) => (s.currency ?? 'AED') === 'AED').reduce((s, sal) => s + Number(sal.amount), 0)
   const recurringExpenseTotal = (recurringExpenses ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
 

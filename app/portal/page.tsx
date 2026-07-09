@@ -28,7 +28,7 @@ export default async function PortalPage() {
   const pendingDocuments = (documents ?? []).filter((d: any) => !d.signatures?.some((s: any) => s.party === 'client'))
 
   const companyName = clients?.[0]?.company_name ?? user?.email ?? 'there'
-  const openInvoices = (invoices ?? []).filter(i => ['sent', 'overdue'].includes(i.status))
+  const openInvoices = (invoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status))
   // Show quotes needing a decision, plus recently decided ones
   const portalQuotes = (quotations ?? []).filter(q => ['sent', 'draft', 'accepted', 'declined'].includes(q.status))
   const pendingQuotes = portalQuotes.filter(q => ['sent', 'draft'].includes(q.status))
@@ -100,7 +100,9 @@ export default async function PortalPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-ink">{inv.invoice_number}</p>
                     <p className="text-xs text-taupe-600">
-                      {formatCurrency(inv.total)}{inv.due_date && ['sent', 'overdue'].includes(inv.status) ? ` · due ${formatDate(inv.due_date)}` : ''}
+                      {formatCurrency(inv.total)}
+                      {inv.status === 'partially_paid' ? ` · ${formatCurrency(inv.total - (inv.amount_paid ?? 0))} remaining` : ''}
+                      {inv.due_date && ['sent', 'overdue', 'partially_paid'].includes(inv.status) ? ` · due ${formatDate(inv.due_date)}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">

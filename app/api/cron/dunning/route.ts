@@ -47,12 +47,15 @@ async function run(req: NextRequest) {
   const today = new Date().toISOString().split('T')[0]
 
   // Flip anything past due into 'overdue' first, so the query below is accurate.
+  // A partially_paid invoice keeps its status (it still has a real payment
+  // history to preserve) but is just as overdue — dunning targets it too.
   await db.from('invoices').update({ status: 'overdue' }).eq('status', 'sent').lt('due_date', today)
 
   const { data: overdue } = await db
     .from('invoices')
-    .select('id, invoice_number, total, due_date, dunning_stage, client:clients(company_name, email, contact_person)')
-    .eq('status', 'overdue')
+    .select('id, invoice_number, total, amount_paid, due_date, dunning_stage, status, client:clients(company_name, email, contact_person)')
+    .in('status', ['overdue', 'partially_paid'])
+    .lt('due_date', today)
 
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
@@ -68,7 +71,7 @@ async function run(req: NextRequest) {
     const target = [...STAGES].reverse().find((s) => daysOverdue >= s.minDaysOverdue)
     if (!target || target.stage <= inv.dunning_stage) { skipped.push(`${inv.invoice_number} (not due for next stage)`); continue }
 
-    const amount = `AED ${Number(inv.total).toLocaleString('en-AE', { minimumFractionDigits: 2 })}`
+    const amount = `AED ${(Number(inv.total) - Number(inv.amount_paid ?? 0)).toLocaleString('en-AE', { minimumFractionDigits: 2 })}`
     const dueDateLabel = new Date(inv.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     const url = `${baseUrl}/invoice/${inv.id}`
     const clientName = escapeHtml(client.contact_person ?? client.company_name)
