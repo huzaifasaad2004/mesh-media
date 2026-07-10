@@ -10,7 +10,7 @@ export async function GET() {
   if ('res' in auth) return auth.res
   const { data, error } = await auth.db
     .from('signable_documents')
-    .select('*, client:clients(company_name, email, contact_person), signatures:document_signatures(party, signer_name, signed_at)')
+    .select('*, client:clients(company_name, email, contact_person), signatures:document_signatures(party, signer_name, signed_at), fields:document_fields(id, assigned_party, value)')
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)

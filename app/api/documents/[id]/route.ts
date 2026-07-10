@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const { data, error } = await auth.db
     .from('signable_documents')
-    .select('*, client:clients(company_name, email, contact_person), signatures:document_signatures(*)')
+    .select('*, client:clients(company_name, email, contact_person), signatures:document_signatures(*), fields:document_fields(*)')
     .eq('id', params.id)
     .single()
   if (error || !data) return NextResponse.json({ error: 'Document not found' }, { status: 404 })

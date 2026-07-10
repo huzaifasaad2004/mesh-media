@@ -119,6 +119,9 @@ export default function DocumentsPage() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1 justify-end">
+                        <Link href={`/documents/${doc.id}/edit-fields`} className="btn-secondary btn-sm">
+                          {doc.fields?.length ? 'Edit fields' : 'Place fields'}
+                        </Link>
                         <Link href={`/documents/${doc.id}`} className="btn-secondary btn-sm">Open</Link>
                         <button onClick={() => deleteDocument(doc.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
