@@ -1,8 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolvePeriod, ALL_PERIODS, type ReportPeriod } from '@/lib/reportPeriods'
+import { generateEmbedding, toVectorLiteral } from '@/lib/ai/embeddings'
 
 export interface ToolContext {
+  /** RLS-scoped client, authenticated as the caller — every read tool uses
+   *  this, so a 'member' automatically only ever sees clients/projects/tasks
+   *  they're actually assigned to. Never swap this for a service-role client. */
   db: SupabaseClient
+  /** Service-role client — used only for the handful of write tools, after
+   *  the same manual role check every other write route in the app does. */
+  writeDb: SupabaseClient
   role: string
   userId: string
 }
@@ -120,6 +127,17 @@ export const toolDeclarations = [
         client_name: { type: 'string', description: 'Optional — if this expense is billable to a specific client' },
       },
       required: ['description', 'amount'],
+    },
+  },
+  {
+    name: 'search_knowledge',
+    description: 'Semantic search across clients, projects, tasks, and client notes — use this for open-ended questions the other tools don\'t directly answer, e.g. "what have we discussed with X about their rebrand", "find anything related to the Ramadan campaign", "which clients are in the F&B industry". Returns the most relevant matches with a similarity score.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'A natural-language description of what to find' },
+      },
+      required: ['query'],
     },
   },
 ]
@@ -281,7 +299,7 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
         const { data } = await db.from('profiles').select('id').ilike('full_name', `%${args.assignee_name}%`).limit(1).maybeSingle()
         if (data) assigned_to = data.id; else notes.push(`teammate "${args.assignee_name}" not found`)
       }
-      const { data: task, error } = await db.from('tasks').insert({
+      const { data: task, error } = await ctx.writeDb.from('tasks').insert({
         title: args.title,
         due_date: args.due_date || null,
         priority: args.priority || 'medium',
@@ -295,7 +313,7 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
 
     case 'create_client': {
       if (!canWriteClients(role)) return { error: 'You do not have permission to create clients.' }
-      const { data, error } = await db.from('clients').insert({
+      const { data, error } = await ctx.writeDb.from('clients').insert({
         company_name: args.company_name,
         email: args.email || null,
         industry: args.industry || null,
@@ -313,7 +331,7 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
         const { data } = await db.from('clients').select('id').ilike('company_name', `%${args.client_name}%`).limit(1).maybeSingle()
         if (data) client_id = data.id; else notes.push(`client "${args.client_name}" not found`)
       }
-      const { data, error } = await db.from('expenses').insert({
+      const { data, error } = await ctx.writeDb.from('expenses').insert({
         description: args.description,
         amount: Number(args.amount),
         category: ['software', 'ads', 'freelancer', 'office', 'travel', 'other'].includes(args.category) ? args.category : 'other',
@@ -322,6 +340,25 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
       }).select('id, description, amount').single()
       if (error) return { error: error.message }
       return { created: true, expense_id: data.id, description: data.description, amount: data.amount, notes }
+    }
+
+    case 'search_knowledge': {
+      if (!args.query?.trim()) return { error: 'query is required' }
+      let queryEmbedding: number[]
+      try {
+        queryEmbedding = await generateEmbedding(args.query)
+      } catch (e: any) {
+        return { error: `Embedding failed: ${e.message}` }
+      }
+      // RPC runs SECURITY INVOKER as ctx.db's authenticated user, so RLS on
+      // the embeddings table still scopes results — a member never gets a
+      // match for a client they can't otherwise see.
+      const { data, error } = await db.rpc('match_embeddings', {
+        query_embedding: toVectorLiteral(queryEmbedding),
+        match_count: 8,
+      })
+      if (error) return { error: error.message }
+      return { matches: (data ?? []).map((m: any) => ({ type: m.entity_type, content: m.content, relevance: Number(m.similarity).toFixed(2) })) }
     }
 
     default:

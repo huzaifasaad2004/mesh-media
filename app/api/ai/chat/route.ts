@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser, serviceRole } from '@/lib/apiAuth'
 import { toolDeclarations, executeTool, WRITE_TOOLS, type ToolContext } from '@/lib/aiTools'
-
-const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 const MODEL = 'gemini-2.5-flash'
 
@@ -16,6 +13,8 @@ You have live access to the agency's data through tools. Use them:
 - For any question about money, clients, tasks, projects, or who owes what — CALL a tool to get real numbers rather than guessing.
 - When the user asks you to create or do something (a task, a client), CALL the matching tool. After a create tool succeeds, confirm what you did in one short sentence.
 - If a tool reports a name wasn't found, tell the user plainly.
+- For anything open-ended that the structured tools don't directly cover — past notes, "what have we discussed with X", industry/context questions, anything fuzzy — CALL search_knowledge instead of guessing or saying you don't have access. If it returns nothing relevant, say so.
+- Every tool result is already scoped to what this user is allowed to see — if something isn't returned, it's not omitted by mistake.
 
 Today's date is ${new Date().toISOString().split('T')[0]}. Convert relative dates ("Friday", "next week") to absolute YYYY-MM-DD before calling tools.
 Currency is AED. The current user's role is "${role}". If a tool returns a permission error, tell the user they don't have access for that action.
@@ -36,15 +35,17 @@ async function callGemini(body: any) {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    const role = profile?.role ?? 'member'
+    const auth = await requireUser()
+    if ('res' in auth) return auth.res
+    const { user, role, db } = auth
 
     const { messages } = await req.json()
 
-    const ctx: ToolContext = { db: admin(), role, userId: user.id }
+    // Reads run through the caller's RLS-scoped client (auto-scopes a
+    // 'member' to their assigned clients, same as every other page in the
+    // app); writes go through service-role only after the tool's own
+    // explicit role check, matching the rest of the codebase's convention.
+    const ctx: ToolContext = { db, writeDb: serviceRole(), role, userId: user.id }
 
     // Build Gemini conversation
     const contents: any[] = (messages ?? []).map((m: any) => ({
