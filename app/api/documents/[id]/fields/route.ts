@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(data)
 }
 
-// Body: { fields: [{ page_number, field_type, assigned_party, x, y, width, height }] }
+// Body: { fields: [{ page_number, field_type, recipient_id, x, y, width, height }] }
 // Replaces the full field layout for this document — the placement editor always saves the whole set.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireRoles(OPS_WRITE)
@@ -24,15 +24,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { fields } = await req.json()
   if (!Array.isArray(fields)) return NextResponse.json({ error: 'fields must be an array' }, { status: 400 })
 
-  for (const f of fields) {
-    if (!['signature', 'name', 'date'].includes(f.field_type) || !['agency', 'client'].includes(f.assigned_party)) {
-      return NextResponse.json({ error: 'Invalid field_type or assigned_party' }, { status: 400 })
-    }
-  }
-
   const db = serviceRole()
   const { data: document, error: docError } = await db.from('signable_documents').select('id, title, status').eq('id', params.id).single()
   if (docError || !document) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+
+  const { data: recipients } = await db.from('document_recipients').select('id').eq('document_id', params.id)
+  const validRecipientIds = new Set((recipients ?? []).map((r) => r.id))
+
+  for (const f of fields) {
+    if (!['signature', 'name', 'date'].includes(f.field_type) || !validRecipientIds.has(f.recipient_id)) {
+      return NextResponse.json({ error: 'Every field needs a valid field_type and a recipient from this document' }, { status: 400 })
+    }
+  }
 
   await db.from('document_fields').delete().eq('document_id', params.id)
 
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         document_id: params.id,
         page_number: f.page_number,
         field_type: f.field_type,
-        assigned_party: f.assigned_party,
+        recipient_id: f.recipient_id,
         x: f.x, y: f.y, width: f.width, height: f.height,
       }))
     )

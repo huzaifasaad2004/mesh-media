@@ -42,6 +42,11 @@ export async function middleware(request: NextRequest) {
     || request.nextUrl.pathname.startsWith('/quotation/')
     || request.nextUrl.pathname.startsWith('/api/invoices')
     || request.nextUrl.pathname.startsWith('/api/quotations')
+    // Document recipients with no account sign via a personal ?token= link
+    // (see app/api/documents/[id]/public/route.ts, which verifies the token
+    // itself); the page and its field-fill API self-enforce the token check.
+    || request.nextUrl.pathname.startsWith('/documents/')
+    || request.nextUrl.pathname.startsWith('/api/documents/')
     // Stripe's servers call this with no browser session — verified by
     // webhook signature instead (see app/api/webhooks/stripe/route.ts).
     || request.nextUrl.pathname.startsWith('/api/webhooks/')

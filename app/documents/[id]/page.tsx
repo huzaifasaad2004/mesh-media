@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useEffect, useState, useMemo } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, CheckCircle2, Circle, Download } from 'lucide-react'
+import { ArrowLeft, Download, ShieldCheck, CheckCircle2, Circle } from 'lucide-react'
 import SignaturePad from '@/components/esign/SignaturePad'
 import PdfPageCanvas from '@/components/esign/PdfPageCanvas'
 import Modal from '@/components/ui/Modal'
@@ -11,17 +11,17 @@ import { useToast } from '@/components/ui/Toast'
 import { formatDate, statusColor, statusLabel } from '@/lib/utils'
 
 const STAFF_ROLES = ['owner', 'admin', 'manager', 'member', 'viewer']
-const FIELD_COLOR: Record<string, string> = { agency: '#6E1318', client: '#4A5A6E' }
+const PALETTE = ['#6E1318', '#4A5A6E', '#B8801F', '#4F7A4A', '#7A4A6E', '#2A6E6E']
 
 export default function DocumentSignerPage() {
   const { id } = useParams<{ id: string }>()
-  const [me, setMe] = useState<{ role: string; full_name: string | null } | null>(null)
+  const searchParams = useSearchParams()
+  const token = searchParams.get('token')
+  const [me, setMe] = useState<{ role: string; full_name: string | null; email?: string } | null>(null)
   const [doc, setDoc] = useState<any>(null)
+  const [viewerRecipient, setViewerRecipient] = useState<any>(null) // set when accessing via token
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [signingParty, setSigningParty] = useState<'agency' | 'client' | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [live, setLive] = useState<{ name: string; dataUrl: string | null }>({ name: '', dataUrl: null })
   const [page, setPage] = useState(1)
   const [numPages, setNumPages] = useState(1)
   const [renderSize, setRenderSize] = useState({ width: 0, height: 0 })
@@ -29,14 +29,28 @@ export default function DocumentSignerPage() {
   const [fieldSubmitting, setFieldSubmitting] = useState(false)
   const toast = useToast()
 
+  const colorFor = useMemo(() => {
+    const map = new Map<string, string>()
+    ;(doc?.recipients ?? []).forEach((r: any, i: number) => map.set(r.id, PALETTE[i % PALETTE.length]))
+    return (rid: string) => map.get(rid) ?? '#6E1318'
+  }, [doc])
+
   const load = async () => {
     try {
-      const [meRes, docRes] = await Promise.all([fetch('/api/profiles/me'), fetch(`/api/documents/${id}`)])
-      const meData = await meRes.json().catch(() => null)
-      const docData = await docRes.json()
-      if (!docRes.ok) throw new Error(docData.error ?? 'Failed to load document')
-      setMe(meRes.ok ? meData : null)
-      setDoc(docData)
+      if (token) {
+        const docRes = await fetch(`/api/documents/${id}/public?token=${token}`)
+        const docData = await docRes.json()
+        if (!docRes.ok) throw new Error(docData.error ?? 'Failed to load document')
+        setDoc(docData)
+        setViewerRecipient(docData.viewer)
+      } else {
+        const [meRes, docRes] = await Promise.all([fetch('/api/profiles/me'), fetch(`/api/documents/${id}`)])
+        const meData = await meRes.json().catch(() => null)
+        const docData = await docRes.json()
+        if (!docRes.ok) throw new Error(docData.error ?? 'Failed to load document')
+        setMe(meRes.ok ? meData : null)
+        setDoc(docData)
+      }
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -44,20 +58,7 @@ export default function DocumentSignerPage() {
     }
   }
 
-  useEffect(() => { load() }, [id])
-
-  const submitSignature = async (party: 'agency' | 'client', payload: { name: string; dataUrl: string | null }) => {
-    setSubmitting(true)
-    const res = await fetch(`/api/documents/${id}/sign`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ party, signer_name: payload.name, signature_data: payload.dataUrl }),
-    })
-    const d = await res.json()
-    setSubmitting(false)
-    if (res.ok) { toast.success('Signed successfully'); setSigningParty(null); load() }
-    else toast.error(d.error ?? 'Failed to sign')
-  }
+  useEffect(() => { load() }, [id, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submitFieldValue = async (value: string) => {
     if (!activeField) return
@@ -65,7 +66,7 @@ export default function DocumentSignerPage() {
     const res = await fetch(`/api/documents/${id}/fields/${activeField.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value }),
+      body: JSON.stringify({ value, token: token || undefined }),
     })
     const d = await res.json()
     setFieldSubmitting(false)
@@ -82,108 +83,157 @@ export default function DocumentSignerPage() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <p className="text-sm" style={{ color: 'var(--danger, #B23A2E)' }}>{error || 'Document not found'}</p>
-        <Link href="/login" className="text-brand-600 text-sm hover:underline mt-2 inline-block">Sign in</Link>
+        {!token && <Link href="/login" className="text-brand-600 text-sm hover:underline mt-2 inline-block">Sign in</Link>}
       </div>
     </div>
   )
 
   const isStaff = me ? STAFF_ROLES.includes(me.role) : false
-  const backHref = isStaff ? '/documents' : '/portal'
-  const myParty: 'agency' | 'client' | null = isStaff ? 'agency' : me ? 'client' : null
+  const backHref = token ? null : isStaff ? '/documents' : '/portal'
   const hasFields = (doc.fields?.length ?? 0) > 0
 
-  if (hasFields) {
-    const pageFields = doc.fields.filter((f: any) => f.page_number === page)
-    const filledCount = doc.fields.filter((f: any) => f.value).length
-    const canFill = (f: any) => f.assigned_party === myParty && !f.value
+  if (!hasFields) return (
+    <LegacySignerView doc={doc} me={me} isStaff={isStaff} backHref={backHref ?? '/documents'} onSigned={load} />
+  )
 
-    return (
-      <div className="min-h-screen bg-paper-0">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+  // Whoever is looking at this page "is" one specific recipient: the token
+  // holder if via a personal link, or whichever recipient's email matches
+  // the logged-in user (staff can also always act for any 'agency' recipient).
+  const myRecipient = viewerRecipient
+    ? doc.recipients?.find((r: any) => r.id === viewerRecipient.id)
+    : doc.recipients?.find((r: any) => r.email?.toLowerCase() === me?.email?.toLowerCase())
+      || (isStaff ? doc.recipients?.find((r: any) => r.role === 'agency') : null)
+
+  const pageFields = (doc.fields ?? []).filter((f: any) => f.page_number === page)
+  const filledCount = (doc.fields ?? []).filter((f: any) => f.value).length
+  const canFill = (f: any) => f.recipient_id === myRecipient?.id && !f.value
+
+  return (
+    <div className="min-h-screen bg-paper-0">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+        {backHref && (
           <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>
+        )}
 
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <div>
-              <h1 className="text-2xl font-display" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>{doc.title}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">{doc.client?.company_name} · {filledCount} / {doc.fields.length} fields complete</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {doc.merged_file_url && (
-                <a href={doc.merged_file_url} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
-                  <Download className="w-3.5 h-3.5" /> Signed PDF
-                </a>
-              )}
-              <span className={`badge ${statusColor(doc.status)}`}>{statusLabel(doc.status)}</span>
-            </div>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h1 className="text-2xl font-display" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>{doc.title}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{filledCount} / {(doc.fields ?? []).length} fields complete</p>
           </div>
-
-          {numPages > 1 && (
-            <div className="flex items-center gap-2 text-xs mb-3">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary btn-sm">Prev</button>
-              <span>Page {page} / {numPages}</span>
-              <button onClick={() => setPage((p) => Math.min(numPages, p + 1))} disabled={page === numPages} className="btn-secondary btn-sm">Next</button>
-            </div>
-          )}
-
-          <div className="relative inline-block">
-            <PdfPageCanvas fileUrl={doc.file_url} pageNumber={page} width={700} onDocumentLoad={setNumPages} onPageRender={setRenderSize}>
-              {pageFields.map((f: any) => {
-                const style = {
-                  left: f.x * renderSize.width, top: f.y * renderSize.height,
-                  width: f.width * renderSize.width, height: f.height * renderSize.height,
-                }
-                if (f.value) {
-                  return (
-                    <div key={f.id} className="absolute flex items-center justify-center rounded border-2 bg-white/90 overflow-hidden" style={{ ...style, borderColor: FIELD_COLOR[f.assigned_party] }}>
-                      {f.field_type === 'signature'
-                        ? <img src={f.value} alt="" className="max-h-full max-w-full object-contain" />
-                        : <span className="text-xs font-medium truncate px-1" style={{ fontFamily: f.field_type === 'name' ? 'var(--font-cormorant), Georgia, serif' : undefined }}>{f.value}</span>}
-                    </div>
-                  )
-                }
-                return (
-                  <button
-                    key={f.id}
-                    disabled={!canFill(f)}
-                    onClick={() => setActiveField(f)}
-                    className="absolute flex items-center justify-center rounded border-2 border-dashed text-[10px] font-medium disabled:cursor-not-allowed"
-                    style={{ ...style, borderColor: FIELD_COLOR[f.assigned_party], color: FIELD_COLOR[f.assigned_party], background: canFill(f) ? `${FIELD_COLOR[f.assigned_party]}14` : 'transparent' }}
-                  >
-                    {canFill(f) ? `Click to add ${f.field_type}` : `${f.assigned_party} ${f.field_type}`}
-                  </button>
-                )
-              })}
-            </PdfPageCanvas>
+          <div className="flex items-center gap-2">
+            {doc.completion_certificate_url && (
+              <a href={doc.completion_certificate_url} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
+                <ShieldCheck className="w-3.5 h-3.5" /> Certificate
+              </a>
+            )}
+            {doc.merged_file_url && (
+              <a href={doc.merged_file_url} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
+                <Download className="w-3.5 h-3.5" /> Signed PDF
+              </a>
+            )}
+            <span className={`badge ${statusColor(doc.status)}`}>{statusLabel(doc.status)}</span>
           </div>
-
-          <Modal isOpen={!!activeField} onClose={() => setActiveField(null)} title={activeField ? `Fill ${activeField.field_type} field` : ''}>
-            {activeField?.field_type === 'signature' ? (
-              <SignaturePad
-                defaultName={me?.full_name ?? ''}
-                submitting={fieldSubmitting}
-                submitLabel="Save signature"
-                onSubmit={(payload) => submitFieldValue(payload.dataUrl ?? payload.name)}
-              />
-            ) : activeField ? (
-              <FieldTextInput
-                fieldType={activeField.field_type}
-                defaultValue={activeField.field_type === 'date' ? new Date().toISOString().slice(0, 10) : (me?.full_name ?? '')}
-                submitting={fieldSubmitting}
-                onSubmit={submitFieldValue}
-              />
-            ) : null}
-          </Modal>
         </div>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(doc.recipients ?? []).map((r: any) => (
+            <span key={r.id} className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5" style={{ background: `${colorFor(r.id)}14`, color: colorFor(r.id) }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: colorFor(r.id) }} />
+              {r.name} {r.signed_at ? '✓ signed' : '· pending'}
+            </span>
+          ))}
+        </div>
+
+        {numPages > 1 && (
+          <div className="flex items-center gap-2 text-xs mb-3">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary btn-sm">Prev</button>
+            <span>Page {page} / {numPages}</span>
+            <button onClick={() => setPage((p) => Math.min(numPages, p + 1))} disabled={page === numPages} className="btn-secondary btn-sm">Next</button>
+          </div>
+        )}
+
+        <div className="relative inline-block">
+          <PdfPageCanvas fileUrl={doc.file_url} pageNumber={page} width={700} onDocumentLoad={setNumPages} onPageRender={setRenderSize}>
+            {pageFields.map((f: any) => {
+              const style = {
+                left: f.x * renderSize.width, top: f.y * renderSize.height,
+                width: f.width * renderSize.width, height: f.height * renderSize.height,
+              }
+              const color = colorFor(f.recipient_id)
+              if (f.value) {
+                return (
+                  <div key={f.id} className="absolute flex items-center justify-center rounded border-2 bg-white/90 overflow-hidden" style={{ ...style, borderColor: color }}>
+                    {f.field_type === 'signature'
+                      ? <img src={f.value} alt="" className="max-h-full max-w-full object-contain" />
+                      : <span className="text-xs font-medium truncate px-1" style={{ fontFamily: f.field_type === 'name' ? 'var(--font-cormorant), Georgia, serif' : undefined }}>{f.value}</span>}
+                  </div>
+                )
+              }
+              return (
+                <button
+                  key={f.id}
+                  disabled={!canFill(f)}
+                  onClick={() => setActiveField(f)}
+                  className="absolute flex items-center justify-center rounded border-2 border-dashed text-[10px] font-medium disabled:cursor-not-allowed"
+                  style={{ ...style, borderColor: color, color, background: canFill(f) ? `${color}14` : 'transparent' }}
+                >
+                  {canFill(f) ? `Click to add ${f.field_type}` : `${f.field_type} pending`}
+                </button>
+              )
+            })}
+          </PdfPageCanvas>
+        </div>
+
+        <Modal isOpen={!!activeField} onClose={() => setActiveField(null)} title={activeField ? `Fill ${activeField.field_type} field` : ''}>
+          {activeField?.field_type === 'signature' ? (
+            <SignaturePad
+              defaultName={myRecipient?.name ?? me?.full_name ?? ''}
+              submitting={fieldSubmitting}
+              submitLabel="Save signature"
+              onSubmit={(payload) => submitFieldValue(payload.dataUrl ?? payload.name)}
+            />
+          ) : activeField ? (
+            <FieldTextInput
+              fieldType={activeField.field_type}
+              defaultValue={activeField.field_type === 'date' ? new Date().toISOString().slice(0, 10) : (myRecipient?.name ?? me?.full_name ?? '')}
+              submitting={fieldSubmitting}
+              onSubmit={submitFieldValue}
+            />
+          ) : null}
+        </Modal>
       </div>
-    )
+    </div>
+  )
+}
+
+// Old whole-document signature flow, kept as-is for documents created before
+// field placement existed (no document_fields rows) — /api/documents/[id]/sign unchanged.
+function LegacySignerView({ doc, me, isStaff, backHref, onSigned }: {
+  doc: any; me: { role: string; full_name: string | null } | null; isStaff: boolean; backHref: string; onSigned: () => void
+}) {
+  const { id } = useParams<{ id: string }>()
+  const [signingParty, setSigningParty] = useState<'agency' | 'client' | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [live, setLive] = useState<{ name: string; dataUrl: string | null }>({ name: '', dataUrl: null })
+  const toast = useToast()
+
+  const submitSignature = async (party: 'agency' | 'client', payload: { name: string; dataUrl: string | null }) => {
+    setSubmitting(true)
+    const res = await fetch(`/api/documents/${id}/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ party, signer_name: payload.name, signature_data: payload.dataUrl }),
+    })
+    const d = await res.json()
+    setSubmitting(false)
+    if (res.ok) { toast.success('Signed successfully'); setSigningParty(null); onSigned() }
+    else toast.error(d.error ?? 'Failed to sign')
   }
 
-  // ─── Legacy whole-document signing (documents with no placed fields) ───
   const agencySig = doc.signatures?.find((s: any) => s.party === 'agency')
   const clientSig = doc.signatures?.find((s: any) => s.party === 'client')
-
   const canSignAgency = isStaff && !agencySig
   const canSignClient = me && !isStaff && !clientSig
 
@@ -202,8 +252,6 @@ export default function DocumentSignerPage() {
           <span className={`badge ${statusColor(doc.status)}`}>{statusLabel(doc.status)}</span>
         </div>
 
-        {/* Document preview — a signature stamp strip overlays the bottom so it's
-            clear where each party's signature actually lands, live as you sign. */}
         <div className="card overflow-hidden mb-5 relative" style={{ height: 600 }}>
           <iframe src={doc.file_url} title={doc.title} className="w-full h-full border-0" />
           <div className="absolute left-0 right-0 bottom-0 grid grid-cols-2 border-t border-sand-300 bg-white/95 backdrop-blur-sm text-xs">
@@ -242,7 +290,6 @@ export default function DocumentSignerPage() {
           </div>
         </div>
 
-        {/* Signature status */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-2">
