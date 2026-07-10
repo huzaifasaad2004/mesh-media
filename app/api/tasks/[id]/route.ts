@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRoles, serviceRole, stripProtected, MANAGERS } from '@/lib/apiAuth'
+import { requireUser, requireTasksManage, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUser()
   if ('res' in auth) return auth.res
-  const isManager = MANAGERS.includes(auth.role)
+  const managesAuth = await requireTasksManage()
+  const isManager = !('res' in managesAuth)
   if (!isManager && auth.role !== 'member') {
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   }
@@ -43,8 +44,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  // Only managers+ can delete tasks — members lose delete entirely.
-  const auth = await requireRoles(MANAGERS)
+  // Only holders of tasks.manage can delete tasks — members lose delete entirely.
+  const auth = await requireTasksManage()
   if ('res' in auth) return auth.res
   const { data: existing } = await serviceRole().from('tasks').select('title').eq('id', params.id).single()
   const { error } = await serviceRole().from('tasks').delete().eq('id', params.id)

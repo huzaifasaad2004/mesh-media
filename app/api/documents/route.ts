@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRoles, serviceRole, OPS_WRITE } from '@/lib/apiAuth'
+import { requireUser, requireDocumentsWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
@@ -20,7 +20,7 @@ export async function GET() {
 // `recipients` replaces "pick a client" as the signer list — any mix of clients, employees, or
 // anyone else with a name + email. `client_id` is now just an optional CRM association.
 export async function POST(req: NextRequest) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireDocumentsWrite()
   if ('res' in auth) return auth.res
 
   const { client_id, project_id, title, file_base64, file_name, mime_type, recipients } = await req.json()

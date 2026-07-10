@@ -11,6 +11,12 @@ const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner', admin: 'Admin', manager: 'Manager', member: 'Member', viewer: 'Viewer',
 }
 
+const MODULE_LABELS: Record<string, string> = {
+  clients: 'Clients', tasks: 'Tasks', projects: 'Projects', finance: 'Finance',
+  payroll: 'Payroll', invoices: 'Invoices', documents: 'Documents', content: 'Content',
+  team: 'Team', settings: 'Settings',
+}
+
 export default function PermissionsMatrixPage() {
   const [roles, setRoles] = useState<string[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
@@ -19,6 +25,12 @@ export default function PermissionsMatrixPage() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
   const toast = useToast()
+
+  const groups = permissions.reduce<Record<string, Permission[]>>((acc, p) => {
+    const mod = p.key.split('.')[0]
+    ;(acc[mod] ??= []).push(p)
+    return acc
+  }, {})
 
   const load = useCallback(async () => {
     try {
@@ -104,37 +116,44 @@ export default function PermissionsMatrixPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {permissions.map((p) => (
-                <tr key={p.key} className="table-row">
-                  <td className="px-5 py-3 sticky left-0 bg-white">
-                    <p className="font-medium text-gray-900">{p.key}</p>
-                    {p.description && <p className="text-xs text-gray-400 mt-0.5">{p.description}</p>}
+            {Object.entries(groups).map(([mod, rows]) => (
+              <tbody key={mod} className="divide-y divide-gray-50">
+                <tr>
+                  <td colSpan={roles.length + 1} className="px-5 pt-4 pb-1.5 sticky left-0 bg-white">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{MODULE_LABELS[mod] ?? mod}</p>
                   </td>
-                  {roles.map((role) => {
-                    const cellKey = `${role}:${p.key}`
-                    const granted = grid.has(cellKey)
-                    const isOwnerOrAdmin = role === 'owner' || role === 'admin'
-                    return (
-                      <td key={role} className="px-5 py-3 text-center">
-                        <button
-                          disabled={isOwnerOrAdmin || saving === cellKey}
-                          onClick={() => toggle(role, p.key)}
-                          title={isOwnerOrAdmin ? `${ROLE_LABELS[role]} always has full access` : `${granted ? 'Revoke' : 'Grant'} ${p.key} for ${ROLE_LABELS[role]}`}
-                          className={`w-7 h-7 rounded-md inline-flex items-center justify-center border transition-colors disabled:cursor-not-allowed ${
-                            granted || isOwnerOrAdmin
-                              ? 'bg-brand-600 border-brand-600 text-white'
-                              : 'bg-white border-gray-200 text-transparent hover:border-brand-300'
-                          } ${saving === cellKey ? 'opacity-50' : ''}`}
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    )
-                  })}
                 </tr>
-              ))}
-            </tbody>
+                {rows.map((p) => (
+                  <tr key={p.key} className="table-row">
+                    <td className="px-5 py-3 sticky left-0 bg-white">
+                      <p className="font-medium text-gray-900">{p.key}</p>
+                      {p.description && <p className="text-xs text-gray-400 mt-0.5">{p.description}</p>}
+                    </td>
+                    {roles.map((role) => {
+                      const cellKey = `${role}:${p.key}`
+                      const granted = grid.has(cellKey)
+                      const isOwnerOrAdmin = role === 'owner' || role === 'admin'
+                      return (
+                        <td key={role} className="px-5 py-3 text-center">
+                          <button
+                            disabled={isOwnerOrAdmin || saving === cellKey}
+                            onClick={() => toggle(role, p.key)}
+                            title={isOwnerOrAdmin ? `${ROLE_LABELS[role]} always has full access` : `${granted ? 'Revoke' : 'Grant'} ${p.key} for ${ROLE_LABELS[role]}`}
+                            className={`w-7 h-7 rounded-md inline-flex items-center justify-center border transition-colors disabled:cursor-not-allowed ${
+                              granted || isOwnerOrAdmin
+                                ? 'bg-brand-600 border-brand-600 text-white'
+                                : 'bg-white border-gray-200 text-transparent hover:border-brand-300'
+                            } ${saving === cellKey ? 'opacity-50' : ''}`}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            ))}
           </table>
         </div>
       </div>

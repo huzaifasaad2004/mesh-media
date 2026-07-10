@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRoles, serviceRole, stripProtected, OPS_WRITE, MANAGERS } from '@/lib/apiAuth'
+import { requireUser, requireProjectsWrite, requireProjectsDelete, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { isAdmin } from '@/lib/roles'
 import { hasPermission } from '@/lib/permissions'
 
@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireProjectsWrite()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('projects').update(body).eq('id', params.id).select().single()
@@ -36,7 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(MANAGERS)
+  const auth = await requireProjectsDelete()
   if ('res' in auth) return auth.res
   const { error } = await serviceRole().from('projects').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

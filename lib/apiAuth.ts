@@ -77,3 +77,15 @@ export const requireFinanceWrite = () => requirePermission('finance.write')
 export const requirePayrollRead = () => requirePermission('payroll.read')
 /** Caller may manage salaries and record payments. */
 export const requirePayrollWrite = () => requirePermission('payroll.write')
+/** Caller may create/assign/delete tasks (not just update ones already assigned to them). */
+export const requireTasksManage = () => requirePermission('tasks.manage')
+/** Caller may create/edit projects. */
+export const requireProjectsWrite = () => requirePermission('projects.write')
+/** Caller may delete projects. */
+export const requireProjectsDelete = () => requirePermission('projects.delete')
+/** Caller may email invoices/quotations to clients. */
+export const requireInvoicesSend = () => requirePermission('invoices.send')
+/** Caller may upload documents and place e-signature fields. */
+export const requireDocumentsWrite = () => requirePermission('documents.write')
+/** Caller may review submitted content and forward/return it. */
+export const requireContentApprove = () => requirePermission('content.approve')

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireStaff, requireRoles, serviceRole, stripProtected, MANAGERS } from '@/lib/apiAuth'
+import { requireStaff, requireTasksManage, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 
@@ -15,9 +15,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  // Only managers+ can create/assign tasks — members can update status on
-  // tasks already assigned to them (see PUT), not create or assign new ones.
-  const auth = await requireRoles(MANAGERS)
+  // Only holders of tasks.manage (managers+ by default, editable in the
+  // permissions matrix) can create/assign tasks — members can update status
+  // on tasks already assigned to them (see PUT), not create or assign new ones.
+  const auth = await requireTasksManage()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
   const db = serviceRole()

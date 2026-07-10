@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
-import { requireFinanceWrite } from '@/lib/apiAuth'
+import { requireInvoicesSend } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
 import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
 import { notifyUsers } from '@/lib/notify'
@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const authz = await requireFinanceWrite()
+  const authz = await requireInvoicesSend()
   if ('res' in authz) return authz.res
 
   const resend = new Resend(process.env.RESEND_API_KEY)

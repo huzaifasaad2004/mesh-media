@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRoles, serviceRole, MANAGERS } from '@/lib/apiAuth'
+import { requireContentApprove, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 import { Resend } from 'resend'
@@ -7,7 +7,7 @@ import { COMPANY } from '@/lib/company'
 
 // Body: { decision: 'forward' | 'reject', comment?: string }
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(MANAGERS)
+  const auth = await requireContentApprove()
   if ('res' in auth) return auth.res
 
   const { decision, comment } = await req.json()

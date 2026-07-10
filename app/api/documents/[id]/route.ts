@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRoles, serviceRole, OPS_WRITE } from '@/lib/apiAuth'
+import { requireUser, requireDocumentsWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 
 // RLS-scoped: staff see all, client-portal users only their own.
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireDocumentsWrite()
   if ('res' in auth) return auth.res
 
   const db = serviceRole()

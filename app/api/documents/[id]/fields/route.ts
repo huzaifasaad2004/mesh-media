@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRoles, serviceRole, OPS_WRITE } from '@/lib/apiAuth'
+import { requireUser, requireDocumentsWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 
 // RLS-scoped read — staff see all, client-portal users only their own document's fields.
@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // Body: { fields: [{ page_number, field_type, recipient_id, x, y, width, height }] }
 // Replaces the full field layout for this document — the placement editor always saves the whole set.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireDocumentsWrite()
   if ('res' in auth) return auth.res
 
   const { fields } = await req.json()

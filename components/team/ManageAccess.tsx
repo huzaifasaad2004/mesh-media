@@ -6,6 +6,12 @@ import Modal from '@/components/ui/Modal'
 
 interface PermRow { key: string; description: string | null; role_default: boolean; override: boolean | null; effective: boolean }
 
+const MODULE_LABELS: Record<string, string> = {
+  clients: 'Clients', tasks: 'Tasks', projects: 'Projects', finance: 'Finance',
+  payroll: 'Payroll', invoices: 'Invoices', documents: 'Documents', content: 'Content',
+  team: 'Team', settings: 'Settings',
+}
+
 export default function ManageAccess({ userId, name }: { userId: string; name: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -80,37 +86,46 @@ export default function ManageAccess({ userId, name }: { userId: string; name: s
               Toggle exact permissions for this person instead of relying only on their role&apos;s defaults.
               A pencil icon means it&apos;s been customized away from their role.
             </p>
-            {rows.map(row => {
-              const eff = effectiveFor(row)
-              const overridden = isOverridden(row)
-              return (
-                <div key={row.key} className="flex items-center justify-between py-2 border-b border-paper-200 last:border-0">
-                  <div className="min-w-0 pr-3">
-                    <p className="text-sm text-ink flex items-center gap-1.5">
-                      {row.key}
-                      {overridden && <span title="Customized for this person"><RotateCcw className="w-3 h-3 text-brand-500" /></span>}
-                    </p>
-                    {row.description && <p className="text-xs text-taupe-500">{row.description}</p>}
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {overridden && (
-                      <button onClick={() => resetOne(row.key)} className="text-[11px] text-taupe-500 hover:text-brand-600 underline">
-                        reset
-                      </button>
-                    )}
-                    <button
-                      role="switch"
-                      aria-checked={eff}
-                      onClick={() => toggle(row.key, eff)}
-                      className="w-9 h-5 rounded-full transition-colors relative flex-shrink-0"
-                      style={{ background: eff ? 'var(--maroon)' : '#D8D2C6' }}
-                    >
-                      <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ transform: eff ? 'translateX(18px)' : 'translateX(2px)' }} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+            {Object.entries(rows.reduce<Record<string, PermRow[]>>((acc, row) => {
+              const mod = row.key.split('.')[0]
+              ;(acc[mod] ??= []).push(row)
+              return acc
+            }, {})).map(([mod, modRows]) => (
+              <div key={mod}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-taupe-400 pt-3 pb-1">{MODULE_LABELS[mod] ?? mod}</p>
+                {modRows.map(row => {
+                  const eff = effectiveFor(row)
+                  const overridden = isOverridden(row)
+                  return (
+                    <div key={row.key} className="flex items-center justify-between py-2 border-b border-paper-200 last:border-0">
+                      <div className="min-w-0 pr-3">
+                        <p className="text-sm text-ink flex items-center gap-1.5">
+                          {row.key}
+                          {overridden && <span title="Customized for this person"><RotateCcw className="w-3 h-3 text-brand-500" /></span>}
+                        </p>
+                        {row.description && <p className="text-xs text-taupe-500">{row.description}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {overridden && (
+                          <button onClick={() => resetOne(row.key)} className="text-[11px] text-taupe-500 hover:text-brand-600 underline">
+                            reset
+                          </button>
+                        )}
+                        <button
+                          role="switch"
+                          aria-checked={eff}
+                          onClick={() => toggle(row.key, eff)}
+                          className="w-9 h-5 rounded-full transition-colors relative flex-shrink-0"
+                          style={{ background: eff ? 'var(--maroon)' : '#D8D2C6' }}
+                        >
+                          <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform" style={{ transform: eff ? 'translateX(18px)' : 'translateX(2px)' }} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
 
             {error && <p className="text-sm pt-2" style={{ color: 'var(--danger)' }}>{error}</p>}
 
