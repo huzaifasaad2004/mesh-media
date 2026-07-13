@@ -1,4 +1,4 @@
-export type Role = 'owner' | 'admin' | 'manager' | 'member' | 'viewer' | 'client'
+export type Role = 'owner' | 'admin' | 'manager' | 'member' | 'viewer' | 'client' | 'contractor'
 
 export const STAFF_ROLES: Role[] = ['owner', 'admin', 'manager', 'member', 'viewer']
 
@@ -21,5 +21,6 @@ export function navVisible(role: string | null | undefined, href: string, permis
   if (href === '/finance') return has('finance.read')
   if (href === '/team') return has('team.manage')
   if (href === '/settings') return has('settings.manage')
+  if (href === '/contractors') return has('contractors.read') || has('contractors.write')
   return isStaff(role)
 }

@@ -47,6 +47,13 @@ export async function middleware(request: NextRequest) {
     // itself); the page and its field-fill API self-enforce the token check.
     || request.nextUrl.pathname.startsWith('/documents/')
     || request.nextUrl.pathname.startsWith('/api/documents/')
+    // Contractors (project-based freelancers, most without accounts) get the
+    // same personal ?token= link pattern, plus a public receipt print page —
+    // both self-enforce the token check server-side.
+    || request.nextUrl.pathname.startsWith('/contractors/')
+    || request.nextUrl.pathname.startsWith('/api/contractors/')
+    || request.nextUrl.pathname.startsWith('/receipt/')
+    || request.nextUrl.pathname.startsWith('/api/receipt/')
     // Stripe's servers call this with no browser session — verified by
     // webhook signature instead (see app/api/webhooks/stripe/route.ts).
     || request.nextUrl.pathname.startsWith('/api/webhooks/')

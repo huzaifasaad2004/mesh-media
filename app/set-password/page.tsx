@@ -49,7 +49,7 @@ function SetPasswordInner() {
     setLoading(false)
     if (profileError) { setError(profileError.message); return }
 
-    const dest = profile?.role === 'client' ? '/portal' : (params.get('next') ?? '/dashboard')
+    const dest = profile?.role === 'client' ? '/portal' : profile?.role === 'contractor' ? '/contractor-portal' : (params.get('next') ?? '/dashboard')
     router.replace(dest)
     router.refresh()
   }

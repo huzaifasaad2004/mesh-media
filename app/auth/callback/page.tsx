@@ -41,6 +41,7 @@ function AuthCallbackInner() {
         .single()
 
       if (profile?.role === 'client') { router.replace('/portal'); return }
+      if (profile?.role === 'contractor') { router.replace('/contractor-portal'); return }
       if (profile?.password_set === false) {
         router.replace(`/set-password?next=${encodeURIComponent(next)}`)
         return

@@ -89,3 +89,7 @@ export const requireInvoicesSend = () => requirePermission('invoices.send')
 export const requireDocumentsWrite = () => requirePermission('documents.write')
 /** Caller may review submitted content and forward/return it. */
 export const requireContentApprove = () => requirePermission('content.approve')
+/** Caller may view contractors and their payment history. */
+export const requireContractorsRead = () => requirePermission('contractors.read')
+/** Caller may add contractors and record payments to them. */
+export const requireContractorsWrite = () => requirePermission('contractors.write')

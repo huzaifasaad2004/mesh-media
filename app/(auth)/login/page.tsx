@@ -54,6 +54,7 @@ export default function LoginPage() {
       if (user) {
         const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
         if (profile?.role === 'client') dest = '/portal'
+        else if (profile?.role === 'contractor') dest = '/contractor-portal'
       }
       router.push(dest)
       router.refresh()
