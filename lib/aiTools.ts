@@ -16,6 +16,7 @@ export interface ToolContext {
 
 const canWriteOps = (role: string) => ['owner', 'admin', 'manager', 'member'].includes(role)
 const canWriteClients = (role: string) => ['owner', 'admin', 'manager'].includes(role)
+const canWriteLeads = (role: string) => ['owner', 'admin', 'manager'].includes(role)
 
 const today = () => new Date().toISOString().split('T')[0]
 
@@ -127,6 +128,52 @@ export const toolDeclarations = [
         client_name: { type: 'string', description: 'Optional — if this expense is billable to a specific client' },
       },
       required: ['description', 'amount'],
+    },
+  },
+  {
+    name: 'search_leads',
+    description: 'Search the CRM pipeline for leads (prospects who are not yet clients). Use for "what leads do we have", "any leads from Instagram", "who\'s in negotiation", "show me open leads". Not for existing clients — use find_client for those.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Optional partial match on company or contact name' },
+        status: { type: 'string', enum: ['open', 'won', 'lost'], description: 'Defaults to open if not specified' },
+        stage_name: { type: 'string', description: 'Optional pipeline stage name, partial match ok (e.g. "Negotiation")' },
+        due_follow_ups_only: { type: 'boolean', description: 'Only leads whose next follow-up is today or overdue' },
+      },
+    },
+  },
+  {
+    name: 'create_lead',
+    description: 'Add a new prospect to the CRM pipeline. Use whenever the user mentions a new potential client/lead in conversation, e.g. "add a lead: spoke to Fatima at Nova Realty at the expo, quote her 8k/mo social". Resolve stage/assignee by name if mentioned; otherwise the lead lands in the first pipeline stage unassigned.',
+    parameters: {
+      type: 'object',
+      properties: {
+        company_name: { type: 'string' },
+        contact_name: { type: 'string' },
+        email: { type: 'string' },
+        phone: { type: 'string' },
+        source: { type: 'string', enum: ['referral', 'instagram', 'website', 'cold_outreach', 'event', 'existing_network', 'other'] },
+        estimated_value: { type: 'number', description: 'Estimated deal value in AED' },
+        next_follow_up: { type: 'string', description: 'YYYY-MM-DD, convert relative dates like "next Tuesday" using today\'s date' },
+        stage_name: { type: 'string', description: 'Optional pipeline stage to place it in, partial match ok' },
+        assignee_name: { type: 'string', description: 'Optional teammate to assign it to' },
+        notes: { type: 'string' },
+      },
+      required: ['company_name'],
+    },
+  },
+  {
+    name: 'log_lead_activity',
+    description: 'Log a note, call, meeting, email, or WhatsApp touch against an existing lead\'s activity timeline. Use when the user reports contact with a prospect, e.g. "log that I called Nova Realty, they want a proposal by Friday".',
+    parameters: {
+      type: 'object',
+      properties: {
+        lead_name: { type: 'string', description: 'Company name of the lead, partial match ok' },
+        type: { type: 'string', enum: ['note', 'call', 'meeting', 'email', 'whatsapp'], description: 'Defaults to note if not specified' },
+        note: { type: 'string' },
+      },
+      required: ['lead_name', 'note'],
     },
   },
   {
@@ -342,6 +389,72 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
       return { created: true, expense_id: data.id, description: data.description, amount: data.amount, notes }
     }
 
+    case 'search_leads': {
+      let q = db.from('leads').select('company_name, contact_name, source, estimated_value, currency, status, next_follow_up, stage:pipeline_stages(name), assignee:profiles!leads_assigned_to_fkey(full_name)')
+      q = q.eq('status', ['open', 'won', 'lost'].includes(args.status) ? args.status : 'open')
+      if (args.due_follow_ups_only) q = q.lte('next_follow_up', today())
+      const { data } = await q.order('next_follow_up', { ascending: true, nullsFirst: false }).limit(40)
+      let rows = (data ?? []) as any[]
+      if (args.query) {
+        const n = args.query.toLowerCase()
+        rows = rows.filter(l => l.company_name?.toLowerCase().includes(n) || l.contact_name?.toLowerCase().includes(n))
+      }
+      if (args.stage_name) {
+        const n = args.stage_name.toLowerCase()
+        rows = rows.filter(l => l.stage?.name?.toLowerCase().includes(n))
+      }
+      return rows.map((l: any) => ({
+        company_name: l.company_name, contact_name: l.contact_name, source: l.source,
+        estimated_value: l.estimated_value, currency: l.currency, status: l.status,
+        stage: l.stage?.name ?? null, next_follow_up: l.next_follow_up,
+        assignee: l.assignee?.full_name ?? 'Unassigned',
+      }))
+    }
+
+    case 'create_lead': {
+      if (!canWriteLeads(role)) return { error: 'You do not have permission to add leads.' }
+      let stage_id = null, assigned_to = null
+      const notes: string[] = []
+      if (args.stage_name) {
+        const { data } = await db.from('pipeline_stages').select('id').ilike('name', `%${args.stage_name}%`).limit(1).maybeSingle()
+        if (data) stage_id = data.id; else notes.push(`stage "${args.stage_name}" not found`)
+      }
+      if (!stage_id) {
+        const { data: first } = await db.from('pipeline_stages').select('id').order('position').limit(1).maybeSingle()
+        stage_id = first?.id ?? null
+      }
+      if (args.assignee_name) {
+        const { data } = await db.from('profiles').select('id').ilike('full_name', `%${args.assignee_name}%`).limit(1).maybeSingle()
+        if (data) assigned_to = data.id; else notes.push(`teammate "${args.assignee_name}" not found`)
+      }
+      const { data: lead, error } = await ctx.writeDb.from('leads').insert({
+        company_name: args.company_name,
+        contact_name: args.contact_name || null,
+        email: args.email || null,
+        phone: args.phone || null,
+        source: ['referral', 'instagram', 'website', 'cold_outreach', 'event', 'existing_network', 'other'].includes(args.source) ? args.source : 'other',
+        estimated_value: args.estimated_value != null ? Number(args.estimated_value) : null,
+        next_follow_up: args.next_follow_up || null,
+        notes: args.notes || null,
+        stage_id, assigned_to,
+        created_by: ctx.userId,
+      }).select('id, company_name').single()
+      if (error) return { error: error.message }
+      return { created: true, lead_id: lead.id, company_name: lead.company_name, notes }
+    }
+
+    case 'log_lead_activity': {
+      if (!canWriteLeads(role)) return { error: 'You do not have permission to log lead activity.' }
+      const { data: lead } = await db.from('leads').select('id, company_name').ilike('company_name', `%${args.lead_name}%`).limit(1).maybeSingle()
+      if (!lead) return { error: `No lead matching "${args.lead_name}"` }
+      const type = ['note', 'call', 'meeting', 'email', 'whatsapp'].includes(args.type) ? args.type : 'note'
+      const { error } = await ctx.writeDb.from('lead_activities').insert({
+        lead_id: lead.id, type, note: args.note, created_by: ctx.userId,
+      })
+      if (error) return { error: error.message }
+      return { created: true, logged: true, lead: lead.company_name, type }
+    }
+
     case 'search_knowledge': {
       if (!args.query?.trim()) return { error: 'query is required' }
       let queryEmbedding: number[]
@@ -367,4 +480,4 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
 }
 
 // Tools that change data — used by the UI to know when to suggest a refresh
-export const WRITE_TOOLS = ['create_task', 'create_client', 'create_expense']
+export const WRITE_TOOLS = ['create_task', 'create_client', 'create_expense', 'create_lead', 'log_lead_activity']

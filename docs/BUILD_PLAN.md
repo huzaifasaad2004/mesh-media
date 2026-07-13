@@ -215,6 +215,14 @@ works (the /crm page degrades gracefully with a "run phase39" empty state until 
   Sidebar entry gated by the new permissions; leads included in ⌘K global search (RLS-scoped).
 - Verified with a clean `tsc --noEmit` and a full production `next build`; not yet exercised
   live (blocked on the migration).
+- **Aether lead concierge** (improvement idea #8, built same session): three new Gemini tools
+  in `lib/aiTools.ts` — `search_leads`, `create_lead`, `log_lead_activity` — so "add a lead:
+  spoke to Fatima at Nova Realty at the expo, quote her 8k/mo social" or "log that I called
+  Nova Realty, they want a proposal by Friday" works in the Aether chat, no CRM UI needed.
+  Reads go through the caller's RLS-scoped client like every other tool; writes are
+  role-gated (owner/admin/manager) through service-role, matching `create_client`'s pattern.
+  System prompt updated to distinguish leads (prospects, not yet clients) from
+  find_client/create_client. Same phase39 migration dependency as the CRM module above.
 
 ---
 
@@ -261,10 +269,7 @@ ordered by how much value they'd unlock relative to effort:
 
 ### Added session 10 (2026-07-13) — CRM-adjacent and AI ideas
 
-8. **Aether lead concierge.** Give Aether `search_leads` / `create_lead` / `log_lead_activity`
-   tools so "add a lead: spoke to Fatima at Nova Realty at the expo, quote her AED 8k/mo social"
-   becomes one sentence instead of a form. The tool-calling scaffolding from phase36 makes this
-   ~an hour of work, and it's the highest-leverage way to make the CRM actually get used.
+8. ✅ **Aether lead concierge** — shipped same session, see the CRM session log entry above.
 9. **AI lead enrichment on create.** When a lead has a website/Instagram, a one-shot Gemini call
    can pre-fill industry, a company one-liner, and a suggested pitch angle into the notes —
    free-tier Gemini, no new vendor.
