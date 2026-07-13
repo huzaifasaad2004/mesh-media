@@ -93,3 +93,7 @@ export const requireContentApprove = () => requirePermission('content.approve')
 export const requireContractorsRead = () => requirePermission('contractors.read')
 /** Caller may add contractors and record payments to them. */
 export const requireContractorsWrite = () => requirePermission('contractors.write')
+/** Caller may view the CRM leads pipeline. */
+export const requireLeadsRead = () => requirePermission('leads.read')
+/** Caller may add, edit, move, and convert leads. */
+export const requireLeadsWrite = () => requirePermission('leads.write')

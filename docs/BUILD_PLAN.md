@@ -128,7 +128,8 @@ remaining balance, not the original full amount.
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
 (all pre-existing/prior-session), plus this session's `phase33_esignature_fields.sql`,
 `phase34_esignature_recipients.sql`, `phase35_granular_permissions.sql`, `phase36_embeddings.sql`,
-`phase37_contractors.sql`, `phase38_contractor_login.sql`. Next migration should be numbered `phase39`.
+`phase37_contractors.sql`, `phase38_contractor_login.sql`. **⚠️ `phase39_crm_leads.sql` (session 10)
+is written but NOT yet run** — run it next; after that, the next migration should be numbered `phase40`.
 
 **⚠️ Online payments (Stripe) still needs keys** — code is fully built (Checkout session
 creation, webhook handler, Pay Now button charging the remaining balance, idempotent paid-status
@@ -137,8 +138,9 @@ update) but inert until `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for `checkout.session.completed`
 in the Stripe dashboard).
 
-**❌ Still not started:** CRM/leads pipeline (next up — agreed 2026-07-13), PR media-placement/EMV
-tracker (remainder), knowledge base/SOPs. See **Improvement ideas** below for smaller items.
+**❌ Still not started:** PR media-placement/EMV tracker, knowledge base/SOPs. See
+**Improvement ideas** below for smaller items. (CRM/leads pipeline shipped in session 10 below —
+`phase39_crm_leads.sql` is the next migration to run.)
 
 ---
 
@@ -191,6 +193,31 @@ tracker (remainder), knowledge base/SOPs. See **Improvement ideas** below for sm
 
 ---
 
+## ✅ Session 10 (2026-07-13) — CRM / leads pipeline (old roadmap item #16)
+
+Built code-complete this session; **needs `phase39_crm_leads.sql` run in Supabase** before it
+works (the /crm page degrades gracefully with a "run phase39" empty state until then).
+
+- **Schema** (`phase39_crm_leads.sql`): `pipeline_stages` (5 seeded ordered kanban columns:
+  New → Contacted → Qualified → Proposal Sent → Negotiation), `leads` (company/contact/source/
+  stage/estimated value/next follow-up/assignee/open-won-lost status), `lead_activities`
+  (timeline of notes/calls/meetings/emails/WhatsApp + auto-logged stage & status changes).
+  New `leads.read` / `leads.write` permission keys seeded to owner/admin/manager, RLS on all
+  three tables via the standard `has_permission()` policies.
+- **API**: `/api/leads` (+ `[id]`, `[id]/activities`, `[id]/convert`), `/api/pipeline-stages` —
+  all gated through new `requireLeadsRead`/`requireLeadsWrite` in `lib/apiAuth.ts`, mutations
+  audit-logged. **Convert** creates a real `clients` row (status `onboarding`, so the existing
+  onboarding-workflow module picks it up naturally), marks the lead won, links it, and is
+  idempotent.
+- **UI** (`/crm`): kanban pipeline (drag between stages, per-column count + AED value, overdue
+  follow-up highlighting) + list view with search/status filter/pagination, lead editor modal
+  with the full activity timeline and Won→Convert / Lost (with reason) / Reopen actions.
+  Sidebar entry gated by the new permissions; leads included in ⌘K global search (RLS-scoped).
+- Verified with a clean `tsc --noEmit` and a full production `next build`; not yet exercised
+  live (blocked on the migration).
+
+---
+
 ## 💡 Improvement ideas (not requested yet — surfaced during this session)
 
 Things noticed while working through the urgent batch that are worth a future look, roughly
@@ -232,6 +259,31 @@ ordered by how much value they'd unlock relative to effort:
    never tested against an actual near-8MB file in production. Worth confirming with a real
    upload before anyone hits it and gets a confusing failure.
 
+### Added session 10 (2026-07-13) — CRM-adjacent and AI ideas
+
+8. **Aether lead concierge.** Give Aether `search_leads` / `create_lead` / `log_lead_activity`
+   tools so "add a lead: spoke to Fatima at Nova Realty at the expo, quote her AED 8k/mo social"
+   becomes one sentence instead of a form. The tool-calling scaffolding from phase36 makes this
+   ~an hour of work, and it's the highest-leverage way to make the CRM actually get used.
+9. **AI lead enrichment on create.** When a lead has a website/Instagram, a one-shot Gemini call
+   can pre-fill industry, a company one-liner, and a suggested pitch angle into the notes —
+   free-tier Gemini, no new vendor.
+10. **Website contact form → lead webhook.** A tokened `POST /api/leads/inbound` endpoint so the
+    m3m.ae contact form (and any landing page) drops straight into stage "New" with source
+    `website`, plus an email notification. Kills the copy-paste step where leads currently die.
+11. **Follow-up nudges via the existing dunning/cron pattern.** A daily cron that emails (or
+    notifies in-app) each lead's assignee when `next_follow_up` is today/overdue — the
+    `lib/cron.ts` + notification-preferences plumbing already exists, this is a thin new job.
+12. **Pipeline analytics on the dashboard.** Win rate, average days-in-stage, pipeline value by
+    stage, and conversion by source — all derivable from `lead_activities` stage_change rows
+    once a few weeks of data accumulate. A "Pipeline" KPI tile + funnel chart on /dashboard.
+13. **Quotation → lead linkage.** Let a quotation be created from a lead (pre-client) and
+    auto-convert the lead when the quote is accepted — closes the loop between CRM and the
+    existing quote/e-sign flow, and makes "Proposal Sent" a real stage rather than a label.
+14. **WhatsApp click-to-log.** No paid API needed: a `wa.me` deep link on each lead's phone plus
+    a one-tap "log WhatsApp touch" button (the activity type already exists) keeps the timeline
+    honest without Twilio costs.
+
 ---
 
 ## NEXT UP — prioritized roadmap (agreed 2026-07-06)
@@ -261,7 +313,7 @@ ordered by how much value they'd unlock relative to effort:
 13b. 🟡 **Monthly branded Impact Report PDF** — ✅ shipped 2026-07-07 (session 6). `supabase/phase23_impact_reports.sql` (new `client_reports` table + public `client-reports` storage bucket, run in Supabase). `lib/impactReport.ts` computes per-client monthly stats (tasks completed, hours logged, revenue keyed off `paid_date` matching the existing convention, deliverables from `milestones`, active project count). `lib/pdf/ImpactReportPdf.tsx` renders the branded PDF (same `@react-pdf/renderer` approach and brand tokens as invoices/quotations). `/api/cron/impact-reports` mirrors the `recurring-invoices` cron pattern exactly (idempotent via unique `(client_id, period)`, `requireCronOrFinanceWrite` auth, emails the PDF via Resend), wired to `vercel.json` (1st of month, 07:00 UTC — one hour after retainer invoices). Manual "Generate Impact Reports" button on `/clients`. Reports show up in the client portal (`/portal`, new "Monthly Reports" card) and on the admin client detail page (`/clients/[id]`, new "Impact Reports" card). **Verified live in production**: ran the full generator for real — all 26 active clients got a `2026-06` report generated, uploaded, and emailed (Resend configured); confirmed idempotent on re-run (0 generated, 26 skipped); confirmed the PDF is valid and publicly reachable. Note: `milestones` has no "done at" timestamp, only `created_at`, so the Deliverables section lists all currently-done milestones rather than ones strictly completed within that calendar month — a known accuracy limitation, not a bug. WhatsApp-native Aether was scoped and planned but **declined by Huzaifa (2026-07-08) — avoiding Twilio/messaging costs for now**. The PR media-placement/EMV tracker is still NOT STARTED.
 14. ✅ **E-signature** — `supabase/phase22_esignature.sql` (new `signable_documents` + `document_signatures` tables, `signable-documents` public storage bucket, `quotations.signature_name`/`signature_data` columns). Staff upload any PDF at `/documents` (emails the client a review-and-sign link via Resend); the shared viewer/signer at `/documents/[id]` (works for both staff and client, outside either dashboard/portal layout) embeds the PDF and lets each party sign independently — draw-on-canvas or type-your-name (`components/esign/SignaturePad.tsx`) — auto-flips to "signed" once both sides have. Client portal home shows a "Documents awaiting your signature" section. Quotations: accepting one in the portal now requires signing (`PortalQuoteActions.tsx`), and the signature renders on the printed quotation once accepted. **Needs `phase22_esignature.sql` run in Supabase** — degrades gracefully (clear "table not found" errors) until then.
 15. ⬜ RAG/pgvector-grounded Aether (embeddings pipeline + Gemini function-calling agent). NOT STARTED.
-16. ⬜ CRM / leads pipeline (leads + pipeline_stages tables, pre-client stage). NOT STARTED.
+16. ✅ CRM / leads pipeline — shipped session 10 (2026-07-13), see session log above. Needs `phase39_crm_leads.sql` run.
 17. ✅ **Client onboarding workflows** — shipped 2026-07-08 (session 6). `supabase/phase24_onboarding.sql` replaces the dead, never-populated flat `onboarding_steps` table with a real templates → runs → steps model: `onboarding_templates`/`onboarding_template_steps` (reusable checklists, managed at `/settings/onboarding-templates`, MANAGERS-gated), `onboarding_runs`/`onboarding_run_steps` (one active run per client at a time via a partial unique index, steps snapshotted from the template at start time so later template edits don't retroactively change in-progress runs). New `components/clients/OnboardingRun.tsx` on the client detail page: "Start Onboarding" with a template picker when there's no active run, a live checklist with click-to-toggle steps once one's running, "Mark Onboarding Complete" once every step is done, and "Start Another" to re-onboard later. **Verified live in production**: created a real template, started a run on a real client, ticked all steps (confirmed `completed_at`/`completed_by` stamp correctly), marked it complete, started a second run, and confirmed the one-active-run-per-client constraint rejects a duplicate. Two test runs were cleaned up afterward (cancelled) at Huzaifa's request; the template itself was kept since it's a reasonable real starting point.
 18. ⬜ Knowledge base / SOPs. NOT STARTED.
 

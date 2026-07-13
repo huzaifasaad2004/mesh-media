@@ -11,12 +11,14 @@ export async function GET(req: NextRequest) {
   const { db } = auth
   const like = `%${q}%`
 
-  const [clients, invoices, quotations, tasks, contracts] = await Promise.all([
+  const [clients, invoices, quotations, tasks, contracts, leads] = await Promise.all([
     db.from('clients').select('id, company_name').ilike('company_name', like).limit(5),
     db.from('invoices').select('id, invoice_number, client:clients(company_name)').ilike('invoice_number', like).limit(5),
     db.from('quotations').select('id, quote_number, client:clients(company_name)').ilike('quote_number', like).limit(5),
     db.from('tasks').select('id, title').ilike('title', like).limit(5),
     db.from('contracts').select('id, title').ilike('title', like).limit(5),
+    // RLS hides leads from anyone without the leads permissions
+    db.from('leads').select('id, company_name').ilike('company_name', like).limit(5),
   ])
 
   const results = [
@@ -25,6 +27,7 @@ export async function GET(req: NextRequest) {
     ...(quotations.data ?? []).map((qt: any) => ({ type: 'Quotation', label: `${qt.quote_number} · ${qt.client?.company_name ?? ''}`, href: `/quotation/${qt.id}` })),
     ...(tasks.data ?? []).map((t: any) => ({ type: 'Task', label: t.title, href: `/tasks` })),
     ...(contracts.data ?? []).map((c: any) => ({ type: 'Contract', label: c.title, href: `/contracts` })),
+    ...(leads.data ?? []).map((l: any) => ({ type: 'Lead', label: l.company_name, href: `/crm` })),
   ]
 
   return NextResponse.json(results)
