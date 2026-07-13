@@ -123,14 +123,12 @@ remaining balance, not the original full amount.
 
 ---
 
-### Migration status (as of 2026-07-10)
+### Migration status (as of 2026-07-13)
 
-**✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase24_onboarding.sql`
-(pre-existing), plus this session's `phase25_member_scoping.sql`, `phase26_task_delegation.sql`,
-`phase27_content_approvals.sql`, `phase28_notification_preferences.sql`,
-`phase29_salary_partial_payments.sql`, `phase30_profile_pictures.sql`,
-`phase31_invoice_partial_payments.sql`, `phase32_files_module.sql`. Next migration should be
-numbered `phase33`.
+**✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
+(all pre-existing/prior-session), plus this session's `phase33_esignature_fields.sql`,
+`phase34_esignature_recipients.sql`, `phase35_granular_permissions.sql`, `phase36_embeddings.sql`,
+`phase37_contractors.sql`, `phase38_contractor_login.sql`. Next migration should be numbered `phase39`.
 
 **⚠️ Online payments (Stripe) still needs keys** — code is fully built (Checkout session
 creation, webhook handler, Pay Now button charging the remaining balance, idempotent paid-status
@@ -139,10 +137,57 @@ update) but inert until `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for `checkout.session.completed`
 in the Stripe dashboard).
 
-**❌ Still not started** (unchanged from before this session, see Tier 4 below for detail):
-RAG/pgvector-grounded Aether, CRM/leads pipeline, PR media-placement/EMV tracker (remainder),
-knowledge base/SOPs. See **Improvement ideas** below for a few more, smaller items surfaced
-while working through the urgent batch.
+**❌ Still not started:** CRM/leads pipeline (next up — agreed 2026-07-13), PR media-placement/EMV
+tracker (remainder), knowledge base/SOPs. See **Improvement ideas** below for smaller items.
+
+---
+
+## ✅ Session 9 (2026-07-13) — e-signature fields, granular permissions, RAG Aether, Contractors
+
+1. ✅ **E-signature: drag-and-place fields + merged signed PDF** (`phase33_esignature_fields.sql`) —
+   replaced the old single whole-document signature-per-party with real placed fields (signature/
+   name/date) at exact page coordinates. Staff place fields in a new drag-and-place editor
+   (`/documents/[id]/edit-fields`, `pdfjs-dist` renders real PDF pages to canvas — worker
+   self-hosted at `public/pdf.worker.min.js` for CSP). Signers fill fields directly on the
+   rendered page. Once every field is filled, `pdf-lib` (`lib/pdf/mergeDocument.ts`) stamps the
+   values onto the *original* PDF bytes and produces a real flattened, merged file — the first
+   actual PDF-manipulation library in this repo. Old documents with no placed fields keep using
+   the legacy iframe/whole-doc sign flow untouched (zero regression).
+2. ✅ **E-signature: arbitrary named recipients + token links + completion certificate**
+   (`phase34_esignature_recipients.sql`) — a document is no longer tied to one CRM client for
+   signing. Upload now takes a list of named recipients (any mix of client/employee/other), each
+   emailed a personal `?token=` signing link — **no account required**, same pattern reused later
+   for Contractors. Once every recipient signs, auto-generates a Certificate of Completion PDF
+   (`lib/pdf/CertificatePdf.tsx` — signer identities, IPs, timestamps, SHA-256 hash of the final
+   file) and emails the signed PDF + certificate to every signer and the uploader.
+3. ✅ **Granular per-action permissions** (`phase35_granular_permissions.sql`) — the biggest
+   remaining lever flagged in the old §D #15 write-up. Converted 6 previously hardcoded
+   `MANAGERS`/`OPS_WRITE` role-array checks into real togglable permission keys:
+   `tasks.manage`, `projects.write`, `projects.delete`, `invoices.send`, `documents.write`,
+   `content.approve` — editable per-role (`/settings/permissions`) and per-person (Team → Manage
+   Access), both now grouped by module. Every seeded default exactly mirrors the prior hardcoded
+   behavior, so this was a no-op until a toggle is actually changed. (Note: `clients.read/write`,
+   `tasks.write`, `finance.*`, `payroll.*`, `team.manage`, `settings.manage` from the original
+   Phase 1 9-key matrix are untouched; full RLS-level `view_all` vs `view_assigned` toggles were
+   *not* built — still a future step if wanted.)
+4. ✅ **RAG-grounded Aether + a real security fix** (`phase36_embeddings.sql`) — nightly cron
+   (`/api/cron/refresh-embeddings`, 2am) embeds clients/projects/tasks/client_notes via Gemini
+   `text-embedding-004` into pgvector; new `search_knowledge` tool lets Aether answer open-ended
+   questions ("what have we discussed with X"). **Found and fixed in passing**: every Aether tool
+   read previously ran through a service-role client with **no RLS at all** — a `member` could ask
+   Aether about clients/tasks outside their normally-assigned scope. Reads now run through the
+   caller's real RLS-scoped session (writes still go through service-role, but only after the
+   same manual role check every other write route already does); the `match_embeddings` RPC uses
+   `SECURITY INVOKER` specifically so RLS isn't silently bypassed there either.
+5. ✅ **Contractors module** (`phase37_contractors.sql`, `phase38_contractor_login.sql`) — new,
+   requested mid-session: project-based freelancers paid one-off amounts, separate from salaried
+   payroll. Add a contractor with just name + optional email/phone/bank details → they're emailed
+   a personal token link (no account) where they see every payment (grouped by currency, AED/PKR
+   like salaries), download a branded PDF receipt per payment, and upload their own project files.
+   Recording a payment auto-emails a receipt. **Then extended with optional login**: a contractor
+   can set a password from their token page to get a normal email+password login afterward (new
+   `contractor` role in `profiles`, mirrors how `client` works) landing on a new `/contractor-portal`
+   — the token link keeps working either way, login is additive, not a replacement.
 
 ---
 

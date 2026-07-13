@@ -19,7 +19,7 @@ is a production deploy — be sure before pushing.**
 - `/api/celine/*` routes are bearer-token authed (Celine integration) and exempted from the session-cookie middleware — keep it that way; use `lib/celine/auth.ts`.
 
 ## Conventions
-- Roles: `owner | admin | manager | member | viewer | client` — helpers in `lib/roles.ts`, effective permissions (role defaults + per-user overrides) in `lib/permissions.ts`. Gate UI *and* API with these, plus RLS in the DB.
+- Roles: `owner | admin | manager | member | viewer | client | contractor` — helpers in `lib/roles.ts`, effective permissions (role defaults + per-user overrides) in `lib/permissions.ts`. Gate UI *and* API with these, plus RLS in the DB. `client` → `/portal`, `contractor` → `/contractor-portal` (both mirror each other); everyone else → `/dashboard`.
 - Brand: maroon `#6E1318` / cream paper surfaces / warm neutrals; Cormorant for display text, Inter for UI; tokens in `globals.css` + `tailwind.config.ts`. Aether Cyan `#2BD6D6` is used ONLY on Aether (avatar/panel) — never on general UI. Full spec: `docs/BUILD_PLAN.md` Part B.
 - Mobile-first: every screen must work at 390 / 768 / 1280px; tables collapse to stacked cards below `md`.
 - Money: AED, right-aligned, tabular-nums, round to 2dp.
