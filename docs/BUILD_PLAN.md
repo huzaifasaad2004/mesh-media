@@ -186,6 +186,37 @@ Verified with a clean `tsc --noEmit` and full production `next build`; not yet e
 live browser session (this repo sits behind Supabase auth with no throwaway credentials
 available in-session — worth a manual click-through after the migration runs).
 
+## ✅ Session 10 continued — Knowledge base / SOPs
+
+The last remaining unstarted module on the entire original roadmap (§3 Module map, Phase 8). New
+`/knowledge` page (nav: "Knowledge Base") — staff write SOPs/how-tos with lightweight formatting
+(`# `/`## ` headings, `- ` bullets, blank-line paragraphs — rendered as real React elements, never
+`dangerouslySetInnerHTML`, so there's no HTML-injection surface even though authors write more
+than plain prose), organized by a free-text `category`, with draft/published status. Search +
+category filter client-side; reading an article opens a dedicated view with Edit/Delete for its
+author or any manager+.
+
+`supabase/phase42_knowledge_base.sql` adds `kb_articles` plus `kb.read`/`kb.write` permissions.
+Unlike every other module tightened this session, **`kb.read` defaults to every staff role
+including member and viewer** — reading company SOPs isn't a client-scoped or financially
+sensitive action the way clients/invoices/documents are, so there was no reason to restrict it;
+`kb.write` (create/edit/publish/delete) stays manager+ only, same review-gate pattern as
+everything else. RLS lets an author see their own drafts before publishing; everyone else only
+ever sees `published` articles.
+
+The most valuable part of the integration: `refresh-embeddings` (the nightly cron already
+powering Aether's RAG) now also embeds every **published** KB article, and the `embeddings` table's
+`entity_type` CHECK constraint was extended to allow `'kb_article'`. Aether's existing
+`search_knowledge` tool is entity-type-agnostic — it already returns whatever it finds regardless
+of type — so SOPs are now answerable through Aether ("what's our SOP for onboarding a new
+client?") with **zero new tool code**, just data flowing through the pipeline that already
+existed. Its description was updated to mention SOPs so the model knows to reach for it.
+
+**Needs `supabase/phase42_knowledge_base.sql` run in the Supabase SQL editor** to go live; the
+nightly embeddings cron will then pick up any published article automatically on its next run (or
+trigger `/api/cron/refresh-embeddings` manually to pick it up immediately). Verified with a clean
+`tsc --noEmit` and full production `next build`.
+
 ### Migration status (as of 2026-07-13)
 
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
@@ -201,10 +232,9 @@ update) but inert until `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for `checkout.session.completed`
 in the Stripe dashboard).
 
-**✅ Done:** PR media-placement/EMV tracker (session 10, 2026-07-15).
-**❌ Still not started:** knowledge base/SOPs. See
-**Improvement ideas** below for smaller items. (CRM/leads pipeline shipped in session 10 below —
-`phase39_crm_leads.sql` is the next migration to run.)
+**✅ Done:** PR media-placement/EMV tracker, knowledge base/SOPs (both session 10, 2026-07-15).
+Every module on the original roadmap (§3 Module map) is now at least an MVP — see
+**Improvement ideas** below for smaller polish items.
 
 ---
 

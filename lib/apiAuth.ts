@@ -101,3 +101,7 @@ export const requireLeadsWrite = () => requirePermission('leads.write')
 export const requireMediaRead = () => requirePermission('media.read')
 /** Caller may log, edit, and delete media placements. */
 export const requireMediaWrite = () => requirePermission('media.write')
+/** Caller may view the knowledge base / SOPs. */
+export const requireKbRead = () => requirePermission('kb.read')
+/** Caller may create, edit, publish, and delete knowledge base articles. */
+export const requireKbWrite = () => requirePermission('kb.write')

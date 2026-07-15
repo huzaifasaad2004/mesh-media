@@ -6,11 +6,12 @@ import { generateEmbedding, toVectorLiteral } from '@/lib/ai/embeddings'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-type Row = { entity_type: 'client' | 'project' | 'task' | 'client_note'; entity_id: string; client_id: string | null; content: string }
+type Row = { entity_type: 'client' | 'project' | 'task' | 'client_note' | 'kb_article'; entity_id: string; client_id: string | null; content: string }
 
-// Re-embeds every client, project, task, and client note — small agency-scale
-// data volume, so a full nightly re-embed (idempotent upsert on entity_type+id)
-// is simpler and cheaper to reason about than tracking per-row dirty state.
+// Re-embeds every client, project, task, client note, and published KB
+// article — small agency-scale data volume, so a full nightly re-embed
+// (idempotent upsert on entity_type+id) is simpler and cheaper to reason
+// about than tracking per-row dirty state.
 async function run(req: NextRequest) {
   const auth = await requireCronOrManager(req)
   if ('res' in auth) return auth.res
@@ -39,6 +40,12 @@ async function run(req: NextRequest) {
   const { data: notes } = await db.from('client_notes').select('id, content, client_id')
   for (const n of notes ?? []) {
     if (n.content?.trim()) rows.push({ entity_type: 'client_note', entity_id: n.id, client_id: n.client_id, content: n.content })
+  }
+
+  const { data: kbArticles } = await db.from('kb_articles').select('id, title, category, content').eq('status', 'published')
+  for (const a of kbArticles ?? []) {
+    const content = [a.title, a.category, a.content].filter(Boolean).join(' — ')
+    if (content.trim()) rows.push({ entity_type: 'kb_article', entity_id: a.id, client_id: null, content })
   }
 
   let embedded = 0

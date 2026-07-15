@@ -178,7 +178,7 @@ export const toolDeclarations = [
   },
   {
     name: 'search_knowledge',
-    description: 'Semantic search across clients, projects, tasks, and client notes — use this for open-ended questions the other tools don\'t directly answer, e.g. "what have we discussed with X about their rebrand", "find anything related to the Ramadan campaign", "which clients are in the F&B industry". Returns the most relevant matches with a similarity score.',
+    description: 'Semantic search across clients, projects, tasks, client notes, and published knowledge-base/SOP articles — use this for open-ended questions the other tools don\'t directly answer, e.g. "what have we discussed with X about their rebrand", "find anything related to the Ramadan campaign", "which clients are in the F&B industry", "what\'s our SOP for onboarding a new client", "how do we handle a refund request". Returns the most relevant matches with a similarity score.',
     parameters: {
       type: 'object',
       properties: {
