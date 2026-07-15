@@ -23,5 +23,6 @@ export function navVisible(role: string | null | undefined, href: string, permis
   if (href === '/settings') return has('settings.manage')
   if (href === '/contractors') return has('contractors.read') || has('contractors.write')
   if (href === '/crm') return has('leads.read') || has('leads.write')
+  if (href === '/media') return has('media.read') || has('media.write')
   return isStaff(role)
 }

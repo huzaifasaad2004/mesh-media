@@ -29,6 +29,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     { data: invoices },
     { data: files },
     { data: reports },
+    { data: mediaPlacements },
   ] = await Promise.all([
     supabase.from('clients').select('*').eq('id', params.id).single(),
     supabase.from('contacts').select('*').eq('client_id', params.id).order('is_primary', { ascending: false }),
@@ -40,6 +41,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
       : Promise.resolve({ data: null }),
     supabase.from('files').select('id, name, file_type, category, created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('client_reports').select('id, period, pdf_url').eq('client_id', params.id).order('period', { ascending: false }).limit(12),
+    supabase.from('media_placements').select('id, title, outlet_name, publish_date, ave, emv_multiplier, sentiment, url').eq('client_id', params.id).order('publish_date', { ascending: false }).limit(5),
   ])
 
   if (!client) notFound()
@@ -315,6 +317,34 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               </div>
             ) : (
               <p className="px-5 py-6 text-sm text-gray-400">No files yet</p>
+            )}
+          </div>
+
+          {/* Media Coverage */}
+          <div className="card">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3>Media Coverage</h3>
+              <Link href={`/media?client=${params.id}`} className="text-xs text-brand-600 hover:underline">View all</Link>
+            </div>
+            {mediaPlacements && mediaPlacements.length > 0 ? (
+              <div className="divide-y divide-gray-50">
+                {mediaPlacements.map((m: any) => {
+                  const emv = m.ave != null ? Number(m.ave) * Number(m.emv_multiplier ?? 3) : null
+                  return (
+                    <div key={m.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {m.url ? <a href={m.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{m.title}</a> : m.title}
+                        </p>
+                        <p className="text-xs text-gray-400">{m.outlet_name} · {formatDate(m.publish_date)}</p>
+                      </div>
+                      {emv != null && <span className="text-sm font-semibold text-green-700 flex-shrink-0">{formatCurrency(emv)}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="px-5 py-6 text-sm text-gray-400">No media coverage logged yet</p>
             )}
           </div>
 

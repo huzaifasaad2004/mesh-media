@@ -162,6 +162,30 @@ who uploaded or signed it. Fixed end-to-end (DB RLS + API + UI, not just hiding 
 safely until then (existing RLS just stays as it was, no breakage, but the fixes above won't
 take effect).
 
+## ✅ Session 10 continued — PR media-placement / EMV tracker
+
+The last never-started flagship differentiator from Tier 4. New `/media` page (nav: "Media
+Coverage") — logs press placements per client (outlet name/type, placement type, sentiment,
+publish date, a link to the coverage, estimated reach) and computes **Earned Media Value**:
+`EMV = AVE (Ad Value Equivalent, what the space would cost as paid media) × a configurable
+multiplier` (industry norm 2–10× since earned coverage reads as more credible than an ad; default
+3×). Stat cards up top total EMV/AVE/reach and placement count for whatever's currently filtered
+(client / outlet type / sentiment). `supabase/phase41_media_placements.sql` adds the
+`media_placements` table plus new `media.read`/`media.write` permissions (owner/admin/manager
+full access by default; **member also gets both by default**, scoped like content approvals — a
+member can only log/see/edit coverage for clients they're actually assigned to, and can only
+delete placements they logged themselves). A compact "Media Coverage" card was added to the
+client detail page (recent 5 + EMV each, links to the full filtered list). New
+`lib/apiAuth.ts` helpers `requireMediaRead`/`requireMediaWrite`; `MODULE_LABELS` on
+`/settings/permissions` extended so `leads.*`/`media.*`/`contractors.*` get proper section
+headers instead of the raw key. No Aether tool yet (`search_media_coverage` would be a
+reasonable fast-follow, same pattern as the CRM lead tools).
+
+**Needs `supabase/phase41_media_placements.sql` run in the Supabase SQL editor** to go live.
+Verified with a clean `tsc --noEmit` and full production `next build`; not yet exercised in a
+live browser session (this repo sits behind Supabase auth with no throwaway credentials
+available in-session — worth a manual click-through after the migration runs).
+
 ### Migration status (as of 2026-07-13)
 
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
@@ -177,7 +201,8 @@ update) but inert until `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 webhook endpoint at `https://www.m3m.ae/api/webhooks/stripe` for `checkout.session.completed`
 in the Stripe dashboard).
 
-**❌ Still not started:** PR media-placement/EMV tracker, knowledge base/SOPs. See
+**✅ Done:** PR media-placement/EMV tracker (session 10, 2026-07-15).
+**❌ Still not started:** knowledge base/SOPs. See
 **Improvement ideas** below for smaller items. (CRM/leads pipeline shipped in session 10 below —
 `phase39_crm_leads.sql` is the next migration to run.)
 

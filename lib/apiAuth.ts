@@ -97,3 +97,7 @@ export const requireContractorsWrite = () => requirePermission('contractors.writ
 export const requireLeadsRead = () => requirePermission('leads.read')
 /** Caller may add, edit, move, and convert leads. */
 export const requireLeadsWrite = () => requirePermission('leads.write')
+/** Caller may view the PR media-placement / EMV tracker. */
+export const requireMediaRead = () => requirePermission('media.read')
+/** Caller may log, edit, and delete media placements. */
+export const requireMediaWrite = () => requirePermission('media.write')
