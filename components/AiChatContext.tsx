@@ -17,6 +17,7 @@ interface AiChatState {
   error: string
   setError: (error: string) => void
   clientContext: ClientContext | null
+  setClientContext: (context: ClientContext | null) => void
   clearClientContext: () => void
   /** Set by ask(), consumed once by AiChat's effect, then cleared. */
   pendingPrompt: PendingPrompt | null
@@ -52,7 +53,7 @@ export function AiChatProvider({ children }: { children: ReactNode }) {
   return (
     <AiChatCtx.Provider value={{
       open, setOpen, messages, setMessages, loading, setLoading, error, setError,
-      clientContext, clearClientContext, pendingPrompt, clearPendingPrompt, ask,
+      clientContext, setClientContext, clearClientContext, pendingPrompt, clearPendingPrompt, ask,
     }}>
       {children}
     </AiChatCtx.Provider>

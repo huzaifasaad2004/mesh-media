@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Phone, Mail, Globe, Activity } from 'lucide-re
 import PortalAccessCard from '@/components/clients/PortalAccessCard'
 import OnboardingRun from '@/components/clients/OnboardingRun'
 import AskAetherButton from '@/components/clients/AskAetherButton'
+import ClientAetherContext from '@/components/clients/ClientAetherContext'
 import { computeChurnRisk, CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR } from '@/lib/churnRisk'
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
@@ -68,6 +69,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
 
   return (
     <div>
+      <ClientAetherContext companyName={client.company_name} />
       {/* Header */}
       <div className="mb-6">
         <Link href="/clients" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4">
