@@ -10,6 +10,16 @@ import { computeChurnRisk, CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR } from '@/lib/ch
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user!.id).single()
+  const role = myProfile?.role ?? 'client'
+  const isManagerUp = ['owner', 'admin', 'manager'].includes(role)
+  // Members see only what's assigned to them — no client contact emails, no
+  // finance detail, no portal-access/onboarding controls. Those sections are
+  // skipped entirely (not just hidden client-side) so the queries never run.
+  const canSeeFinance = isManagerUp
+  const canSeeContactDetails = isManagerUp
+
   const [
     { data: client },
     { data: contacts },
@@ -25,7 +35,9 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
     supabase.from('client_notes').select('*, author:profiles(full_name)').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('tasks').select('id, title, status, priority, due_date').eq('client_id', params.id).neq('status', 'done').limit(5),
     supabase.from('contracts').select('id, title, status, value, start_date, end_date').eq('client_id', params.id).order('created_at', { ascending: false }).limit(3),
-    supabase.from('invoices').select('id, invoice_number, total, amount_paid, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false }),
+    canSeeFinance
+      ? supabase.from('invoices').select('id, invoice_number, total, amount_paid, status, issue_date, due_date, paid_date').eq('client_id', params.id).order('issue_date', { ascending: false })
+      : Promise.resolve({ data: null }),
     supabase.from('files').select('id, name, file_type, category, created_at').eq('client_id', params.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('client_reports').select('id, period, pdf_url').eq('client_id', params.id).order('period', { ascending: false }).limit(12),
   ])
@@ -77,7 +89,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                 <ExternalLink className="w-3 h-3" /> Drive Folder
               </a>
             )}
-            <Link href={`/clients/${params.id}/edit`} className="btn-primary btn-sm">Edit</Link>
+            {isManagerUp && <Link href={`/clients/${params.id}/edit`} className="btn-primary btn-sm">Edit</Link>}
           </div>
         </div>
       </div>
@@ -110,17 +122,18 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </ul>
           </div>
 
-          {/* Client Info */}
+          {/* Client Info — contact details (email/phone/website) are a
+              manager+ concern; a member only needs to know who the client is. */}
           <div className="card p-5">
             <h3 className="mb-4">Client Info</h3>
             <div className="space-y-3">
-              {client.email && (
+              {canSeeContactDetails && client.email && (
                 <div className="flex items-center gap-2.5 text-sm">
                   <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <a href={`mailto:${client.email}`} className="text-brand-600 hover:underline truncate">{client.email}</a>
                 </div>
               )}
-              {client.phone && (
+              {canSeeContactDetails && client.phone && (
                 <div className="flex items-center gap-2.5 text-sm">
                   <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-700">{client.phone}</span>
@@ -132,7 +145,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                   <a href={client.website} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline truncate">{client.website}</a>
                 </div>
               )}
-              {client.monthly_retainer && (
+              {canSeeFinance && client.monthly_retainer && (
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <span className="text-sm text-gray-500">Monthly Retainer</span>
                   <span className="text-sm font-semibold text-green-700">{formatCurrency(client.monthly_retainer)}/mo</span>
@@ -141,10 +154,13 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
               {client.address && (
                 <p className="text-sm text-gray-500 pt-2 border-t border-gray-100">{client.address}</p>
               )}
+              {!canSeeContactDetails && !client.website && !client.address && (
+                <p className="text-sm text-gray-400">Contact details are only visible to managers.</p>
+              )}
             </div>
           </div>
 
-          {/* Contacts */}
+          {/* Contacts — names only for a member, no emails */}
           <div className="card p-5">
             <h3 className="mb-4">Contacts</h3>
             {contacts && contacts.length > 0 ? (
@@ -157,7 +173,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
                     <div>
                       <p className="text-sm font-medium text-gray-900">{c.full_name} {c.is_primary && <span className="text-xs text-brand-600">(Primary)</span>}</p>
                       {c.role && <p className="text-xs text-gray-400">{c.role}</p>}
-                      {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
+                      {canSeeContactDetails && c.email && <p className="text-xs text-gray-500">{c.email}</p>}
                     </div>
                   </div>
                 ))}
@@ -165,11 +181,11 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             ) : <p className="text-sm text-gray-400">No contacts added</p>}
           </div>
 
-          {/* Client Portal Access */}
-          <PortalAccessCard clientId={params.id} clientEmail={client.email} />
+          {/* Client Portal Access — invite/access control is a manager+ action */}
+          {isManagerUp && <PortalAccessCard clientId={params.id} clientEmail={client.email} />}
 
           {/* Onboarding */}
-          <OnboardingRun clientId={params.id} />
+          {isManagerUp && <OnboardingRun clientId={params.id} />}
         </div>
 
         {/* Right column */}
@@ -223,57 +239,59 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             )}
           </div>
 
-          {/* Account Statement */}
-          <div className="card">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3>Account Statement</h3>
-              <Link href="/finance/invoices" className="text-xs text-brand-600 hover:underline">All invoices</Link>
-            </div>
-            <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
-              <div className="px-5 py-3 text-center">
-                <p className="text-lg font-bold text-gray-900">{formatCurrency(totalInvoiced)}</p>
-                <p className="text-xs text-gray-500">Total Invoiced</p>
+          {/* Account Statement — finance detail, manager+ only */}
+          {canSeeFinance && (
+            <div className="card">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3>Account Statement</h3>
+                <Link href="/finance/invoices" className="text-xs text-brand-600 hover:underline">All invoices</Link>
               </div>
-              <div className="px-5 py-3 text-center">
-                <p className="text-lg font-bold text-green-700">{formatCurrency(totalPaid)}</p>
-                <p className="text-xs text-gray-500">Total Paid</p>
+              <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+                <div className="px-5 py-3 text-center">
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(totalInvoiced)}</p>
+                  <p className="text-xs text-gray-500">Total Invoiced</p>
+                </div>
+                <div className="px-5 py-3 text-center">
+                  <p className="text-lg font-bold text-green-700">{formatCurrency(totalPaid)}</p>
+                  <p className="text-xs text-gray-500">Total Paid</p>
+                </div>
+                <div className="px-5 py-3 text-center">
+                  <p className={`text-lg font-bold ${outstandingBalance > 0 ? 'text-orange-600' : 'text-gray-900'}`}>{formatCurrency(outstandingBalance)}</p>
+                  <p className="text-xs text-gray-500">Balance Due</p>
+                </div>
               </div>
-              <div className="px-5 py-3 text-center">
-                <p className={`text-lg font-bold ${outstandingBalance > 0 ? 'text-orange-600' : 'text-gray-900'}`}>{formatCurrency(outstandingBalance)}</p>
-                <p className="text-xs text-gray-500">Balance Due</p>
-              </div>
-            </div>
-            {invoices && invoices.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Invoice</th>
-                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Issued</th>
-                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Paid</th>
-                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Amount</th>
-                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {invoices.map((inv: any) => (
-                      <tr key={inv.id}>
-                        <td className="px-5 py-3 font-medium text-brand-600">
-                          <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{inv.invoice_number}</a>
-                        </td>
-                        <td className="px-5 py-3 text-gray-500">{formatDate(inv.issue_date)}</td>
-                        <td className="px-5 py-3 text-gray-500">{inv.paid_date ? formatDate(inv.paid_date) : '—'}</td>
-                        <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
-                        <td className="px-5 py-3"><span className={`badge ${statusColor(inv.status)}`}>{statusLabel(inv.status)}</span></td>
+              {invoices && invoices.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Invoice</th>
+                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Issued</th>
+                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Paid</th>
+                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Amount</th>
+                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="px-5 py-6 text-sm text-gray-400">No invoices yet</p>
-            )}
-          </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {invoices.map((inv: any) => (
+                        <tr key={inv.id}>
+                          <td className="px-5 py-3 font-medium text-brand-600">
+                            <a href={`/invoice/${inv.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{inv.invoice_number}</a>
+                          </td>
+                          <td className="px-5 py-3 text-gray-500">{formatDate(inv.issue_date)}</td>
+                          <td className="px-5 py-3 text-gray-500">{inv.paid_date ? formatDate(inv.paid_date) : '—'}</td>
+                          <td className="px-5 py-3 font-semibold">{formatCurrency(inv.total)}</td>
+                          <td className="px-5 py-3"><span className={`badge ${statusColor(inv.status)}`}>{statusLabel(inv.status)}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="px-5 py-6 text-sm text-gray-400">No invoices yet</p>
+              )}
+            </div>
+          )}
 
           {/* Files */}
           <div className="card">

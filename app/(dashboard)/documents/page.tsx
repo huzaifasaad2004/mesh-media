@@ -26,6 +26,7 @@ const fileToBase64 = (file: File): Promise<string> =>
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<any[]>([])
   const [clients, setClients] = useState<{ id: string; company_name: string; email?: string; contact_person?: string }[]>([])
+  const [canWrite, setCanWrite] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -37,10 +38,11 @@ export default function DocumentsPage() {
   const toast = useToast()
 
   const load = useCallback(async () => {
-    const [dRes, cRes] = await Promise.all([fetch('/api/documents'), fetch('/api/clients')])
-    const [dData, cData] = await Promise.all([dRes.json(), cRes.json()])
+    const [dRes, cRes, meRes] = await Promise.all([fetch('/api/documents'), fetch('/api/clients'), fetch('/api/profiles/me')])
+    const [dData, cData, me] = await Promise.all([dRes.json(), cRes.json(), meRes.json()])
     setDocuments(Array.isArray(dData) ? dData : [])
     setClients(Array.isArray(cData) ? cData : [])
+    setCanWrite(!!me?.permissions?.includes('documents.write') || ['owner', 'admin', 'manager'].includes(me?.role))
     setLoading(false)
   }, [])
 
@@ -103,9 +105,11 @@ export default function DocumentsPage() {
           <h1>Documents</h1>
           <p className="text-gray-500 text-sm mt-0.5">{documents.length} uploaded · e-signature enabled</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4" /> Upload Document
-        </button>
+        {canWrite && (
+          <button className="btn-primary" onClick={() => setShowModal(true)}>
+            <Plus className="w-4 h-4" /> Upload Document
+          </button>
+        )}
       </div>
 
       <div className="card overflow-hidden">
@@ -152,13 +156,17 @@ export default function DocumentsPage() {
                           <Download className="w-3.5 h-3.5" />
                         </a>
                       )}
-                      <Link href={`/documents/${doc.id}/edit-fields`} className="btn-secondary btn-sm">
-                        {doc.fields?.length ? 'Edit fields' : 'Place fields'}
-                      </Link>
+                      {canWrite && (
+                        <Link href={`/documents/${doc.id}/edit-fields`} className="btn-secondary btn-sm">
+                          {doc.fields?.length ? 'Edit fields' : 'Place fields'}
+                        </Link>
+                      )}
                       <Link href={`/documents/${doc.id}`} className="btn-secondary btn-sm">Open</Link>
-                      <button onClick={() => deleteDocument(doc.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canWrite && (
+                        <button onClick={() => deleteDocument(doc.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -168,7 +176,7 @@ export default function DocumentsPage() {
                   icon={FileSignature}
                   title="No documents yet"
                   helper="Upload a contract or agreement for anyone to sign."
-                  action={<button className="btn-primary btn-sm inline-flex" onClick={() => setShowModal(true)}><Plus className="w-3 h-3" /> Upload Document</button>}
+                  action={canWrite ? <button className="btn-primary btn-sm inline-flex" onClick={() => setShowModal(true)}><Plus className="w-3 h-3" /> Upload Document</button> : undefined}
                 />
               )}
             </tbody>

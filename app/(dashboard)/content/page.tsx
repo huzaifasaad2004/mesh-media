@@ -25,8 +25,8 @@ const STATUS_COLOR: Record<string, string> = {
   client_declined: 'bg-red-100 text-red-700',
 }
 
-function SubmitForm({ clients, onSuccess }: { clients: { id: string; company_name: string }[]; onSuccess: () => void }) {
-  const [form, setForm] = useState({ client_id: '', title: '', description: '', file_url: '' })
+function SubmitForm({ clients, managers, onSuccess }: { clients: { id: string; company_name: string }[]; managers: { id: string; full_name: string }[]; onSuccess: () => void }) {
+  const [form, setForm] = useState({ client_id: '', title: '', description: '', file_url: '', manager_id: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -52,6 +52,14 @@ function SubmitForm({ clients, onSuccess }: { clients: { id: string; company_nam
         </select>
       </div>
       <div>
+        <label className={labelClass}>Send to manager *</label>
+        <select className={inputClass} value={form.manager_id} onChange={e => setForm(f => ({ ...f, manager_id: e.target.value }))} required>
+          <option value="">Select a manager</option>
+          {managers.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+        </select>
+        <p className="text-xs text-taupe-500 mt-1">This never goes to the client directly — your manager reviews it first.</p>
+      </div>
+      <div>
         <label className={labelClass}>Title *</label>
         <input className={inputClass} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
       </div>
@@ -74,6 +82,7 @@ function SubmitForm({ clients, onSuccess }: { clients: { id: string; company_nam
 export default function ContentPage() {
   const [items, setItems] = useState<any[]>([])
   const [clients, setClients] = useState<{ id: string; company_name: string }[]>([])
+  const [managers, setManagers] = useState<{ id: string; full_name: string }[]>([])
   const [canManage, setCanManage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -82,12 +91,13 @@ export default function ContentPage() {
   const toast = useToast()
 
   const load = useCallback(async () => {
-    const [iRes, cRes, meRes] = await Promise.all([
-      fetch('/api/content-items'), fetch('/api/clients'), fetch('/api/profiles/me'),
+    const [iRes, cRes, pRes, meRes] = await Promise.all([
+      fetch('/api/content-items'), fetch('/api/clients'), fetch('/api/profiles'), fetch('/api/profiles/me'),
     ])
-    const [i, c, me] = await Promise.all([iRes.json(), cRes.json(), meRes.json()])
+    const [i, c, p, me] = await Promise.all([iRes.json(), cRes.json(), pRes.json(), meRes.json()])
     setItems(Array.isArray(i) ? i : [])
     setClients(Array.isArray(c) ? c : [])
+    setManagers(Array.isArray(p) ? p.filter((u: any) => ['owner', 'admin', 'manager'].includes(u.role)) : [])
     setCanManage(['owner', 'admin', 'manager'].includes(me?.role))
     setLoading(false)
   }, [])
@@ -128,6 +138,7 @@ export default function ContentPage() {
                     <p className="text-sm font-medium text-ink">{item.title}</p>
                     <p className="text-xs text-taupe-500 mt-0.5">
                       {item.client?.company_name} · by {item.creator?.full_name ?? 'someone'} · {formatDate(item.created_at)}
+                      {item.assigned_manager?.full_name && <> · sent to {item.assigned_manager.full_name}</>}
                     </p>
                     {item.description && <p className="text-sm text-taupe-600 mt-1.5">{item.description}</p>}
                     {item.client_comment && (item.status === 'client_declined') && (
@@ -179,7 +190,7 @@ export default function ContentPage() {
       )}
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Submit Content">
-        <SubmitForm clients={clients} onSuccess={() => { setShowModal(false); load() }} />
+        <SubmitForm clients={clients} managers={managers} onSuccess={() => { setShowModal(false); load() }} />
       </Modal>
     </div>
   )

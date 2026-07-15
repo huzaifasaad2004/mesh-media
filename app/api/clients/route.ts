@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRoles, serviceRole, stripProtected, OPS_WRITE } from '@/lib/apiAuth'
+import { requireUser, requireRoles, serviceRole, stripProtected, MANAGERS } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 
 export async function GET() {
@@ -12,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireRoles(MANAGERS)
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('clients').insert(body).select().single()

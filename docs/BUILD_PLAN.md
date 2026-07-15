@@ -123,6 +123,45 @@ remaining balance, not the original full amount.
 
 ---
 
+## ✅ Session 10 (2026-07-15) — member-role vulnerability sweep
+
+Huzaifa reported live: a `member` account could see client contact emails, view full
+invoice/financial detail on client pages, create/edit clients and contracts, submit content
+straight past manager review, and see/delete every company e-signature document regardless of
+who uploaded or signed it. Fixed end-to-end (DB RLS + API + UI, not just hiding buttons):
+
+1. **Clients/contracts writes were wrongly open to `member`** — `OPS_WRITE` (owner/admin/
+   manager/member) was used for client and contract create/update/delete, both in the API routes
+   (`app/api/clients/route.ts`, `app/api/clients/[id]/route.ts`, `app/api/contracts/*`) and the
+   underlying RLS policies from phase25. Narrowed both to `MANAGERS` (owner/admin/manager) —
+   `supabase/phase40_member_restrictions.sql`.
+2. **Client contact emails and finance detail hidden from `member`** — `/clients/[id]` and the
+   `/clients` list no longer fetch or render `client.email`/`contacts.email`, the Account
+   Statement (invoices) card, monthly retainer, Portal Access, or Onboarding sections unless the
+   viewer is manager+; the Edit button and clients-list Retainer/Email columns/actions are
+   likewise manager+ only. The invoices query itself is skipped entirely for a member rather
+   than just hidden client-side.
+3. **Content approval now has an explicit "send to manager" step** — the submit form was
+   missing exactly what Huzaifa asked for: a manager picker. Added `assigned_manager_id` to
+   `content_items`, a required "Send to manager" dropdown in the submit modal (populated from
+   real owner/admin/manager profiles), server-side validation that the chosen person really is a
+   manager, and the assigned manager's name now shows in the list ("sent to Abid"). The
+   underlying DB design already guaranteed nothing reaches the client without manager sign-off
+   (`status` always starts `pending_manager`) — this was a UI gap, not a security hole.
+4. **Documents module: member could see/delete/edit every company e-signature document** —
+   `documents.write` had been defaulted to `member` by mistake (leftover from the old flat
+   OPS_WRITE grouping) and `signable_documents`/`document_signatures`/`document_fields`/
+   `document_recipients` all read via a blanket `is_staff()` policy. Removed `member`'s
+   `documents.write` default and added a `my_assigned_document_ids()` scoping function (own
+   uploads + assigned client/project + documents they're personally a named signer on, matched
+   by email) — a member now only sees documents relevant to them; upload/edit-fields/delete
+   buttons are hidden client-side too. Managers+ keep full visibility, matching every other
+   module's scoping pattern from phase25.
+
+**Needs `supabase/phase40_member_restrictions.sql` run in the Supabase SQL editor** — degrades
+safely until then (existing RLS just stays as it was, no breakage, but the fixes above won't
+take effect).
+
 ### Migration status (as of 2026-07-13)
 
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`

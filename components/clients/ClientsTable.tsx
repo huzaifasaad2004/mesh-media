@@ -13,7 +13,7 @@ import { CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR, type ChurnLevel } from '@/lib/chu
 
 const PAGE_SIZE = 10
 
-export default function ClientsTable({ clients }: { clients: Client[] }) {
+export default function ClientsTable({ clients, isManagerUp }: { clients: Client[]; isManagerUp: boolean }) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -72,14 +72,16 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
           <h1>Clients</h1>
           <p className="text-gray-500 text-sm mt-0.5">{clients.length} total clients</p>
         </div>
-        <div className="flex gap-2">
-          <button className="btn-secondary" onClick={runImpactReports} disabled={runningReports} title="Generate last month's Impact Report PDF for every active client">
-            {runningReports ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileBarChart className="w-4 h-4" />} Generate Impact Reports
-          </button>
-          <Link href="/clients/new" className="btn-primary">
-            <Plus className="w-4 h-4" /> Add Client
-          </Link>
-        </div>
+        {isManagerUp && (
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={runImpactReports} disabled={runningReports} title="Generate last month's Impact Report PDF for every active client">
+              {runningReports ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileBarChart className="w-4 h-4" />} Generate Impact Reports
+            </button>
+            <Link href="/clients/new" className="btn-primary">
+              <Plus className="w-4 h-4" /> Add Client
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Status overview */}
@@ -114,8 +116,8 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Industry</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
               {Object.keys(churnByClient).length > 0 && <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Health</th>}
-              <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Retainer</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Email</th>
+              {isManagerUp && <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Retainer</th>}
+              {isManagerUp && <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Email</th>}
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -143,27 +145,27 @@ export default function ClientsTable({ clients }: { clients: Client[] }) {
                     ) : '—'}
                   </td>
                 )}
-                <td className="px-5 py-3 font-medium">{client.monthly_retainer ? formatCurrency(client.monthly_retainer) + '/mo' : '—'}</td>
-                <td className="px-5 py-3 text-gray-500">{client.email ?? '—'}</td>
+                {isManagerUp && <td className="px-5 py-3 font-medium">{client.monthly_retainer ? formatCurrency(client.monthly_retainer) + '/mo' : '—'}</td>}
+                {isManagerUp && <td className="px-5 py-3 text-gray-500">{client.email ?? '—'}</td>}
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-1 justify-end">
-                    {client.drive_folder_url && (
+                    {isManagerUp && client.drive_folder_url && (
                       <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm">
                         <ExternalLink className="w-3 h-3" /> Drive
                       </a>
                     )}
-                    <InvitePortalButton clientId={client.id} disabled={!client.email} />
+                    {isManagerUp && <InvitePortalButton clientId={client.id} disabled={!client.email} />}
                     <Link href={`/clients/${client.id}`} className="btn-secondary btn-sm">View</Link>
-                    <Link href={`/clients/${client.id}/edit`} className="btn-ghost btn-sm">Edit</Link>
+                    {isManagerUp && <Link href={`/clients/${client.id}/edit`} className="btn-ghost btn-sm">Edit</Link>}
                   </div>
                 </td>
               </tr>
             )) : (
               <EmptyState
-                colSpan={Object.keys(churnByClient).length > 0 ? 7 : 6}
+                colSpan={3 + (Object.keys(churnByClient).length > 0 ? 1 : 0) + (isManagerUp ? 2 : 0) + 1}
                 title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
                 helper={clients.length === 0 ? 'Add your first client to start tracking projects and invoices.' : 'Try a different search term or status filter.'}
-                action={clients.length === 0 ? <Link href="/clients/new" className="btn-primary btn-sm inline-flex"><Plus className="w-3 h-3" /> Add your first client</Link> : undefined}
+                action={clients.length === 0 && isManagerUp ? <Link href="/clients/new" className="btn-primary btn-sm inline-flex"><Plus className="w-3 h-3" /> Add your first client</Link> : undefined}
               />
             )}
           </tbody>

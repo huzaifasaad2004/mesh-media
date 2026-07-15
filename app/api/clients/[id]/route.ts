@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRoles, serviceRole, stripProtected, OPS_WRITE, MANAGERS } from '@/lib/apiAuth'
+import { requireRoles, serviceRole, stripProtected, MANAGERS } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRoles(OPS_WRITE)
+  const auth = await requireRoles(MANAGERS)
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
   const { data, error } = await serviceRole().from('clients').update(body).eq('id', params.id).select().single()
