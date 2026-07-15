@@ -12,7 +12,17 @@ export async function GET() {
     .select('*, client:clients(id, company_name), project:projects(id, name), uploader:profiles(full_name)')
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(data)
+
+  // Only ever show the latest version of each file in the main list — older
+  // versions still exist as rows (the version history / access log) but are
+  // reached through /api/files/[id]/versions, not this list.
+  const latestByRoot = new Map<string, any>()
+  for (const f of data ?? []) {
+    const rootId = f.root_file_id ?? f.id
+    const current = latestByRoot.get(rootId)
+    if (!current || f.version > current.version) latestByRoot.set(rootId, f)
+  }
+  return NextResponse.json(Array.from(latestByRoot.values()))
 }
 
 // Body: { client_id?, project_id?, name, category, client_visible, file_base64?, file_name?, mime_type?, drive_url? }

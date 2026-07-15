@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Upload, ExternalLink, FolderOpen, FileText, Image as ImageIcon, Film, Table2, Download, Trash2, Loader2 } from 'lucide-react'
+import { Upload, ExternalLink, FolderOpen, FileText, Image as ImageIcon, Film, Table2, Download, Trash2, Loader2, History, RefreshCw } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/utils'
@@ -149,11 +149,118 @@ function UploadForm({ clients, onSuccess }: { clients: { id: string; company_nam
   )
 }
 
+function ReplaceForm({ file, onSuccess }: { file: any; onSuccess: () => void }) {
+  const [mode, setMode] = useState<'upload' | 'drive'>('upload')
+  const [driveUrl, setDriveUrl] = useState('')
+  const [pickedFile, setPickedFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (mode === 'upload' && !pickedFile) { setError('Choose a file to upload'); return }
+    if (mode === 'drive' && !driveUrl.trim()) { setError('Paste a Drive link'); return }
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = {}
+      if (mode === 'upload' && pickedFile) {
+        body.file_base64 = await fileToBase64(pickedFile)
+        body.file_name = pickedFile.name
+        body.mime_type = pickedFile.type
+      } else {
+        body.drive_url = driveUrl.trim()
+      }
+      const res = await fetch(`/api/files/${file.id}/versions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Upload failed')
+      onSuccess()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Replacing <strong>{file.name}</strong> (currently v{file.version}). The old version stays in its history — nothing is deleted.
+      </p>
+      <div className="flex gap-2 text-xs">
+        <button type="button" onClick={() => setMode('upload')} className={`px-2.5 py-1.5 rounded-md ${mode === 'upload' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Upload file (under 8MB)</button>
+        <button type="button" onClick={() => setMode('drive')} className={`px-2.5 py-1.5 rounded-md ${mode === 'drive' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Link a Drive file</button>
+      </div>
+      {mode === 'upload' ? (
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setPickedFile(f) }}
+          className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-brand-300 hover:bg-brand-50 transition-colors"
+        >
+          <FolderOpen className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-600">{pickedFile ? pickedFile.name : 'Drag & drop, or click to choose a file'}</p>
+          {pickedFile && <p className="text-xs text-gray-400 mt-1">{formatSize(pickedFile.size)}</p>}
+          <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setPickedFile(f) }} />
+        </div>
+      ) : (
+        <div>
+          <label className={labelClass}>Drive link</label>
+          <input className={inputClass} type="url" placeholder="https://drive.google.com/…" value={driveUrl} onChange={(e) => setDriveUrl(e.target.value)} />
+        </div>
+      )}
+      {error && <p className="text-red-500 text-sm">{error}</p>}
+      <button type="submit" className="btn-primary w-full justify-center" disabled={saving}>
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {saving ? 'Uploading…' : `Save as v${file.version + 1}`}
+      </button>
+    </form>
+  )
+}
+
+function VersionHistory({ file }: { file: any }) {
+  const [versions, setVersions] = useState<any[] | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/files/${file.id}/versions`).then(r => r.json()).then(setVersions)
+  }, [file.id])
+
+  if (!versions) return <p className="text-sm text-gray-400 py-4 text-center">Loading…</p>
+
+  return (
+    <div className="divide-y divide-gray-50 -mx-1">
+      {versions.map((v) => (
+        <div key={v.id} className="px-1 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">v{v.version}{v.id === file.id && <span className="text-xs text-brand-600 ml-1.5">(current)</span>}</p>
+            <p className="text-xs text-gray-400">
+              {v.uploader?.full_name ?? 'Unknown'} · {formatDate(v.created_at)}
+              {v.file_size ? ` · ${formatSize(v.file_size)}` : v.drive_url ? ' · Drive link' : ''}
+            </p>
+          </div>
+          {v.storage_path && (
+            <a href={`/api/files/${v.id}/download`} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
+              <Download className="w-3.5 h-3.5" /> Download
+            </a>
+          )}
+          {v.drive_url && (
+            <a href={v.drive_url} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
+              <ExternalLink className="w-3.5 h-3.5" /> Open
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function FilesPage() {
   const [files, setFiles] = useState<any[]>([])
   const [clients, setClients] = useState<{ id: string; company_name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [replacingFile, setReplacingFile] = useState<any | null>(null)
+  const [historyFile, setHistoryFile] = useState<any | null>(null)
   const toast = useToast()
 
   const load = useCallback(async () => {
@@ -226,7 +333,12 @@ export default function FilesPage() {
                               <Icon className="w-4 h-4 text-gray-500" />
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900">{file.name}</p>
+                              <p className="font-medium text-gray-900">
+                                {file.name}
+                                {file.version > 1 && (
+                                  <button onClick={() => setHistoryFile(file)} className="ml-1.5 text-xs text-brand-600 hover:underline">v{file.version}</button>
+                                )}
+                              </p>
                               <p className="text-xs text-gray-400">
                                 {file.file_size ? formatSize(file.file_size) : file.drive_url ? 'Drive link' : ''}
                                 {file.client_visible && <span className="ml-1.5 text-brand-500">· portal-visible</span>}
@@ -255,6 +367,12 @@ export default function FilesPage() {
                                 <Download className="w-3.5 h-3.5" />
                               </a>
                             )}
+                            <button onClick={() => setHistoryFile(file)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50" title="Version history">
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setReplacingFile(file)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50" title="Upload a new version">
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
                             <button onClick={() => deleteFile(file.id)} className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-red-600 hover:bg-red-50" title="Delete">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -278,6 +396,14 @@ export default function FilesPage() {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Upload File">
         <UploadForm clients={clients} onSuccess={() => { setShowModal(false); load() }} />
+      </Modal>
+
+      <Modal isOpen={!!replacingFile} onClose={() => setReplacingFile(null)} title="Upload New Version">
+        {replacingFile && <ReplaceForm file={replacingFile} onSuccess={() => { setReplacingFile(null); toast.success('New version uploaded'); load() }} />}
+      </Modal>
+
+      <Modal isOpen={!!historyFile} onClose={() => setHistoryFile(null)} title={historyFile ? `Version History — ${historyFile.name}` : 'Version History'}>
+        {historyFile && <VersionHistory file={historyFile} />}
       </Modal>
     </div>
   )

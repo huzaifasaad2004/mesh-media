@@ -217,6 +217,34 @@ nightly embeddings cron will then pick up any published article automatically on
 trigger `/api/cron/refresh-embeddings` manually to pick it up immediately). Verified with a clean
 `tsc --noEmit` and full production `next build`.
 
+## ✅ Session 10 continued — Dunning dry-run + Files access log/versioning
+
+Two smaller improvement-idea items closed out:
+
+- **Dunning dry-run** — `/api/cron/dunning` gained a `?dryRun=1` mode that computes exactly which
+  invoices would get a reminder and at what stage, without sending any email or mutating
+  `dunning_stage`/`last_reminder_sent_at`/`status`. Used it to verify the logic directly against
+  production data (replicated the same read-only query outside the route itself, since no local
+  session/cron-secret was available to call the live endpoint from here): only 2 invoices are
+  currently overdue (both Mawad Online), and both already sit at `dunning_stage: 3` with a real
+  `last_reminder_sent_at` from 2026-07-08 — meaning the scheduled Vercel cron has already been
+  running this in production all along, and correctly stopped escalating past the final stage.
+  Not a bug; the "never verified live" note in the old improvement-ideas list was simply stale.
+  Worth a manual follow-up with Mawad Online given how long they've sat at final-notice.
+- **Files module access log / versioning** (improvement idea #4) — `supabase/phase43_file_versions.sql`
+  adds `root_file_id` (null on the original upload, points at the root on every later version) and
+  `version` to `files`. New `/api/files/[id]/versions`: `GET` returns the full version history
+  (uploader + timestamp + download link — this doubles as the access log), `POST` uploads a
+  replacement that inherits the original's client/project/category/client_visible (a version
+  can't quietly change what a file *is*, only its content) and requires you be replacing the
+  *current* latest version, not an older one. `GET /api/files` now collapses each chain down to
+  its latest version for the main list (older versions still exist as immutable rows, just
+  reached through the history modal, not cluttering the list). Files page gained a "v3"-style
+  badge (click to open history), a History button, and a Replace button per file.
+
+**Needs `supabase/phase43_file_versions.sql` run in the Supabase SQL editor** to go live. Verified
+with a clean `tsc --noEmit` and full production `next build`.
+
 ### Migration status (as of 2026-07-13)
 
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
@@ -344,10 +372,7 @@ ordered by how much value they'd unlock relative to effort:
    other possible drift (wrong `issue_date`, wrong `total`, etc.). Worth a dedicated reconciliation
    pass against the original Zoho export before those numbers get relied on for anything like
    annual reporting or tax filing.
-4. **Files module has no per-file access log or versioning.** Now that upload actually works,
-   the natural next question is "who uploaded a replacement over this, and when" — worth adding
-   if the file module gets used for anything version-sensitive (e.g. iterating on creative drafts
-   with a client).
+4. ✅ **Files module access log / versioning** — shipped session 10 (2026-07-15), see below.
 5. **Dunning reminders for `partially_paid` invoices are new and unverified against a real cron
    run.** The logic was extended this session (§13 above) to include partially-paid-and-overdue
    invoices, and reasoned through carefully, but — unlike everything else this session — wasn't
