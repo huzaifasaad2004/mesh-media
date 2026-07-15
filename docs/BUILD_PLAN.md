@@ -245,6 +245,33 @@ Two smaller improvement-idea items closed out:
 **Needs `supabase/phase43_file_versions.sql` run in the Supabase SQL editor** to go live. Verified
 with a clean `tsc --noEmit` and full production `next build`.
 
+## ✅ Session 10 continued — Fixed the real 8MB upload-limit bug
+
+The "worth confirming with a real upload" improvement idea turned into a genuine bug fix. Tested
+directly against **production** by POSTing raw base64-JSON payloads of increasing size straight
+at `/api/files` with curl (no auth needed — the point was to see whether Vercel's platform gateway
+rejects the body before our code even runs): a 7MB file (9.8MB JSON payload, well under the
+documented "8MB" limit) came back `413 FUNCTION_PAYLOAD_TOO_LARGE` — a raw platform-level
+rejection, not our friendly error. Binary-searched the actual cutoff: **~3.2MB raw file survives,
+~3.3MB does not** (base64's ~33% overhead pushes it past Vercel's real ~4.5MB serverless function
+body-size ceiling). The code's own `MAX_UPLOAD_BYTES = 8MB` check was never reachable for anything
+that would actually trip it — anyone uploading a file over ~3.3MB got a confusing raw error
+instead of ever hitting our validation.
+
+Fixed everywhere a base64 file/image gets POSTed as JSON, not just the Files module — same
+platform ceiling applies to every one of them: new shared `lib/uploadLimits.ts`
+(`MAX_DIRECT_UPLOAD_BYTES = 3MB`, safely under the real wall) now backs `/api/files`,
+`/api/files/[id]/versions`, `/api/documents` (e-signature uploads — previously had **no size check
+at all**), `/api/contractors/[id]/files` (also had none), `/api/expenses/receipt`,
+`/api/ai/extract-expense`, and `/api/celine/expense-capture` (Celine's photo-receipt capture —
+also had none). Client-side pre-checks were added on the Files and Documents upload forms so a
+too-large file is rejected instantly with a clear message instead of a failed network call; UI
+copy ("under 8MB") corrected to the real, verified 3MB across the Files module.
+
+No migration needed — this is a pure code/config fix, live as soon as it's deployed. Re-verified
+the new boundary directly against production after the fix: 2.8MB raw passes, 3.4MB is rejected by
+Vercel exactly as expected.
+
 ### Migration status (as of 2026-07-13)
 
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
@@ -381,10 +408,9 @@ ordered by how much value they'd unlock relative to effort:
 6. **`hello@m3m.ae` DNS fix should be spot-checked again in a week.** MX/SPF propagation was
    confirmed on two resolvers same-day, but worth literally sending Huzaifa's own address a test
    email once to close the loop for real, not just via DNS lookups.
-7. **The file-upload size ceiling (8MB) is a guess, not a measured limit.** It was chosen
-   conservatively against Vercel's serverless body-size limits + base64's ~33% overhead, but
-   never tested against an actual near-8MB file in production. Worth confirming with a real
-   upload before anyone hits it and gets a confusing failure.
+7. ✅ **The file-upload size ceiling was tested and turned out to be wrong** — see session 10
+   below. The documented 8MB was never actually reachable; fixed to a verified 3MB across every
+   base64-upload route in the app.
 
 ### Added session 10 (2026-07-13) — CRM-adjacent and AI ideas
 

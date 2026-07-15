@@ -3,6 +3,7 @@ import { requireUser, requireDocumentsWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 
 // RLS-scoped: staff see all, client-portal users only their own (via my_client_ids()).
 export async function GET() {
@@ -36,10 +37,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const buffer = Buffer.from(file_base64, 'base64')
+  if (buffer.byteLength > MAX_DIRECT_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `File is too large for direct upload (max ${MAX_DIRECT_UPLOAD_LABEL})` }, { status: 400 })
+  }
+
   const db = serviceRole()
   const ext = (file_name?.split('.').pop() || 'pdf').toLowerCase()
   const path = `${client_id || 'unlinked'}/${Date.now()}.${ext}`
-  const buffer = Buffer.from(file_base64, 'base64')
 
   const { error: uploadError } = await db.storage
     .from('signable-documents')

@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal'
 import EmptyState from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
 import { statusColor, statusLabel, formatDate } from '@/lib/utils'
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 
 const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent'
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1'
@@ -71,6 +72,7 @@ export default function DocumentsPage() {
   const upload = async () => {
     const validRecipients = recipients.filter((r) => r.name.trim() && r.email.trim())
     if (!title.trim() || !file) { toast.error('Title and a file are required'); return }
+    if (file.size > MAX_DIRECT_UPLOAD_BYTES) { toast.error(`That file is too large (max ${MAX_DIRECT_UPLOAD_LABEL})`); return }
     if (validRecipients.length === 0) { toast.error('Add at least one recipient (name + email) to sign'); return }
     setUploading(true)
     try {
@@ -198,7 +200,7 @@ export default function DocumentsPage() {
             </select>
           </div>
           <div>
-            <label className={labelClass}>File (PDF)</label>
+            <label className={labelClass}>File (PDF, under {MAX_DIRECT_UPLOAD_LABEL})</label>
             <input ref={fileInputRef} type="file" accept="application/pdf" className={inputClass} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
 

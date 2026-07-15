@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -13,10 +14,14 @@ export async function POST(req: NextRequest) {
   const { image_base64, mime_type } = await req.json()
   if (!image_base64) return NextResponse.json({ error: 'No image provided' }, { status: 400 })
 
+  const buffer = Buffer.from(image_base64, 'base64')
+  if (buffer.byteLength > MAX_DIRECT_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `Image is too large (max ${MAX_DIRECT_UPLOAD_LABEL}) — try a lower-resolution photo` }, { status: 400 })
+  }
+
   const mime = mime_type || 'image/jpeg'
   const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg'
   const path = `${user.id}/${Date.now()}.${ext}`
-  const buffer = Buffer.from(image_base64, 'base64')
 
   const db = admin()
   const { error } = await db.storage.from('receipts').upload(path, buffer, { contentType: mime, upsert: false })

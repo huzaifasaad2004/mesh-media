@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { requireUser, serviceRole } from '@/lib/apiAuth'
 import { isStaff } from '@/lib/roles'
 import { logActivity } from '@/lib/activityLog'
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 
 // Body: { file_base64, file_name, mime_type, token? }
 // Either staff (any staff role can upload on a contractor's behalf) or the
@@ -27,9 +28,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     uploader = auth.user
   }
 
+  const buffer = Buffer.from(file_base64, 'base64')
+  if (buffer.byteLength > MAX_DIRECT_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `File is too large for direct upload (max ${MAX_DIRECT_UPLOAD_LABEL})` }, { status: 400 })
+  }
+
   const ext = (file_name.split('.').pop() || 'bin').toLowerCase()
   const path = `contractors/${params.id}/${Date.now()}.${ext}`
-  const buffer = Buffer.from(file_base64, 'base64')
 
   const { error: uploadError } = await db.storage.from('project-files').upload(path, buffer, { contentType: mime_type || 'application/octet-stream', upsert: false })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })

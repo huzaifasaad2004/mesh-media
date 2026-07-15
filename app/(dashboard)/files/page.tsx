@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Upload, ExternalLink, FolderOpen, FileText, Image as ImageIcon, Film, Table2, Download, Trash2, Loader2, History, RefreshCw } from 'lucide-react'
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/utils'
@@ -55,7 +56,12 @@ function UploadForm({ clients, onSuccess }: { clients: { id: string; company_nam
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const changeCategory = (c: string) => { setCategory(c); setClientVisible(DEFAULT_VISIBLE[c] ?? false) }
-  const pickFile = (f: File) => { setFile(f); if (!name) setName(f.name) }
+  const pickFile = (f: File) => {
+    if (f.size > MAX_DIRECT_UPLOAD_BYTES) { setError(`That file is too large for direct upload (max ${MAX_DIRECT_UPLOAD_LABEL}) — link a Drive file instead`); return }
+    setError('')
+    setFile(f)
+    if (!name) setName(f.name)
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -86,7 +92,7 @@ function UploadForm({ clients, onSuccess }: { clients: { id: string; company_nam
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="flex gap-2 text-xs">
-        <button type="button" onClick={() => setMode('upload')} className={`px-2.5 py-1.5 rounded-md ${mode === 'upload' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Upload file (under 8MB)</button>
+        <button type="button" onClick={() => setMode('upload')} className={`px-2.5 py-1.5 rounded-md ${mode === 'upload' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Upload file (under 3MB)</button>
         <button type="button" onClick={() => setMode('drive')} className={`px-2.5 py-1.5 rounded-md ${mode === 'drive' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Link a Drive file</button>
       </div>
 
@@ -157,6 +163,12 @@ function ReplaceForm({ file, onSuccess }: { file: any; onSuccess: () => void }) 
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const pickFile = (f: File) => {
+    if (f.size > MAX_DIRECT_UPLOAD_BYTES) { setError(`That file is too large for direct upload (max ${MAX_DIRECT_UPLOAD_LABEL}) — link a Drive file instead`); return }
+    setError('')
+    setPickedFile(f)
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -189,20 +201,20 @@ function ReplaceForm({ file, onSuccess }: { file: any; onSuccess: () => void }) 
         Replacing <strong>{file.name}</strong> (currently v{file.version}). The old version stays in its history — nothing is deleted.
       </p>
       <div className="flex gap-2 text-xs">
-        <button type="button" onClick={() => setMode('upload')} className={`px-2.5 py-1.5 rounded-md ${mode === 'upload' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Upload file (under 8MB)</button>
+        <button type="button" onClick={() => setMode('upload')} className={`px-2.5 py-1.5 rounded-md ${mode === 'upload' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Upload file (under 3MB)</button>
         <button type="button" onClick={() => setMode('drive')} className={`px-2.5 py-1.5 rounded-md ${mode === 'drive' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Link a Drive file</button>
       </div>
       {mode === 'upload' ? (
         <div
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setPickedFile(f) }}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) pickFile(f) }}
           className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-brand-300 hover:bg-brand-50 transition-colors"
         >
           <FolderOpen className="w-8 h-8 text-gray-300 mx-auto mb-2" />
           <p className="text-sm text-gray-600">{pickedFile ? pickedFile.name : 'Drag & drop, or click to choose a file'}</p>
           {pickedFile && <p className="text-xs text-gray-400 mt-1">{formatSize(pickedFile.size)}</p>}
-          <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setPickedFile(f) }} />
+          <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f) }} />
         </div>
       ) : (
         <div>
@@ -307,7 +319,7 @@ export default function FilesPage() {
       >
         <FolderOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
         <p className="text-sm font-medium text-gray-500">Click to upload a file or link a Drive file</p>
-        <p className="text-xs text-gray-400 mt-1">Attach to any client, direct upload up to 8MB</p>
+        <p className="text-xs text-gray-400 mt-1">Attach to any client, direct upload up to 3MB (larger files: link a Drive file instead)</p>
       </div>
 
       {loading ? (

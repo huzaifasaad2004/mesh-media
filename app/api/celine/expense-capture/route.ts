@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { celineAuthorized } from '@/lib/celine/auth'
 import { extractExpenseFromText, extractExpenseFromImage } from '@/lib/expenseExtraction'
 import { emitCelineEvent } from '@/lib/celine/events'
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!text && !image_base64) return NextResponse.json({ error: 'text or image_base64 required' }, { status: 400 })
+  if (image_base64 && Buffer.from(image_base64, 'base64').byteLength > MAX_DIRECT_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `Image is too large (max ${MAX_DIRECT_UPLOAD_LABEL})` }, { status: 400 })
+  }
 
   let extracted
   try {

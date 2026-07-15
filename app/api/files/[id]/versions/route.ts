@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireStaff, requireRoles, serviceRole, OPS_WRITE } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
-
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_LABEL } from '@/lib/uploadLimits'
 
 // Full version history for the file's chain (itself + every replacement),
 // newest first — this doubles as the access log: who uploaded what, when.
@@ -59,8 +58,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (file_base64) {
     const buffer = Buffer.from(file_base64, 'base64')
-    if (buffer.byteLength > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ error: 'File is too large for direct upload (max 8MB) — use a Drive link instead' }, { status: 400 })
+    if (buffer.byteLength > MAX_DIRECT_UPLOAD_BYTES) {
+      return NextResponse.json({ error: `File is too large for direct upload (max ${MAX_DIRECT_UPLOAD_LABEL}) — use a Drive link instead` }, { status: 400 })
     }
     const ext = (file_name?.split('.').pop() || 'bin').toLowerCase()
     const path = `${original.client_id || 'unassigned'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
