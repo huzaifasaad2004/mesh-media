@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Send, Loader2, ChevronDown } from 'lucide-react'
-
-interface Message { role: 'user' | 'assistant'; content: string }
+import { useAiChat, type Message } from '@/components/AiChatContext'
 
 const STARTERS = [
   'What\'s my net profit right now?',
@@ -17,13 +16,10 @@ const CYAN = '#2BD6D6' // Aether-only accent — never on general UI
 
 export default function AiChat() {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "I'm **Aether**. I can see your live financials, clients, projects and tasks — and I can create tasks and clients for you. What do you need?" }
-  ])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const {
+    open, setOpen, messages, setMessages, loading, setLoading, error, setError,
+    clientContext, clearClientContext, pendingPrompt, clearPendingPrompt,
+  } = useAiChat()
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -35,9 +31,9 @@ export default function AiChat() {
   }, [open, messages])
 
   const send = async (text?: string) => {
-    const msg = (text ?? input).trim()
+    const msg = (text ?? inputRef.current?.value ?? '').trim()
     if (!msg || loading) return
-    setInput('')
+    if (inputRef.current) inputRef.current.value = ''
     setError('')
     const newMessages: Message[] = [...messages, { role: 'user', content: msg }]
     setMessages(newMessages)
@@ -46,7 +42,7 @@ export default function AiChat() {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, clientContext }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'AI unavailable')
@@ -61,6 +57,15 @@ export default function AiChat() {
       setLoading(false)
     }
   }
+
+  // A page called ask('...') — send it once, then clear so it doesn't re-fire.
+  useEffect(() => {
+    if (pendingPrompt) {
+      send(pendingPrompt.text)
+      clearPendingPrompt()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPrompt])
 
   function renderContent(text: string) {
     // Escape first — message content echoes DB data (client names, request
@@ -79,7 +84,7 @@ export default function AiChat() {
     <>
       {/* Floating launcher — Aether avatar with cyan ring */}
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen(!open)}
         className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg transition-all hover:scale-105 active:scale-95"
         style={{ width: 52, height: 52 }}
         title="Aether — Mesh Media AI"
@@ -102,7 +107,7 @@ export default function AiChat() {
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid #2A2420' }}>
             <img src="/brand/aether_avatar_64.png" alt="Aether" className="w-9 h-9 rounded-full object-cover" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="font-semibold" style={{ color: '#F7F2E9', fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: 17 }}>Aether</p>
               <p className="text-xs" style={{ color: CYAN }}>Your brand concierge</p>
             </div>
@@ -110,6 +115,18 @@ export default function AiChat() {
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Client-scoped context chip — set via useAiChat().ask(prompt, { name }) */}
+          {clientContext && (
+            <div className="flex items-center gap-1.5 px-4 py-1.5" style={{ borderBottom: '1px solid #2A2420' }}>
+              <span className="text-[11px] px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'rgba(43,214,214,0.12)', color: CYAN }}>
+                Talking about: {clientContext.name}
+                <button onClick={clearClientContext} aria-label="Clear client context" className="hover:opacity-70">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            </div>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
@@ -156,12 +173,11 @@ export default function AiChat() {
                 className="flex-1 bg-transparent text-sm outline-none"
                 style={{ color: '#F3EEE6' }}
                 placeholder="Ask Aether anything…"
-                value={input}
-                onChange={e => setInput(e.target.value)}
+                defaultValue=""
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
                 disabled={loading}
               />
-              <button onClick={() => send()} disabled={!input.trim() || loading}
+              <button onClick={() => send()} disabled={loading}
                 className="w-7 h-7 rounded-lg flex items-center justify-center transition-opacity disabled:opacity-40"
                 aria-label="Send">
                 <Send className="w-4 h-4" style={{ color: CYAN }} />

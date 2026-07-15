@@ -272,7 +272,50 @@ No migration needed — this is a pure code/config fix, live as soon as it's dep
 the new boundary directly against production after the fix: 2.8MB raw passes, 3.4MB is rejected by
 Vercel exactly as expected.
 
-### Migration status (as of 2026-07-13)
+## ✅ Session 10 continued — "Ask Aether about this client" + dark mode
+
+Two of the brainstormed improvement ideas from the innovation list, picked by Huzaifa.
+
+**Ask Aether about this client.** Aether's floating chat was a single component holding its own
+state — nothing else in the app could open it pre-loaded with context. Lifted that state into a
+new `components/AiChatContext.tsx` (`AiChatProvider`/`useAiChat()`), wrapping the dashboard layout.
+Any component can now call `ask(prompt, { name: clientName })` to open Aether, tag the
+conversation with a client, and send a prompt immediately. New `AskAetherButton` on the client
+detail page header does exactly that — "Tell me everything you know about {client}…" — reusing
+the `find_client`/`search_knowledge` tools that already existed, **zero new Aether tools needed**.
+The client tag shows as a small "Talking about: X" chip in the chat header (with an ✕ to clear)
+and is sent as `clientContext` on every message in that conversation; `/api/ai/chat`'s system
+prompt now includes a note like *"the user opened you from X's page — assume that's who 'this
+client' means, but still call a real tool rather than answering from this hint alone"* so follow-
+ups ("what's their outstanding balance") resolve without repeating the name. All of Aether's
+existing RLS/permission scoping is untouched — this only biases which client a vague follow-up
+resolves to, not what data any tool is allowed to return.
+
+**Dark mode.** The app is built entirely with literal Tailwind utility classes (`bg-white`,
+`text-gray-500`, `bg-paper-100`, …) rather than the CSS variables already defined in
+`globals.css`, so adding a `dark:` variant to every element across ~100 files wasn't realistic in
+one session. Instead: a `data-theme="dark"` attribute on `<html>` (toggled via new
+`components/ThemeToggle.tsx`, next to sign-out in the sidebar footer; persisted to
+`localStorage['mm-theme']`, defaulting to `prefers-color-scheme` on first visit; applied by an
+inline script in `app/layout.tsx` before first paint so there's no flash) plus a large, centralized
+override block in `globals.css` that redefines every literal color utility class actually used in
+the app (enumerated by grepping the codebase — `bg-white`, the full `gray`/`paper`/`sand`/`taupe`/
+`umber`/`brand` scales, status tints like `bg-green-100`/`text-red-600`, and their `hover:`
+variants) scoped under `[data-theme="dark"]`. This reskins every existing page with **zero
+component-file changes** — the trick works because those overrides are plain (unlayered) CSS,
+which the cascade always ranks above anything in Tailwind's `@layer utilities`/`@layer components`,
+regardless of source order. A separate pass was needed for classes compiled via `@apply` into named
+component classes (`.btn-secondary`, `.input`, `.table-row`, `.sidebar-link`, etc.) since those
+never carry a literal `.bg-white` class in the DOM for the utility overrides to catch — each got
+its own explicit dark-mode rule. Brand identity is preserved: maroon filled buttons/active nav
+stay maroon in both themes (a dark fill reads fine on a dark shell), Aether's cyan chrome is
+unaffected (it was already dark by design).
+
+Verified with a clean `tsc --noEmit`, full production `next build`, and a real rendered screenshot
+of both themes on the login page (dev server, no auth needed) — full dashboard pages weren't
+click-tested live since no test account credentials were available in this session; worth a manual
+pass through the main modules (Clients, Finance, CRM, Tasks) after this deploys to catch anything
+the grep-based enumeration missed.
 
 **✅ Confirmed run in Supabase, in order:** `phase18_portal_access.sql` through `phase32_files_module.sql`
 (all pre-existing/prior-session), plus this session's `phase33_esignature_fields.sql`,

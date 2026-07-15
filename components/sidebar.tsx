@@ -8,6 +8,7 @@ import { cn, getInitials } from '@/lib/utils'
 import { navVisible } from '@/lib/roles'
 import type { Profile } from '@/types/database'
 import NotificationBell from '@/components/NotificationBell'
+import ThemeToggle from '@/components/ThemeToggle'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet,
@@ -146,6 +147,7 @@ export function Sidebar({ profile, permissions }: SidebarProps) {
                 <p className="text-xs text-taupe-500 truncate capitalize">{profile?.role ?? 'staff'}</p>
               </div>
             </Link>
+            <ThemeToggle />
             <button
               onClick={handleSignOut}
               className="text-taupe-500 hover:text-umber-700 transition-colors p-2 rounded flex-shrink-0"

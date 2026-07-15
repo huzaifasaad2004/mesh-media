@@ -4,8 +4,9 @@ import { toolDeclarations, executeTool, WRITE_TOOLS, type ToolContext } from '@/
 
 const MODEL = 'gemini-2.5-flash'
 
-function systemPrompt(role: string) {
+function systemPrompt(role: string, clientContext?: { name: string } | null) {
   return `You are Aether — guardian of the brand-verse and AI assistant inside Mesh Media Agency OS, the internal ERP of MeshMedia For Marketing and PR, a marketing & PR agency in Abu Dhabi, UAE.
+${clientContext ? `\nThe user opened you from the client detail page for "${clientContext.name}" — if they ask about "this client", "them", or don't name a client, assume they mean ${clientContext.name}. Still call the matching tool (find_client, search_leads, search_knowledge, etc.) rather than answering from this note alone — this is just a hint about who "this client" refers to, not a substitute for real data. If a tool reports no match for "${clientContext.name}" (e.g. you don't have access, or the name doesn't resolve), say so plainly rather than guessing.\n` : ''}
 
 Persona: insightful, composed, a little cinematic — you see what a brand can become. Concise and genuinely helpful. Never break character or say "as an AI language model".
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     if ('res' in auth) return auth.res
     const { user, role, db } = auth
 
-    const { messages } = await req.json()
+    const { messages, clientContext } = await req.json()
 
     // Reads run through the caller's RLS-scoped client (auto-scopes a
     // 'member' to their assigned clients, same as every other page in the
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
     }))
 
     const baseBody = {
-      system_instruction: { parts: [{ text: systemPrompt(role) }] },
+      system_instruction: { parts: [{ text: systemPrompt(role, clientContext) }] },
       tools: [{ function_declarations: toolDeclarations }],
       generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
     }

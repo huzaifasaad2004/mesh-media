@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, ExternalLink, Phone, Mail, Globe, Activity } from 'lucide-react'
 import PortalAccessCard from '@/components/clients/PortalAccessCard'
 import OnboardingRun from '@/components/clients/OnboardingRun'
+import AskAetherButton from '@/components/clients/AskAetherButton'
 import { computeChurnRisk, CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR } from '@/lib/churnRisk'
 
 export default async function ClientDetailPage({ params }: { params: { id: string } }) {
@@ -86,6 +87,7 @@ export default async function ClientDetailPage({ params }: { params: { id: strin
             </div>
           </div>
           <div className="flex gap-2">
+            <AskAetherButton companyName={client.company_name} />
             {client.drive_folder_url && (
               <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm">
                 <ExternalLink className="w-3 h-3" /> Drive Folder

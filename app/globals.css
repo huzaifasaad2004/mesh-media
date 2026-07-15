@@ -58,6 +58,165 @@
   --shadow-md: 0 4px 16px rgba(21,19,18,.08);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE
+   The app is built entirely with literal Tailwind utility classes
+   (bg-white, text-gray-500, bg-paper-100, …) rather than the CSS
+   variables above, so a `dark:` variant on every element across ~100
+   files isn't realistic. Instead: redefine the semantic tokens for
+   dark, then override every one of those literal utility classes
+   globally, scoped to `[data-theme="dark"]`. This reskins every
+   existing page without touching component markup. ToggleTheme sets
+   `data-theme` on <html>; app/layout.tsx's inline script applies the
+   stored/system preference before first paint (no flash).
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme="dark"] {
+  --bg:            #120F0D;
+  --surface:       #1C1815;
+  --surface-cream: #211C17;
+  --surface-cream-hover: #2A2420;
+  --surface-cream-2: #171310;
+  --border:        #3A332C;
+  --text:          #F3EEE6;
+  --text-muted:    #9C9384;
+  --primary-fg:    #F3EEE6;
+  --focus-ring:    var(--rose);
+
+  --success:       #7CC274;
+  --success-bg:    rgba(79,122,74,.22);
+  --warning:       #E0A83E;
+  --warning-bg:    rgba(184,128,31,.22);
+  --danger:        #E88478;
+  --danger-bg:     rgba(178,58,46,.22);
+  --info:          #8FA4C2;
+  --info-bg:       rgba(74,90,110,.28);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root { transition: background-color .15s ease; }
+}
+
+[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+
+/* Surfaces (bg-white / .card / paper scale) */
+[data-theme="dark"] .bg-white { background-color: var(--surface) !important; }
+[data-theme="dark"] .card { background-color: var(--surface) !important; border-color: var(--border) !important; }
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-paper-50 { background-color: var(--surface-cream-2) !important; }
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-paper-100 { background-color: var(--surface-cream) !important; }
+[data-theme="dark"] .bg-paper-200 { background-color: var(--surface-cream-hover) !important; }
+[data-theme="dark"] .bg-paper-0,
+[data-theme="dark"] .bg-paper-300 { background-color: var(--bg) !important; }
+[data-theme="dark"] .bg-gray-200,
+[data-theme="dark"] .bg-gray-300 { background-color: var(--border) !important; }
+[data-theme="dark"] .bg-gray-900,
+[data-theme="dark"] .bg-black { background-color: #000 !important; }
+[data-theme="dark"] .hover\:bg-gray-50:hover,
+[data-theme="dark"] .hover\:bg-paper-50:hover { background-color: var(--surface-cream-2) !important; }
+[data-theme="dark"] .hover\:bg-paper-100:hover,
+[data-theme="dark"] .hover\:bg-paper-200:hover,
+[data-theme="dark"] .hover\:bg-gray-100:hover { background-color: var(--surface-cream-hover) !important; }
+
+/* Brand tints (badges/icons/accents on a cream card in light mode) */
+[data-theme="dark"] .bg-brand-50 { background-color: rgba(110,19,24,.28) !important; }
+[data-theme="dark"] .bg-brand-100 { background-color: rgba(110,19,24,.4) !important; }
+[data-theme="dark"] .hover\:bg-brand-50:hover { background-color: rgba(110,19,24,.28) !important; }
+
+/* Borders / dividers */
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] .border-sand-200,
+[data-theme="dark"] .border-sand-300,
+[data-theme="dark"] .border-paper-200 { border-color: var(--border) !important; }
+[data-theme="dark"] .border-brand-300 { border-color: var(--rose) !important; }
+[data-theme="dark"] .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-paper-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+
+/* Text */
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-ink { color: var(--text) !important; }
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-umber-700,
+[data-theme="dark"] .text-umber-800 { color: #D8CFC2 !important; }
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-gray-300,
+[data-theme="dark"] .text-gray-200,
+[data-theme="dark"] .text-taupe-400,
+[data-theme="dark"] .text-taupe-500,
+[data-theme="dark"] .text-taupe-600,
+[data-theme="dark"] .text-taupe-700,
+[data-theme="dark"] .text-sand-400 { color: var(--text-muted) !important; }
+[data-theme="dark"] .hover\:text-gray-700:hover,
+[data-theme="dark"] .hover\:text-ink:hover { color: var(--text) !important; }
+[data-theme="dark"] .text-brand-700,
+[data-theme="dark"] .text-brand-600,
+[data-theme="dark"] .text-brand-500,
+[data-theme="dark"] .text-brand-400 { color: #E8A5A9 !important; }
+[data-theme="dark"] .hover\:text-brand-600:hover { color: #F0BEC1 !important; }
+[data-theme="dark"] .hover\:text-gray-600:hover,
+[data-theme="dark"] .hover\:text-umber-700:hover { color: var(--text) !important; }
+[data-theme="dark"] .hover\:border-brand-300:hover { border-color: var(--rose) !important; }
+[data-theme="dark"] .hover\:bg-red-50:hover { background-color: var(--danger-bg) !important; }
+[data-theme="dark"] .hover\:text-red-600:hover,
+[data-theme="dark"] .hover\:text-red-500:hover { color: var(--danger) !important; }
+[data-theme="dark"] .hover\:bg-green-50:hover { background-color: var(--success-bg) !important; }
+[data-theme="dark"] .hover\:text-green-600:hover { color: var(--success) !important; }
+[data-theme="dark"] .hover\:bg-white:hover { background-color: var(--surface) !important; }
+
+/* Status tints — badges built from literal bg-{color}-50/100 + text-{color}-600/700
+   across the CRM/media/content/finance pages (not the semantic --success-bg tokens) */
+[data-theme="dark"] .bg-green-50,  [data-theme="dark"] .bg-green-100  { background-color: var(--success-bg) !important; }
+[data-theme="dark"] .text-green-500, [data-theme="dark"] .text-green-600, [data-theme="dark"] .text-green-700 { color: var(--success) !important; }
+[data-theme="dark"] .bg-red-50,    [data-theme="dark"] .bg-red-100    { background-color: var(--danger-bg) !important; }
+[data-theme="dark"] .text-red-500, [data-theme="dark"] .text-red-600, [data-theme="dark"] .text-red-700 { color: var(--danger) !important; }
+[data-theme="dark"] .bg-yellow-100 { background-color: var(--warning-bg) !important; }
+[data-theme="dark"] .text-yellow-700, [data-theme="dark"] .text-orange-600, [data-theme="dark"] .text-orange-700 { color: var(--warning) !important; }
+[data-theme="dark"] .bg-orange-50, [data-theme="dark"] .bg-orange-100 { background-color: var(--warning-bg) !important; }
+[data-theme="dark"] .bg-blue-50,   [data-theme="dark"] .bg-blue-100   { background-color: var(--info-bg) !important; }
+[data-theme="dark"] .text-blue-700 { color: var(--info) !important; }
+[data-theme="dark"] .bg-pink-100 { background-color: rgba(217,138,142,.22) !important; }
+[data-theme="dark"] .text-pink-700 { color: #E8A5A9 !important; }
+
+/* Inputs/selects use bg-white + border-gray-200 already covered above;
+   focus rings and placeholders inherit correctly since they use --rose. */
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder { color: #6E655B; }
+
+/* Named component classes below (.btn-secondary, .input, etc.) bake their
+   colors in via @apply at build time — a literal `.bg-white` never actually
+   appears in the DOM on these, so the utility-class overrides above can't
+   reach them. Each needs its own override. */
+[data-theme="dark"] .btn-secondary {
+  background-color: var(--surface) !important;
+  color: #D8CFC2 !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .btn-secondary:hover { background-color: var(--surface-cream) !important; }
+[data-theme="dark"] .btn-ghost { color: var(--text-muted) !important; }
+[data-theme="dark"] .btn-ghost:hover { background-color: var(--surface-cream) !important; color: var(--text) !important; }
+[data-theme="dark"] .input {
+  background-color: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+[data-theme="dark"] .label { color: #D8CFC2 !important; }
+[data-theme="dark"] .table-row { border-color: var(--border) !important; }
+[data-theme="dark"] .table-row:hover { background-color: var(--surface-cream-2) !important; }
+[data-theme="dark"] .section-title { color: var(--text-muted) !important; }
+[data-theme="dark"] .sidebar-link { color: var(--text-muted) !important; }
+[data-theme="dark"] .sidebar-link:hover { background-color: var(--surface-cream) !important; color: var(--text) !important; }
+[data-theme="dark"] .sidebar-link.active { background-color: var(--maroon) !important; color: #F3EEE6 !important; }
+
 @layer base {
   * { box-sizing: border-box; }
   body {
