@@ -43,25 +43,34 @@ async function run(req: NextRequest) {
   const auth = await requireCronOrFinanceWrite(req)
   if ('res' in auth) return auth.res
 
+  // Dry run: compute exactly what would be sent/skipped — no email, no
+  // status flip, no dunning_stage/last_reminder_sent_at write. Safe to call
+  // anytime against real production data to sanity-check the logic before
+  // trusting the real (mutating) run.
+  const dryRun = req.nextUrl.searchParams.get('dryRun') === '1' || req.nextUrl.searchParams.get('dryRun') === 'true'
+
   const db = serviceRole()
   const today = new Date().toISOString().split('T')[0]
 
   // Flip anything past due into 'overdue' first, so the query below is accurate.
   // A partially_paid invoice keeps its status (it still has a real payment
   // history to preserve) but is just as overdue — dunning targets it too.
-  await db.from('invoices').update({ status: 'overdue' }).eq('status', 'sent').lt('due_date', today)
+  if (!dryRun) {
+    await db.from('invoices').update({ status: 'overdue' }).eq('status', 'sent').lt('due_date', today)
+  }
 
   const { data: overdue } = await db
     .from('invoices')
     .select('id, invoice_number, total, amount_paid, due_date, dunning_stage, status, client:clients(company_name, email, contact_person)')
-    .in('status', ['overdue', 'partially_paid'])
+    .in('status', dryRun ? ['sent', 'overdue', 'partially_paid'] : ['overdue', 'partially_paid'])
     .lt('due_date', today)
 
-  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+  const resend = !dryRun && process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
 
   const sent: string[] = []
   const skipped: string[] = []
+  const preview: Array<{ invoice_number: string; client: string; email: string | null; stage: number; tone: string; amount: string; days_overdue: number; would_email: boolean }> = []
 
   for (const inv of overdue ?? []) {
     const client = inv.client as any
@@ -72,6 +81,15 @@ async function run(req: NextRequest) {
     if (!target || target.stage <= inv.dunning_stage) { skipped.push(`${inv.invoice_number} (not due for next stage)`); continue }
 
     const amount = `AED ${(Number(inv.total) - Number(inv.amount_paid ?? 0)).toLocaleString('en-AE', { minimumFractionDigits: 2 })}`
+
+    if (dryRun) {
+      preview.push({
+        invoice_number: inv.invoice_number, client: client.company_name, email: client.email,
+        stage: target.stage, tone: target.tone, amount, days_overdue: daysOverdue, would_email: true,
+      })
+      continue
+    }
+
     const dueDateLabel = new Date(inv.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     const url = `${baseUrl}/invoice/${inv.id}`
     const clientName = escapeHtml(client.contact_person ?? client.company_name)
@@ -89,6 +107,8 @@ async function run(req: NextRequest) {
     await db.from('invoices').update({ dunning_stage: target.stage, last_reminder_sent_at: new Date().toISOString() }).eq('id', inv.id)
     sent.push(`${inv.invoice_number} (stage ${target.stage})`)
   }
+
+  if (dryRun) return NextResponse.json({ dryRun: true, would_send: preview, skipped })
 
   if (auth.user) await logActivity(auth.user, 'run', 'dunning', null, `${sent.length} reminders sent, ${skipped.length} skipped`)
 
