@@ -15,7 +15,7 @@ const MODULE_LABELS: Record<string, string> = {
   clients: 'Clients', tasks: 'Tasks', projects: 'Projects', finance: 'Finance',
   payroll: 'Payroll', invoices: 'Invoices', documents: 'Documents', content: 'Content',
   team: 'Team', settings: 'Settings', leads: 'CRM / Leads', media: 'Media Coverage / EMV',
-  contractors: 'Contractors', kb: 'Knowledge Base',
+  contractors: 'Contractors', kb: 'Knowledge Base', meetings: 'Meetings',
 }
 
 export default function PermissionsMatrixPage() {

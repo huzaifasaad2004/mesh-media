@@ -105,3 +105,5 @@ export const requireMediaWrite = () => requirePermission('media.write')
 export const requireKbRead = () => requirePermission('kb.read')
 /** Caller may create, edit, publish, and delete knowledge base articles. */
 export const requireKbWrite = () => requirePermission('kb.write')
+/** Caller may schedule, edit, and cancel meetings. */
+export const requireMeetingsWrite = () => requirePermission('meetings.write')

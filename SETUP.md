@@ -54,6 +54,37 @@ Open http://localhost:3000 — log in and you're live.
 
 ---
 
+## Step 7: Enable Google Meet auto-links for Meetings (optional)
+
+The Meetings module works today with a manually-pasted Meet link. To have it auto-generate a
+real Google Meet link (and put the event on a real calendar) when you schedule a meeting:
+
+1. Go to https://console.cloud.google.com → create a project (or reuse one) → **APIs & Services →
+   Library** → search "Google Calendar API" → Enable.
+2. **IAM & Admin → Service Accounts → Create Service Account** (any name, e.g. `mm-calendar-bot`).
+   Open it → **Keys → Add Key → Create new key → JSON** — this downloads a `.json` file. Keep it
+   somewhere safe; you'll copy two fields out of it, then you're done with the file itself.
+3. Still on the service account's details page, copy its **Unique ID** (a long number under
+   "IAM" — not the email address).
+4. Go to https://admin.google.com (your Google Workspace admin console, the account that owns
+   `m3m.ae`/`hello@m3m.ae`) → **Security → Access and data control → API controls → Domain-wide
+   delegation → Add new**:
+   - Client ID: the **Unique ID** from step 3
+   - OAuth scopes: `https://www.googleapis.com/auth/calendar`
+   - Authorize.
+5. Add three environment variables (in `.env.local` for local dev, and in Vercel's project
+   settings for production — same names both places):
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL` — the `client_email` field from the JSON key
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` — the `private_key` field from the JSON key, pasted
+     as-is (Vercel/`.env` handle the embedded `\n` line breaks fine — don't try to reformat it)
+   - `GOOGLE_CALENDAR_IMPERSONATE_EMAIL` — a real mailbox in your Workspace domain whose calendar
+     the events get created on, e.g. `hello@m3m.ae`
+6. Redeploy (or restart `npm run dev`). Schedule a test meeting — it should come back with a real
+   `meet.google.com/...` link with no manual entry needed.
+
+Until these are set, scheduling still works — you (or whoever's scheduling) just pastes a Meet
+link you created manually, and every attendee still gets emailed the invite and a reminder.
+
 ## What's built
 
 | Module | Description |
@@ -69,6 +100,7 @@ Open http://localhost:3000 — log in and you're live.
 | Projects | Projects + milestones linking clients ↔ tasks ↔ invoices |
 | Client portal | Clients view projects/invoices, approve/decline quotations, submit requests |
 | Team | Profiles, six roles + per-user permission overrides, invites |
+| Meetings | Manager+ schedules with staff/contractors/client contacts, auto Google Meet links, email invites + reminders |
 | Aether AI | Gemini-powered assistant (chat + expense capture) |
 | Celine API | `/api/celine/*` action endpoints for the external Celine assistant |
 

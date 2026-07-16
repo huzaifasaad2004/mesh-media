@@ -379,6 +379,43 @@ the Supabase SQL editor (in that order — 45 doesn't depend on 44, but keep mig
 sequential). Verified with a clean `tsc --noEmit` and full production `next build`; not yet
 click-tested live (no test account credentials in this session).
 
+## ✅ Session 10 continued — Meetings module with Google Meet integration
+
+New `/meetings` page (`supabase/phase46_meetings.sql`): manager+ schedules a meeting with any mix
+of staff, contractors, and ad-hoc client contacts (name+email, same pattern as documents/content
+recipients), optionally tagged to a specific client. Real Google Meet links are auto-generated via
+`lib/google/calendar.ts` — a service account with domain-wide delegation impersonates a real
+Workspace mailbox (`GOOGLE_CALENDAR_IMPERSONATE_EMAIL`, e.g. `hello@m3m.ae`) to create a Calendar
+event with `conferenceData.createRequest`, which is the only way to mint a real Meet link
+server-side (there's no standalone "create a Meet link" API). **Huzaifa chose the full
+auto-generation path over a manual-link-only fallback**, but the manual path still exists as a
+graceful degrade: if the three `GOOGLE_*` env vars aren't set yet (`isGoogleCalendarConfigured()`
+returns false), scheduling still works — the organizer pastes a Meet link themselves and
+everything else (emails, reminders, in-app notifications) behaves identically. Exact one-time
+Google Cloud + Workspace admin setup steps are in `SETUP.md` Step 7.
+
+Every attendee gets a branded Resend email (`lib/meetingEmail.ts`) on invite, reschedule, and
+cancellation, plus in-app notifications (new `meeting` category, added in the same migration as
+`task_feedback`) for anyone with an account. **Reminder emails are a daily digest, not a precise
+"15 minutes before" alert** — Huzaifa confirmed m3m.ae is on Vercel's **Hobby plan**, which only
+allows daily-or-coarser cron schedules (every other cron in this project already reflected that
+constraint), so a `*/10 * * * *` schedule would likely have failed deployment. `/api/cron/meeting-
+reminders` runs once daily (`vercel.json`, 4am UTC / 8am Dubai) and reminds every attendee of any
+meeting in the next 24 hours, exactly once (`reminder_24h_sent_at` guards against re-sending across
+days for a meeting still >24h out). `reminder_15m_sent_at` exists on the table but is intentionally
+unused for now — wiring up a tighter reminder is a fast follow if the plan is ever upgraded to Pro.
+Attendees can accept/decline their invite in-app (`POST /api/meetings/[id]/respond`, RLS lets a
+user update only their own `meeting_attendees` row).
+
+RLS: managers+ see every meeting; anyone else (member, contractor, client-portal user) only sees
+meetings they're actually invited to, or ones tagged to their own client. `meetings.write` stays
+manager+ only, consistent with every other write-permission tightened this session.
+
+**Needs `supabase/phase46_meetings.sql` run in the Supabase SQL editor**, plus the three
+`GOOGLE_*` env vars (optional — see above) to enable real auto-generated Meet links. Verified with
+a clean `tsc --noEmit` and full production `next build`; the Google Calendar code path itself
+couldn't be exercised live since no Google Cloud credentials exist yet for this project.
+
 ---
 
 ## ✅ Session 9 (2026-07-13) — e-signature fields, granular permissions, RAG Aether, Contractors
