@@ -3,7 +3,7 @@ import { requireUser, requireMeetingsWrite, serviceRole, stripProtected } from '
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 import { updateMeetEvent, cancelMeetEvent, isGoogleCalendarConfigured } from '@/lib/google/calendar'
-import { sendMeetingEmail } from '@/lib/meetingEmail'
+import { sendMeetingEmail, scheduleAttendeeReminders, cancelScheduledEmail } from '@/lib/meetingEmail'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUser()
@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const body = stripProtected(await req.json())
 
   const db = serviceRole()
-  const { data: existing } = await db.from('meetings').select('*, attendees:meeting_attendees(name, email)').eq('id', params.id).single()
+  const { data: existing } = await db.from('meetings').select('*, attendees:meeting_attendees(id, name, email, reminder_24h_email_id, reminder_15m_email_id)').eq('id', params.id).single()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (existing.status === 'cancelled') return NextResponse.json({ error: 'This meeting is cancelled' }, { status: 400 })
 
@@ -41,8 +41,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (rescheduled && new Date(patch.end_time as string ?? existing.end_time) <= new Date(patch.start_time as string ?? existing.start_time)) {
     return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
   }
-  // A reschedule un-fires any reminder already sent, so the attendee gets a fresh one for the new time.
-  if (rescheduled) { patch.reminder_24h_sent_at = null; patch.reminder_15m_sent_at = null }
 
   if (existing.calendar_event_id && isGoogleCalendarConfigured() && (patch.title || patch.description !== undefined || rescheduled)) {
     try {
@@ -64,13 +62,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { data: attendees } = await db.from('meeting_attendees').select('*').eq('meeting_id', params.id)
   const { data: organizer } = await db.from('profiles').select('full_name').eq('id', meeting.organizer_id).single()
 
-  await Promise.all((attendees ?? []).map((a) =>
-    sendMeetingEmail(a.email, 'update', {
+  await Promise.all((attendees ?? []).map(async (a) => {
+    await sendMeetingEmail(a.email, 'update', {
       attendeeName: a.name, title: meeting.title, description: meeting.description,
       startTime: meeting.start_time, endTime: meeting.end_time, meetLink: meeting.meet_link,
       organizerName: organizer?.full_name ?? 'Your team',
     }).catch(() => {})
-  ))
+    // The old reminders reference stale content/times — cancel them and
+    // schedule fresh ones against the updated meeting.
+    await Promise.all([cancelScheduledEmail(a.reminder_24h_email_id), cancelScheduledEmail(a.reminder_15m_email_id)])
+    const reminders = await scheduleAttendeeReminders(a, meeting, organizer?.full_name ?? 'Your team')
+    await db.from('meeting_attendees').update(reminders).eq('id', a.id)
+  }))
   const notifyIds = (attendees ?? []).map((a) => a.user_id).filter((id): id is string => !!id && id !== auth.user.id)
   if (notifyIds.length) {
     await notifyUsers(db, {
@@ -103,13 +106,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const { data: attendees } = await db.from('meeting_attendees').select('*').eq('meeting_id', params.id)
   const { data: organizer } = await db.from('profiles').select('full_name').eq('id', meeting.organizer_id).single()
-  await Promise.all((attendees ?? []).map((a) =>
+  await Promise.all((attendees ?? []).map((a) => Promise.all([
     sendMeetingEmail(a.email, 'cancel', {
       attendeeName: a.name, title: meeting.title, description: meeting.description,
       startTime: meeting.start_time, endTime: meeting.end_time, meetLink: meeting.meet_link,
       organizerName: organizer?.full_name ?? 'Your team',
-    }).catch(() => {})
-  ))
+    }).catch(() => {}),
+    cancelScheduledEmail(a.reminder_24h_email_id),
+    cancelScheduledEmail(a.reminder_15m_email_id),
+  ])))
   const notifyIds = (attendees ?? []).map((a) => a.user_id).filter((id): id is string => !!id && id !== auth.user.id)
   if (notifyIds.length) {
     await notifyUsers(db, { userIds: notifyIds, title: 'Meeting cancelled', body: meeting.title, href: '/meetings', category: 'meeting' })

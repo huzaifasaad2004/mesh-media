@@ -3,7 +3,7 @@ import { requireUser, requireMeetingsWrite, serviceRole, stripProtected } from '
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 import { createMeetEvent, isGoogleCalendarConfigured } from '@/lib/google/calendar'
-import { sendMeetingEmail } from '@/lib/meetingEmail'
+import { sendMeetingEmail, scheduleAttendeeReminders } from '@/lib/meetingEmail'
 
 const ATTENDEE_ROLES = ['staff', 'contractor', 'client', 'other']
 
@@ -99,14 +99,19 @@ export async function POST(req: NextRequest) {
   await logActivity(auth.user, 'create', 'meeting', meeting.id, `${title} · ${createdAttendees.length} attendee(s)`)
 
   // Email every attendee (best-effort, failures don't block the response),
-  // and notify anyone with an account in-app too.
-  const emailResults = await Promise.all(createdAttendees.map((a) =>
-    sendMeetingEmail(a.email, 'invite', {
+  // and notify anyone with an account in-app too. Reminders are scheduled
+  // right now via Resend's native scheduledAt — exact to the minute,
+  // no polling cron required.
+  const emailResults = await Promise.all(createdAttendees.map(async (a) => {
+    const inviteResult = await sendMeetingEmail(a.email, 'invite', {
       attendeeName: a.name, title: meeting.title, description: meeting.description,
       startTime: meeting.start_time, endTime: meeting.end_time, meetLink: meeting.meet_link,
       organizerName: organizer?.full_name ?? 'Your team',
-    }).then((r) => ({ email: a.email, ...r }))
-  ))
+    })
+    const reminders = await scheduleAttendeeReminders(a, meeting, organizer?.full_name ?? 'Your team')
+    await db.from('meeting_attendees').update(reminders).eq('id', a.id)
+    return { email: a.email, ...inviteResult }
+  }))
 
   const notifyIds = createdAttendees.map((a) => a.user_id).filter((id): id is string => !!id && id !== auth.user.id)
   if (notifyIds.length) {

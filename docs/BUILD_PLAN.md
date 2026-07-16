@@ -396,14 +396,22 @@ Google Cloud + Workspace admin setup steps are in `SETUP.md` Step 7.
 
 Every attendee gets a branded Resend email (`lib/meetingEmail.ts`) on invite, reschedule, and
 cancellation, plus in-app notifications (new `meeting` category, added in the same migration as
-`task_feedback`) for anyone with an account. **Reminder emails are a daily digest, not a precise
-"15 minutes before" alert** — Huzaifa confirmed m3m.ae is on Vercel's **Hobby plan**, which only
-allows daily-or-coarser cron schedules (every other cron in this project already reflected that
-constraint), so a `*/10 * * * *` schedule would likely have failed deployment. `/api/cron/meeting-
-reminders` runs once daily (`vercel.json`, 4am UTC / 8am Dubai) and reminds every attendee of any
-meeting in the next 24 hours, exactly once (`reminder_24h_sent_at` guards against re-sending across
-days for a meeting still >24h out). `reminder_15m_sent_at` exists on the table but is intentionally
-unused for now — wiring up a tighter reminder is a fast follow if the plan is ever upgraded to Pro.
+`task_feedback`) for anyone with an account.
+
+**Reminders (24h and 15min before) are exact-time, not a daily digest** — the first design used a
+polling cron, but m3m.ae is on Vercel's **Hobby plan**, which only allows daily-or-coarser cron
+schedules, so a `*/10 * * * *` polling schedule would likely have failed deployment and a daily
+digest was the fallback. Reworked once it came up that **Resend itself supports scheduled
+sending** (`scheduledAt` on `emails.send`, plus `emails.cancel(id)`) — no cron needed at all.
+`scheduleAttendeeReminders()` (`lib/meetingEmail.ts`) fires both reminder emails straight from
+Resend's own queue at meeting-creation time, exact to the minute, completely sidestepping the
+Vercel plan's cron-frequency limit. `supabase/phase47_meeting_reminder_scheduling.sql` adds
+`reminder_24h_email_id`/`reminder_15m_email_id` to `meeting_attendees` to store the Resend email
+ids Resend hands back — needed so a reschedule or cancellation can call `emails.cancel()` on the
+stale reminder before scheduling a fresh one (otherwise a rescheduled meeting would still fire a
+reminder for its old time). The earlier polling cron (`/api/cron/meeting-reminders`) and its
+`vercel.json` entry were removed entirely — this is strictly better, not a workaround.
+
 Attendees can accept/decline their invite in-app (`POST /api/meetings/[id]/respond`, RLS lets a
 user update only their own `meeting_attendees` row).
 
@@ -411,10 +419,12 @@ RLS: managers+ see every meeting; anyone else (member, contractor, client-portal
 meetings they're actually invited to, or ones tagged to their own client. `meetings.write` stays
 manager+ only, consistent with every other write-permission tightened this session.
 
-**Needs `supabase/phase46_meetings.sql` run in the Supabase SQL editor**, plus the three
-`GOOGLE_*` env vars (optional — see above) to enable real auto-generated Meet links. Verified with
-a clean `tsc --noEmit` and full production `next build`; the Google Calendar code path itself
-couldn't be exercised live since no Google Cloud credentials exist yet for this project.
+**Needs `supabase/phase46_meetings.sql` then `supabase/phase47_meeting_reminder_scheduling.sql`
+run in the Supabase SQL editor** (in that order), plus the three `GOOGLE_*` env vars (optional —
+see above) to enable real auto-generated Meet links. Verified with a clean `tsc --noEmit` and full
+production `next build`; the Google Calendar code path and Resend's scheduled-send behavior
+couldn't be exercised live since no Google Cloud credentials exist yet for this project and
+scheduled sends only become observable after the fact.
 
 ---
 
