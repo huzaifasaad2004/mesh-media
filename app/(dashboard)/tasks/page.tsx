@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Plus, Pencil, Trash2, LayoutGrid, List, Search } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import TaskForm from '@/components/forms/TaskForm'
+import TaskComments from '@/components/tasks/TaskComments'
 import Pagination from '@/components/ui/Pagination'
 import EmptyState from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
@@ -322,6 +323,7 @@ export default function TasksPage() {
           initialData={editingTask ?? undefined}
           statusOnly={!canManage}
         />
+        {editingTask?.id && <TaskComments taskId={editingTask.id} />}
       </Modal>
     </div>
   )

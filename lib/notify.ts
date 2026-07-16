@@ -2,8 +2,9 @@ import { Resend } from 'resend'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { COMPANY } from '@/lib/company'
 
-/** Keep in sync with the CHECK constraint in supabase/phase28_notification_preferences.sql. */
-export type NotifyCategory = 'task_assignment' | 'approval_request' | 'content_review' | 'critical_alert'
+/** Keep in sync with the CHECK constraint in supabase/phase28_notification_preferences.sql
+ *  (extended by phase45_task_feedback.sql to add task_feedback/meeting). */
+export type NotifyCategory = 'task_assignment' | 'approval_request' | 'content_review' | 'critical_alert' | 'task_feedback' | 'meeting'
 
 /**
  * Creates the existing in-app notification rows, then — unless the

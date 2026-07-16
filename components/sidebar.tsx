@@ -9,6 +9,7 @@ import { navVisible } from '@/lib/roles'
 import type { Profile } from '@/types/database'
 import NotificationBell from '@/components/NotificationBell'
 import ThemeToggle from '@/components/ThemeToggle'
+import { useNotifications } from '@/components/NotificationsContext'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet,
@@ -49,6 +50,8 @@ export function Sidebar({ profile, permissions }: SidebarProps) {
   const router = useRouter()
   const supabase = createClient()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { unreadHrefs } = useNotifications()
+  const hasUnread = (href: string) => unreadHrefs.some((h) => h === href || h.startsWith(`${href}?`) || h.startsWith(`${href}/`))
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -123,10 +126,15 @@ export function Sidebar({ profile, permissions }: SidebarProps) {
                 key={href}
                 href={href}
                 onClick={() => setMobileOpen(false)}
-                className={cn('sidebar-link', active && 'active')}
+                className={cn('sidebar-link relative', active && 'active')}
                 style={{ minHeight: 44 }}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="relative flex-shrink-0">
+                  <Icon className="w-4 h-4" />
+                  {hasUnread(href) && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-danger" style={{ background: 'var(--danger)' }} />
+                  )}
+                </span>
                 {label}
               </Link>
             )

@@ -10,6 +10,8 @@ const LABELS: Record<string, { title: string; helper: string }> = {
   approval_request:  { title: 'Approval requests', helper: 'Time-off, expense, and other requests needing your decision — and decisions on your own requests.' },
   content_review:    { title: 'Content approvals', helper: 'Content sent for your review, forwarded to a client, or decided.' },
   critical_alert:    { title: 'Critical alerts', helper: 'Invoices/quotations sent, documents signed, payslips, and other important events.' },
+  task_feedback:     { title: 'Task feedback', helper: 'A comment left on a task you\'re assigned to or created.' },
+  meeting:           { title: 'Meetings', helper: 'Meetings scheduled with you, changes, and reminders before they start.' },
 }
 
 export default function NotificationPreferencesPage() {

@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   let body = stripProtected(await req.json())
   const db = serviceRole()
-  const { data: before } = await db.from('tasks').select('assigned_to').eq('id', params.id).single()
+  const { data: before } = await db.from('tasks').select('assigned_to, created_by, status, title').eq('id', params.id).single()
 
   if (!isManager) {
     // A member may only update the status of a task already assigned to
@@ -37,6 +37,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body: data.title,
       href: '/tasks',
       category: 'task_assignment',
+    })
+  }
+
+  // Closing the loop: tell whoever created the task once it's marked done
+  // (skip if they did it themselves, or if it was already done — status
+  // toggled back and forth shouldn't re-notify every time).
+  if (data.status === 'done' && before?.status !== 'done' && data.created_by && data.created_by !== auth.user.id) {
+    await notifyUsers(db, {
+      userIds: [data.created_by],
+      title: 'Task marked done',
+      body: data.title,
+      href: '/tasks',
+      category: 'task_feedback',
     })
   }
 

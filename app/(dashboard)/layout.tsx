@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
 import AiChat from '@/components/AiChat'
 import { AiChatProvider } from '@/components/AiChatContext'
+import { NotificationsProvider } from '@/components/NotificationsContext'
 import CommandPalette from '@/components/CommandPalette'
 import { getEffectivePermissions } from '@/lib/permissions'
 import { getImpersonationInfo } from '@/lib/impersonation'
@@ -36,18 +37,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const impersonation = getImpersonationInfo()
 
   return (
-    <AiChatProvider>
-      <div className="flex min-h-screen">
-        {impersonation && <ImpersonationBanner targetEmail={impersonation.target_email} />}
-        <Sidebar profile={profile as Profile | null} permissions={Array.from(effective)} />
-        <main className={`flex-1 lg:ml-60 min-h-screen pt-14 lg:pt-0 ${impersonation ? 'mt-9' : ''}`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-            {children}
-          </div>
-        </main>
-        <AiChat />
-        <CommandPalette />
-      </div>
-    </AiChatProvider>
+    <NotificationsProvider>
+      <AiChatProvider>
+        <div className="flex min-h-screen">
+          {impersonation && <ImpersonationBanner targetEmail={impersonation.target_email} />}
+          <Sidebar profile={profile as Profile | null} permissions={Array.from(effective)} />
+          <main className={`flex-1 lg:ml-60 min-h-screen pt-14 lg:pt-0 ${impersonation ? 'mt-9' : ''}`}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+              {children}
+            </div>
+          </main>
+          <AiChat />
+          <CommandPalette />
+        </div>
+      </AiChatProvider>
+    </NotificationsProvider>
   )
 }

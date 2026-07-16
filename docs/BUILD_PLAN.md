@@ -334,6 +334,51 @@ in the Stripe dashboard).
 Every module on the original roadmap (§3 Module map) is now at least an MVP — see
 **Improvement ideas** below for smaller polish items.
 
+## ✅ Session 10 continued — Team notifications, KB/Media lockdown, sidebar unread dots
+
+Huzaifa asked for comprehensive team notifications (task assignment, content approval decisions,
+feedback), for Knowledge Base and Media Coverage to be hidden from `member` entirely, and for a
+visual "you haven't opened this yet" indicator in the sidebar. A meetings module with Google Meet
+integration was also requested — that's large enough to be its own section below.
+
+**KB/Media restricted to manager+** (`supabase/phase44_restrict_kb_media.sql`) — reversing the
+default-on grants from phase41/42. `member` loses `kb.read`/`media.read`/`media.write` outright.
+`kb_articles`' read policy already gated its published-articles branch on `has_permission(...,
+'kb.read')`, so revoking the grant was enough there; `media_placements`' read policy explicitly
+allowed `member` for their assigned clients regardless of permission grants, so that branch was
+removed from the policy itself, not just the permission row. Both `/media` and `/knowledge`
+disappear from the sidebar for `member` automatically (`navVisible` was already permission-gated).
+
+**Task comments/feedback** (`supabase/phase45_task_feedback.sql`) — new `task_comments` table,
+visibility mirroring the `tasks` table itself (phase25: managers+ see all, a member only sees
+comments on tasks assigned to them); anyone who can see a task can leave feedback on it. New
+`components/tasks/TaskComments.tsx` renders inline in the task edit/status modal
+(`app/(dashboard)/tasks/page.tsx`) once a task already exists. `POST /api/tasks/[id]/comments`
+notifies whoever else is party to the task (assignee + creator, excluding the commenter) under a
+new dedicated `task_feedback` notification category — deliberately not lumped into
+`task_assignment`, since feedback is frequent enough to want its own on/off toggle in
+`/notification-preferences`. A `meeting` category was added in the same migration too, anticipating
+the meetings module below. Also added: `PUT /api/tasks/[id]` now notifies the task's creator (not
+just the assignee) once a task is marked `done` — closing the loop that previously only fired
+notifications one direction (creator → assignee on assignment, never assignee → creator on
+completion).
+
+**Sidebar unread red-dot** — the existing `NotificationBell` owned its own local state; lifted it
+into a new `components/NotificationsContext.tsx` (`NotificationsProvider`/`useNotifications()`,
+wrapping the dashboard layout alongside `AiChatProvider`) so `Sidebar` can read the same live
+unread set. Each nav item now shows a small red dot if any *unread* notification's `href` matches
+that module (prefix match, e.g. an unread notification linking to `/tasks` lights up the Tasks nav
+item). Changed the read/unread model along the way: previously opening the bell dropdown at all
+silently marked *everything* read; now only clicking a specific notification (or the new explicit
+"Mark all read" link) marks things read — otherwise the sidebar dot would clear the instant
+someone glanced at the bell without actually opening the relevant page, defeating the point of a
+per-module indicator.
+
+**Needs `supabase/phase44_restrict_kb_media.sql` and `supabase/phase45_task_feedback.sql`** run in
+the Supabase SQL editor (in that order — 45 doesn't depend on 44, but keep migration numbering
+sequential). Verified with a clean `tsc --noEmit` and full production `next build`; not yet
+click-tested live (no test account credentials in this session).
+
 ---
 
 ## ✅ Session 9 (2026-07-13) — e-signature fields, granular permissions, RAG Aether, Contractors

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/apiAuth'
 import type { NotifyCategory } from '@/lib/notify'
 
-const CATEGORIES: NotifyCategory[] = ['task_assignment', 'approval_request', 'content_review', 'critical_alert']
+const CATEGORIES: NotifyCategory[] = ['task_assignment', 'approval_request', 'content_review', 'critical_alert', 'task_feedback', 'meeting']
 
 // Default-enabled: no row for a category means email is on.
 export async function GET() {
