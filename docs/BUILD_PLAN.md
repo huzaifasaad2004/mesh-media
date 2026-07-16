@@ -445,6 +445,24 @@ production `next build`; the Google Calendar code path and Resend's scheduled-se
 couldn't be exercised live since no Google Cloud credentials exist yet for this project and
 scheduled sends only become observable after the fact.
 
+**Live bug found and fixed same session: `supabase/phase49_fix_meeting_rls_recursion.sql`.**
+Huzaifa connected Google Calendar, scheduled a real meeting (it created successfully — real
+Google Meet link, real Calendar event, invite emails all sent via Resend), but the Meetings page
+showed "No upcoming meetings" anyway with no visible error. Root-caused via Safari's Web
+Inspector Network tab: `GET /api/meetings` was returning `{"error": "infinite recursion detected
+in policy for relation \"meeting_attendees\""}`, which the frontend's `Array.isArray(m) ? m : []`
+fallback silently swallowed into an empty list — a real UX gap (a failed fetch should surface
+something, not look identical to "genuinely no meetings"). The actual bug: `meetings`' read
+policy queried `meeting_attendees` directly, and `meeting_attendees`' read policy queried
+`meetings` directly — each triggered the other's RLS check, which triggered the first again,
+until Postgres's recursion guard gave up. Every other cross-table read policy in this schema
+(`my_client_ids()`, `my_assigned_client_ids()`, etc.) already avoids exactly this by wrapping the
+lookup in a `SECURITY DEFINER` function, which runs with the function owner's privileges and so
+doesn't re-trigger RLS on the table it queries — phase46 just hadn't applied that pattern to the
+two new tables. Fixed by adding `my_meeting_ids()`/`my_organized_meeting_ids()`/
+`my_client_meeting_ids()` SECURITY DEFINER helpers and rewriting both policies to use them. Pure
+SQL fix, no application code changed.
+
 ---
 
 ## ✅ Session 9 (2026-07-13) — e-signature fields, granular permissions, RAG Aether, Contractors
