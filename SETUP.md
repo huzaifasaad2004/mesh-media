@@ -57,33 +57,38 @@ Open http://localhost:3000 — log in and you're live.
 ## Step 7: Enable Google Meet auto-links for Meetings (optional)
 
 The Meetings module works today with a manually-pasted Meet link. To have it auto-generate a
-real Google Meet link (and put the event on a real calendar) when you schedule a meeting:
+real Google Meet link when you schedule a meeting, it reuses the **same Google Cloud OAuth
+client already set up for Celine** (`~/celine`, see that project's `SETUP.md` §7 "Google
+Calendar + Gmail") — no new Google Cloud project or service account needed, just one small
+addition to that existing OAuth client plus a one-time "Connect" click in this app.
 
-1. Go to https://console.cloud.google.com → create a project (or reuse one) → **APIs & Services →
-   Library** → search "Google Calendar API" → Enable.
-2. **IAM & Admin → Service Accounts → Create Service Account** (any name, e.g. `mm-calendar-bot`).
-   Open it → **Keys → Add Key → Create new key → JSON** — this downloads a `.json` file. Keep it
-   somewhere safe; you'll copy two fields out of it, then you're done with the file itself.
-3. Still on the service account's details page, copy its **Unique ID** (a long number under
-   "IAM" — not the email address).
-4. Go to https://admin.google.com (your Google Workspace admin console, the account that owns
-   `m3m.ae`/`hello@m3m.ae`) → **Security → Access and data control → API controls → Domain-wide
-   delegation → Add new**:
-   - Client ID: the **Unique ID** from step 3
-   - OAuth scopes: `https://www.googleapis.com/auth/calendar`
-   - Authorize.
-5. Add three environment variables (in `.env.local` for local dev, and in Vercel's project
+1. Go to https://console.cloud.google.com → open the same project Celine's OAuth client lives in
+   → **APIs & Services → Credentials** → open that existing OAuth 2.0 Client ID (the one whose
+   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are in Celine's `.env`).
+2. Under **Authorized redirect URIs**, click **Add URI** and add:
+   `https://www.m3m.ae/api/google/oauth/callback` (and, for local testing,
+   `http://localhost:3000/api/google/oauth/callback`). Save. This is additive — it does not
+   affect Celine's own `http://localhost:53682/oauth2callback` redirect, which stays exactly as-is.
+3. Add three environment variables (in `.env.local` for local dev, and in Vercel's project
    settings for production — same names both places):
-   - `GOOGLE_SERVICE_ACCOUNT_EMAIL` — the `client_email` field from the JSON key
-   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` — the `private_key` field from the JSON key, pasted
-     as-is (Vercel/`.env` handle the embedded `\n` line breaks fine — don't try to reformat it)
-   - `GOOGLE_CALENDAR_IMPERSONATE_EMAIL` — a real mailbox in your Workspace domain whose calendar
-     the events get created on, e.g. `hello@m3m.ae`
-6. Redeploy (or restart `npm run dev`). Schedule a test meeting — it should come back with a real
-   `meet.google.com/...` link with no manual entry needed.
+   - `GOOGLE_CLIENT_ID` — same value as Celine's `.env`
+   - `GOOGLE_CLIENT_SECRET` — same value as Celine's `.env`
+   - `TOKEN_ENCRYPTION_KEY` — a **new, independent** secret for this project (don't reuse
+     Celine's) — any long random string works, e.g. `openssl rand -hex 32`
+4. Redeploy (or restart `npm run dev`). Sign in as an owner/admin → **Settings → Integrations** →
+   **Connect Google Calendar** → sign in with whichever Google account should own the created
+   events (e.g. `hello@m3m.ae`) → approve. Schedule a test meeting — it should come back with a
+   real `meet.google.com/...` link with no manual entry needed.
 
-Until these are set, scheduling still works — you (or whoever's scheduling) just pastes a Meet
-link you created manually, and every attendee still gets emailed the invite and a reminder.
+Unlike Celine's one-time CLI auth script (`npm run google-auth`, meant for a local machine with a
+browser), Mesh Media's connect flow runs entirely in the deployed app itself — Settings →
+Integrations has a "Connect"/"Disconnect" button, and the resulting tokens are AES-256-GCM
+encrypted and stored in Supabase (`google_oauth_tokens`), the same pattern Celine uses for its own
+`oauth_tokens` table, just with a separate encryption key.
+
+Until Google Calendar is connected, scheduling still works — you (or whoever's scheduling) just
+pastes a Meet link you created manually, and every attendee still gets emailed the invite and a
+reminder either way.
 
 ## What's built
 

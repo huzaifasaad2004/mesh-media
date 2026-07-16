@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser, requireMeetingsWrite, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
-import { updateMeetEvent, cancelMeetEvent, isGoogleCalendarConfigured } from '@/lib/google/calendar'
+import { updateMeetEvent, cancelMeetEvent, isGoogleCalendarConnected } from '@/lib/google/calendar'
 import { sendMeetingEmail, scheduleAttendeeReminders, cancelScheduledEmail } from '@/lib/meetingEmail'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
   }
 
-  if (existing.calendar_event_id && isGoogleCalendarConfigured() && (patch.title || patch.description !== undefined || rescheduled)) {
+  if (existing.calendar_event_id && (patch.title || patch.description !== undefined || rescheduled) && await isGoogleCalendarConnected()) {
     try {
       await updateMeetEvent(existing.calendar_event_id, {
         title: (patch.title as string) ?? existing.title,
@@ -96,7 +96,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { data: existing } = await db.from('meetings').select('*').eq('id', params.id).single()
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (existing.calendar_event_id && isGoogleCalendarConfigured()) {
+  if (existing.calendar_event_id && await isGoogleCalendarConnected()) {
     try { await cancelMeetEvent(existing.calendar_event_id) } catch { /* best-effort — the meeting is cancelled in our system regardless */ }
   }
 

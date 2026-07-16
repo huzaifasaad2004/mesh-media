@@ -1,50 +1,23 @@
 import { google } from 'googleapis'
+import { getGoogleAuth, type OAuth2Client } from '@/lib/google/oauth'
 
 /**
  * Auto-generated Google Meet links require a real Google Calendar event —
- * there's no standalone "mint a Meet link" endpoint. This uses a service
- * account with domain-wide delegation to impersonate a real mailbox in the
- * Workspace domain (GOOGLE_CALENDAR_IMPERSONATE_EMAIL) and create events on
- * its calendar. Setup (one-time, in Google Cloud + Workspace admin):
- *
- * 1. Google Cloud Console → new (or existing) project → enable "Google Calendar API".
- * 2. IAM & Admin → Service Accounts → Create service account → Create key (JSON).
- * 3. Google Workspace Admin console → Security → API Controls → Domain-wide
- *    Delegation → Add new: Client ID = the service account's "unique ID"
- *    (from its Cloud Console details page, not the email), OAuth scope:
- *    https://www.googleapis.com/auth/calendar
- * 4. Set env vars (Vercel + .env.local):
- *    GOOGLE_SERVICE_ACCOUNT_EMAIL       = the service account's email
- *    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = the JSON key's private_key, with
- *                                          real newlines escaped as \n
- *    GOOGLE_CALENDAR_IMPERSONATE_EMAIL  = a real mailbox in your Workspace
- *                                          domain whose calendar events get
- *                                          created on (e.g. hello@m3m.ae)
- *
- * Until these are set, isGoogleCalendarConfigured() returns false and every
- * meeting falls back to a manually-pasted Meet link — nothing breaks.
+ * there's no standalone "mint a Meet link" endpoint. Authenticates as
+ * whichever Google account was connected via the in-app "Connect Google
+ * Calendar" flow (Settings → Integrations), reusing the same GOOGLE_CLIENT_ID/
+ * GOOGLE_CLIENT_SECRET already registered for Celine's own Calendar/Gmail
+ * integration — see SETUP.md Step 7 for the one-time setup (just adding this
+ * app's redirect URI to that existing OAuth client, then clicking Connect).
  */
 
-export function isGoogleCalendarConfigured() {
-  return !!(
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY &&
-    process.env.GOOGLE_CALENDAR_IMPERSONATE_EMAIL
-  )
+export async function isGoogleCalendarConnected(): Promise<boolean> {
+  const client = await getGoogleAuth()
+  return !!client
 }
 
-function getAuth() {
-  const privateKey = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? '').replace(/\\n/g, '\n')
-  return new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: privateKey,
-    scopes: ['https://www.googleapis.com/auth/calendar'],
-    subject: process.env.GOOGLE_CALENDAR_IMPERSONATE_EMAIL,
-  })
-}
-
-function calendarClient() {
-  return google.calendar({ version: 'v3', auth: getAuth() })
+function calendarClient(auth: OAuth2Client) {
+  return google.calendar({ version: 'v3', auth })
 }
 
 export interface MeetEventInput {
@@ -60,11 +33,16 @@ export interface MeetEventResult {
   meetLink: string | null
 }
 
-/** Creates a real Calendar event with an auto-generated Meet link.
- *  sendUpdates: 'none' — we email attendees ourselves via Resend with the
- *  branded template, so Google's own invite email would just be a duplicate. */
+/** Creates a real Calendar event with an auto-generated Meet link on the
+ *  connected account's primary calendar. sendUpdates: 'none' — we email
+ *  attendees ourselves via Resend with the branded template, so Google's own
+ *  invite email would just be a duplicate. Throws if Google isn't connected;
+ *  callers already check isGoogleCalendarConnected() first and degrade
+ *  gracefully to a manual link. */
 export async function createMeetEvent(input: MeetEventInput): Promise<MeetEventResult> {
-  const calendar = calendarClient()
+  const auth = await getGoogleAuth()
+  if (!auth) throw new Error('Google Calendar is not connected')
+  const calendar = calendarClient(auth)
   const requestId = `mm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const { data } = await calendar.events.insert({
     calendarId: 'primary',
@@ -88,7 +66,9 @@ export async function createMeetEvent(input: MeetEventInput): Promise<MeetEventR
 }
 
 export async function updateMeetEvent(eventId: string, input: Omit<MeetEventInput, 'attendeeEmails'> & { attendeeEmails?: string[] }) {
-  const calendar = calendarClient()
+  const auth = await getGoogleAuth()
+  if (!auth) throw new Error('Google Calendar is not connected')
+  const calendar = calendarClient(auth)
   await calendar.events.patch({
     calendarId: 'primary',
     eventId,
@@ -104,6 +84,8 @@ export async function updateMeetEvent(eventId: string, input: Omit<MeetEventInpu
 }
 
 export async function cancelMeetEvent(eventId: string) {
-  const calendar = calendarClient()
+  const auth = await getGoogleAuth()
+  if (!auth) throw new Error('Google Calendar is not connected')
+  const calendar = calendarClient(auth)
   await calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'none' })
 }

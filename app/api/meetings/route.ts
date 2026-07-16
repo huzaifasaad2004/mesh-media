@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser, requireMeetingsWrite, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
-import { createMeetEvent, isGoogleCalendarConfigured } from '@/lib/google/calendar'
+import { createMeetEvent, isGoogleCalendarConnected } from '@/lib/google/calendar'
 import { sendMeetingEmail, scheduleAttendeeReminders } from '@/lib/meetingEmail'
 
 const ATTENDEE_ROLES = ['staff', 'contractor', 'client', 'other']
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   let meetLink: string | null = body.meet_link || null
   let calendarEventId: string | null = null
   let calendarSyncError: string | null = null
-  if (isGoogleCalendarConfigured()) {
+  if (await isGoogleCalendarConnected()) {
     try {
       const result = await createMeetEvent({
         title: title.trim(),

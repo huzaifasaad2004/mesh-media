@@ -384,15 +384,32 @@ click-tested live (no test account credentials in this session).
 New `/meetings` page (`supabase/phase46_meetings.sql`): manager+ schedules a meeting with any mix
 of staff, contractors, and ad-hoc client contacts (name+email, same pattern as documents/content
 recipients), optionally tagged to a specific client. Real Google Meet links are auto-generated via
-`lib/google/calendar.ts` — a service account with domain-wide delegation impersonates a real
-Workspace mailbox (`GOOGLE_CALENDAR_IMPERSONATE_EMAIL`, e.g. `hello@m3m.ae`) to create a Calendar
-event with `conferenceData.createRequest`, which is the only way to mint a real Meet link
-server-side (there's no standalone "create a Meet link" API). **Huzaifa chose the full
-auto-generation path over a manual-link-only fallback**, but the manual path still exists as a
-graceful degrade: if the three `GOOGLE_*` env vars aren't set yet (`isGoogleCalendarConfigured()`
-returns false), scheduling still works — the organizer pastes a Meet link themselves and
-everything else (emails, reminders, in-app notifications) behaves identically. Exact one-time
-Google Cloud + Workspace admin setup steps are in `SETUP.md` Step 7.
+`lib/google/calendar.ts`, creating a Calendar event with `conferenceData.createRequest` — the only
+way to mint a real Meet link server-side (there's no standalone "create a Meet link" API).
+
+**Auth design changed mid-build**: the first pass used a service account with Workspace
+domain-wide delegation. Huzaifa pointed out Celine (`~/celine`) already has a working Google
+Calendar+Gmail OAuth integration (a real user-consent OAuth2 client, `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET`, type **Web application** — confirmed by reading Celine's own `SETUP.md`),
+and asked to reuse it instead of standing up a whole separate service account + Workspace Admin
+console authorization. Since it's a Web application client (not Desktop), it supports multiple
+registered redirect URIs — so Mesh Media reuses the *exact same* `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET`, just with its own additional redirect URI
+(`/api/google/oauth/callback`) added to that one existing Cloud Console client, and its own
+independent OAuth token (own `google_oauth_tokens` row, own `TOKEN_ENCRYPTION_KEY` — deliberately
+not shared with Celine's, so a leaked key in one app can't unlock the other's tokens). New
+`lib/google/oauth.ts` mirrors Celine's own `core/src/integrations/google/auth.ts` almost exactly
+(AES-256-GCM token encryption via `lib/crypto.ts`, same `access_type:'offline', prompt:'consent'`
+pattern to force a refresh token) but drives the consent flow through the deployed web app itself
+— **Settings → Integrations** has a "Connect Google Calendar" button (owner/admin only,
+`/api/google/oauth/*`) rather than Celine's local-machine CLI script, since Mesh Media runs on
+Vercel with no interactive terminal to run a loopback-redirect script from. Exact steps (just
+adding one redirect URI + 3 env vars) are in `SETUP.md` Step 7.
+
+The manual-link fallback still exists: if Google isn't connected yet
+(`isGoogleCalendarConnected()` returns false — now an async DB check, not just an env-var
+presence check), scheduling still works — the organizer pastes a Meet link themselves and
+everything else (emails, reminders, in-app notifications) behaves identically.
 
 Every attendee gets a branded Resend email (`lib/meetingEmail.ts`) on invite, reschedule, and
 cancellation, plus in-app notifications (new `meeting` category, added in the same migration as
@@ -419,9 +436,11 @@ RLS: managers+ see every meeting; anyone else (member, contractor, client-portal
 meetings they're actually invited to, or ones tagged to their own client. `meetings.write` stays
 manager+ only, consistent with every other write-permission tightened this session.
 
-**Needs `supabase/phase46_meetings.sql` then `supabase/phase47_meeting_reminder_scheduling.sql`
-run in the Supabase SQL editor** (in that order), plus the three `GOOGLE_*` env vars (optional —
-see above) to enable real auto-generated Meet links. Verified with a clean `tsc --noEmit` and full
+**Needs `supabase/phase46_meetings.sql`, `supabase/phase47_meeting_reminder_scheduling.sql`, then
+`supabase/phase48_google_oauth.sql` run in the Supabase SQL editor** (in that order), plus
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`TOKEN_ENCRYPTION_KEY` (optional — see above) and a
+one-time "Connect Google Calendar" click in Settings to enable real auto-generated Meet links.
+Verified with a clean `tsc --noEmit` and full
 production `next build`; the Google Calendar code path and Resend's scheduled-send behavior
 couldn't be exercised live since no Google Cloud credentials exist yet for this project and
 scheduled sends only become observable after the fact.
