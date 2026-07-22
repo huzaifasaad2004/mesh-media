@@ -30,24 +30,27 @@ CREATE INDEX IF NOT EXISTS agency_documents_created_at_idx
   ON agency_documents(created_at DESC);
 CREATE INDEX IF NOT EXISTS agency_documents_client_idx
   ON agency_documents(client_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS agency_documents_created_by_idx
+  ON agency_documents(created_by);
 
 ALTER TABLE agency_documents ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "authorized staff read agency documents" ON agency_documents
   FOR SELECT TO authenticated USING (
     is_admin()
-    OR has_permission(auth.uid(), 'documents.write')
-    OR created_by = auth.uid()
+    OR has_permission((SELECT auth.uid()), 'documents.write')
+    OR created_by = (SELECT auth.uid())
   );
 CREATE POLICY "document writers create agency documents" ON agency_documents
   FOR INSERT TO authenticated WITH CHECK (
-    has_permission(auth.uid(), 'documents.write') AND created_by = auth.uid()
+    has_permission((SELECT auth.uid()), 'documents.write')
+    AND created_by = (SELECT auth.uid())
   );
 CREATE POLICY "document writers update agency documents" ON agency_documents
-  FOR UPDATE TO authenticated USING (has_permission(auth.uid(), 'documents.write'))
-  WITH CHECK (has_permission(auth.uid(), 'documents.write'));
+  FOR UPDATE TO authenticated USING (has_permission((SELECT auth.uid()), 'documents.write'))
+  WITH CHECK (has_permission((SELECT auth.uid()), 'documents.write'));
 CREATE POLICY "document writers delete agency documents" ON agency_documents
-  FOR DELETE TO authenticated USING (has_permission(auth.uid(), 'documents.write'));
+  FOR DELETE TO authenticated USING (has_permission((SELECT auth.uid()), 'documents.write'));
 
 CREATE TABLE IF NOT EXISTS document_archives (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,14 +68,16 @@ CREATE TABLE IF NOT EXISTS document_archives (
 
 CREATE INDEX IF NOT EXISTS document_archives_generated_at_idx
   ON document_archives(generated_at DESC);
+CREATE INDEX IF NOT EXISTS document_archives_generated_by_idx
+  ON document_archives(generated_by);
 
 ALTER TABLE document_archives ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "authorized staff read document archives" ON document_archives
   FOR SELECT TO authenticated USING (
     is_admin()
-    OR has_permission(auth.uid(), 'finance.read')
-    OR has_permission(auth.uid(), 'documents.write')
+    OR has_permission((SELECT auth.uid()), 'finance.read')
+    OR has_permission((SELECT auth.uid()), 'documents.write')
   );
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
