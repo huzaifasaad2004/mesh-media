@@ -4,6 +4,15 @@
 
 Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supabase** (Postgres, Auth, Storage, Realtime, Edge Functions, pgvector) · **Gemini** (LLM, embeddings, vision) · **Resend** (email)
 
+## ✅ Phase 51 — Mesh Chat presence & notifications (shipped 2026-07-22)
+
+Private Realtime presence, per-channel typing
+indicators, durable sent/delivered/read receipts, @mention autocomplete/highlighting, and opt-in
+browser push notifications. Migration: `supabase/phase51_chat_presence_receipts_mentions_push.sql`.
+`supabase/phase52_chat_function_grants.sql` explicitly removes anonymous execution from the two
+chat authorization helpers after Supabase's security advisor caught role-specific grants that
+survived the earlier `PUBLIC` revoke. Production and Preview have the required VAPID variables.
+
 ## ✅ Phase 50 — Mesh Chat (shipped 2026-07-22)
 
 Native staff messaging at `/chat`: public/private channels, direct and group chats,

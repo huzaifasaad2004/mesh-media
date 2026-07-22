@@ -28,7 +28,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     reply_to_id: (form.get('reply_to_id') as string) || null,
   }).select('*, sender:profiles!chat_messages_sender_id_fkey(id, full_name, email, avatar_url, role), reactions:chat_reactions(emoji, user_id)').single()
   if (error) { await db.storage.from('chat-attachments').remove([path]); return NextResponse.json({ error: error.message }, { status: 400 }) }
-  await db.from('chat_channels').update({ updated_at: new Date().toISOString() }).eq('id', params.id)
+  const { data: channel } = await db.from('chat_channels').select('kind, is_private').eq('id', params.id).single()
+  const { data: recipients } = channel?.kind === 'channel' && !channel.is_private
+    ? await db.from('profiles').select('id').in('role', ['owner', 'admin', 'manager', 'member', 'viewer']).neq('id', auth.user.id)
+    : await db.from('chat_channel_members').select('user_id').eq('channel_id', params.id).neq('user_id', auth.user.id)
+  const recipientIds = (recipients ?? []).map((recipient: any) => recipient.id ?? recipient.user_id) as string[]
+  await Promise.all([
+    db.from('chat_channels').update({ updated_at: new Date().toISOString() }).eq('id', params.id),
+    recipientIds.length ? db.from('chat_message_receipts').insert(recipientIds.map((userId) => ({ message_id: data.id, user_id: userId }))) : Promise.resolve(),
+  ])
   const [withUrl] = await attachSignedUrls([data])
   return NextResponse.json(withUrl, { status: 201 })
 }
