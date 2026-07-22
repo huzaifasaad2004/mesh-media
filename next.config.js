@@ -4,7 +4,9 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'geolocation=(), microphone=(), camera=()' },
+  // Voice notes in Mesh Chat need microphone access. Keep it same-origin only;
+  // location and camera remain fully disabled.
+  { key: 'Permissions-Policy', value: 'geolocation=(), microphone=(self), camera=()' },
   // Report-Only first (per the audit): watch the console for violations,
   // then rename to Content-Security-Policy to enforce once clean.
   {
