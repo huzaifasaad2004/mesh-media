@@ -15,6 +15,7 @@ const PAGES: Result[] = [
   { type: 'Page', label: 'Finance', href: '/finance' },
   { type: 'Page', label: 'Invoices', href: '/finance/invoices' },
   { type: 'Page', label: 'Quotations', href: '/finance/quotations' },
+  { type: 'Page', label: 'Document Studio', href: '/documents/studio' },
   { type: 'Page', label: 'Expenses', href: '/finance/expenses' },
   { type: 'Page', label: 'Salaries', href: '/finance/salaries' },
   { type: 'Page', label: 'Contracts', href: '/contracts' },
