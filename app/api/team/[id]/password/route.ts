@@ -30,7 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (password.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }
-    const { error } = await admin.auth.admin.updateUserById(target.id, { password })
+    // email_confirm: true is essential here — an admin setting a password
+    // directly (as opposed to the person clicking their own invite/reset
+    // link through /auth/confirm) never otherwise confirms the email, and
+    // Supabase Auth blocks sign-in on an unconfirmed email regardless of
+    // how correct the password is. The admin manually assigning a password
+    // is effectively vouching for the address, so confirm it at the same time.
+    const { error } = await admin.auth.admin.updateUserById(target.id, { password, email_confirm: true })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     // They have a real password now — don't force the set-password screen.
     await admin.from('profiles').update({ password_set: true }).eq('id', target.id)

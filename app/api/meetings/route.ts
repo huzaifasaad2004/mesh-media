@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     await notifyUsers(db, {
       userIds: notifyIds,
       title: 'New meeting scheduled',
-      body: `${meeting.title} · ${new Date(meeting.start_time).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+      body: `${meeting.title} · ${new Date(meeting.start_time).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}`,
       href: '/meetings',
       category: 'meeting',
     })

@@ -463,6 +463,27 @@ two new tables. Fixed by adding `my_meeting_ids()`/`my_organized_meeting_ids()`/
 `my_client_meeting_ids()` SECURITY DEFINER helpers and rewriting both policies to use them. Pure
 SQL fix, no application code changed.
 
+**Two more live bugs found and fixed, unrelated to each other:**
+
+1. **Team members couldn't log in — "Email not confirmed."** Root cause: `POST /api/team/[id]/password`
+   (action `set` — an admin directly assigning a password, bypassing the invite-email-click flow
+   entirely) called `admin.auth.admin.updateUserById(id, { password })` without also passing
+   `email_confirm: true`. Supabase Auth blocks sign-in on an unconfirmed email regardless of how
+   correct the password is, and an account created via `generateLink({type:'invite'})` that never
+   had its link clicked stays unconfirmed forever otherwise. The contractor equivalent
+   (`/api/contractors/[id]/set-password`) already did this correctly since it calls `createUser`
+   fresh with `email_confirm: true` — only the team-password route had the gap. Fixed the route,
+   and directly confirmed the two already-affected accounts (Nabil's real account plus one test
+   account) via the admin API so they could sign in immediately without needing a new password.
+2. **Meeting times in emails were ~4 hours off from what the app showed.** The Meetings UI renders
+   times client-side, correctly reflecting the browser's local timezone (Dubai, for a team member
+   physically there). The email HTML, however, is generated server-side (Vercel functions default
+   to UTC), and `lib/meetingEmail.ts`'s date formatting had no explicit `timeZone` — so it silently
+   rendered in UTC while the app showed Dubai time, a fixed 4-hour gap. Fixed by pinning every
+   server-side meeting-related date format (the email template and the "New meeting scheduled"
+   in-app notification body) to `timeZone: 'Asia/Dubai'` explicitly, matching the agency's actual
+   timezone (UTC+4, no DST) regardless of where the serverless function happens to execute.
+
 ---
 
 ## ✅ Session 9 (2026-07-13) — e-signature fields, granular permissions, RAG Aether, Contractors

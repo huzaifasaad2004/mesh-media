@@ -1,8 +1,15 @@
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
 
+// Explicit timeZone is essential here — this runs server-side (Vercel
+// functions default to UTC), while the Meetings UI renders times in the
+// browser's local timezone. Without pinning both to the same zone, the
+// email showed a time 4 hours off from what the app displayed. The agency
+// is Abu Dhabi-based (Asia/Dubai, UTC+4, no DST), so emails are always
+// rendered in that zone regardless of where the function happens to run.
+const MEETING_TZ = 'Asia/Dubai'
 const fmt = (iso: string) => new Date(iso).toLocaleString('en-GB', {
-  weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MEETING_TZ,
 })
 
 function shell(heading: string, body: string) {
@@ -66,7 +73,7 @@ export async function sendMeetingEmail(
 
   const meta = `<div class="meta">
     <strong>${input.title}</strong><br>
-    ${fmt(input.startTime)} – ${new Date(input.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+    ${fmt(input.startTime)} – ${new Date(input.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: MEETING_TZ })}
     ${input.description ? `<br><br>${input.description}` : ''}
   </div>`
 
