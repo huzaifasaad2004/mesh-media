@@ -4,6 +4,13 @@
 
 Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supabase** (Postgres, Auth, Storage, Realtime, Edge Functions, pgvector) · **Gemini** (LLM, embeddings, vision) · **Resend** (email)
 
+## ✅ Phase 50 — Mesh Chat (shipped 2026-07-22)
+
+Native staff messaging at `/chat`: public/private channels, direct and group chats,
+real-time messages, replies, reactions, read markers, image/PDF sharing, and recorded
+voice notes. Supabase migration: `supabase/phase50_team_chat.sql`. The migration and
+application code must be deployed together.
+
 Use this document as the master plan. Each phase below is written so you can hand it to Claude Code as a self-contained brief.
 
 ---
