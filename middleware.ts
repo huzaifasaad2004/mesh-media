@@ -92,5 +92,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // The browser must fetch the push service worker before a user session exists.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|push-sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
