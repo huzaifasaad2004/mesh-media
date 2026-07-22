@@ -176,13 +176,20 @@ export default function ChatPage() {
   const upload = async (file: File, duration = 0) => {
     if (!selectedId) return
     setSending(true)
-    const form = new FormData(); form.append('file', file); form.append('duration', String(duration)); if (replying) form.append('reply_to_id', replying.id)
-    const res = await fetch(`/api/chat/channels/${selectedId}/upload`, { method: 'POST', body: form }); const data = await res.json()
-    setSending(false); if (!res.ok) return toast.error(data.error ?? 'Upload failed')
-    setReplying(null)
-    setMessages((current) => [...current, data])
-    setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: data } : channel))
-    void fetch(`/api/chat/messages/${data.id}/notify`, { method: 'POST' }).catch(() => {})
+    try {
+      const form = new FormData(); form.append('file', file); form.append('duration', String(duration)); if (replying) form.append('reply_to_id', replying.id)
+      const res = await fetch(`/api/chat/channels/${selectedId}/upload`, { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({ error: 'The upload could not be processed' }))
+      if (!res.ok) return toast.error(data.error ?? 'Upload failed')
+      setReplying(null)
+      setMessages((current) => [...current, data])
+      setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: data } : channel))
+      void fetch(`/api/chat/messages/${data.id}/notify`, { method: 'POST' }).catch(() => {})
+    } catch {
+      toast.error('Voice note upload failed. Please check your connection and try again.')
+    } finally {
+      setSending(false)
+    }
   }
 
   const startRecording = async () => {

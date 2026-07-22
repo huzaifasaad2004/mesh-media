@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     attachment_type: file.type, attachment_size: file.size,
     voice_duration_seconds: messageType === 'voice' && Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : null,
     reply_to_id: (form.get('reply_to_id') as string) || null,
-  }).select('*, sender:profiles!chat_messages_sender_id_fkey(id, full_name, email, avatar_url, role), reply:chat_messages!chat_messages_reply_to_id_fkey(id, body, sender_id), reactions:chat_reactions(emoji, user_id)').single()
+  }).select('*, sender:profiles!chat_messages_sender_id_fkey(id, full_name, email, avatar_url, role), reactions:chat_reactions(emoji, user_id)').single()
   if (error) { await db.storage.from('chat-attachments').remove([path]); return NextResponse.json({ error: error.message }, { status: 400 }) }
   await db.from('chat_channels').update({ updated_at: new Date().toISOString() }).eq('id', params.id)
   const [withUrl] = await attachSignedUrls([data])
