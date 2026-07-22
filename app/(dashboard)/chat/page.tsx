@@ -175,20 +175,36 @@ export default function ChatPage() {
 
   const upload = async (file: File, duration = 0) => {
     if (!selectedId) return
+    const messageType = file.type.startsWith('audio/') ? 'voice' : file.type.startsWith('image/') ? 'image' : 'file'
+    const pendingId = `upload-${crypto.randomUUID()}`
+    const previewUrl = URL.createObjectURL(file)
+    const pending: Message = {
+      id: pendingId, channel_id: selectedId, sender_id: me, body: null,
+      message_type: messageType, attachment_url: previewUrl, attachment_name: file.name,
+      attachment_size: file.size, voice_duration_seconds: duration || null,
+      created_at: new Date().toISOString(), sender: myProfile, reactions: [],
+    }
+    setMessages((current) => [...current, pending])
+    setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: pending } : channel))
     setSending(true)
     try {
       const form = new FormData(); form.append('file', file); form.append('duration', String(duration)); if (replying) form.append('reply_to_id', replying.id)
       const res = await fetch(`/api/chat/channels/${selectedId}/upload`, { method: 'POST', body: form })
       const data = await res.json().catch(() => ({ error: 'The upload could not be processed' }))
-      if (!res.ok) return toast.error(data.error ?? 'Upload failed')
+      if (!res.ok) {
+        setMessages((current) => current.filter((message) => message.id !== pendingId))
+        return toast.error(data.error ?? 'Upload failed')
+      }
       setReplying(null)
-      setMessages((current) => current.some((message) => message.id === data.id) ? current : [...current, data])
+      setMessages((current) => current.map((message) => message.id === pendingId ? data : message))
       setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: data } : channel))
-      await loadMessages(selectedId, false)
+      void loadMessages(selectedId, false)
       void fetch(`/api/chat/messages/${data.id}/notify`, { method: 'POST' }).catch(() => {})
     } catch {
+      setMessages((current) => current.filter((message) => message.id !== pendingId))
       toast.error('Voice note upload failed. Please check your connection and try again.')
     } finally {
+      URL.revokeObjectURL(previewUrl)
       setSending(false)
     }
   }
@@ -196,7 +212,7 @@ export default function ChatPage() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const preferred = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((type) => MediaRecorder.isTypeSupported(type))
+      const preferred = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((type) => MediaRecorder.isTypeSupported(type))
       const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined)
       chunksRef.current = []; recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data) }
       recorder.onstop = () => { stream.getTracks().forEach((track) => track.stop()) }
