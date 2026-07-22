@@ -182,8 +182,9 @@ export default function ChatPage() {
       const data = await res.json().catch(() => ({ error: 'The upload could not be processed' }))
       if (!res.ok) return toast.error(data.error ?? 'Upload failed')
       setReplying(null)
-      setMessages((current) => [...current, data])
+      setMessages((current) => current.some((message) => message.id === data.id) ? current : [...current, data])
       setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: data } : channel))
+      await loadMessages(selectedId, false)
       void fetch(`/api/chat/messages/${data.id}/notify`, { method: 'POST' }).catch(() => {})
     } catch {
       toast.error('Voice note upload failed. Please check your connection and try again.')
@@ -251,7 +252,7 @@ export default function ChatPage() {
                   <div className={`rounded-2xl px-3.5 py-2 text-sm shadow-sm ${mine ? 'bg-brand-600 text-white rounded-tr-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm'}`}>
                     {message.reply && <div className={`mb-2 border-l-2 pl-2 text-xs ${mine ? 'border-white/50 text-white/75' : 'border-brand-300 text-gray-500'}`}><span className="font-medium">{message.reply.sender?.full_name}</span><p className="truncate max-w-xs">{message.reply.body || 'Attachment'}</p></div>}
                     {message.message_type === 'image' && message.attachment_url && <a href={message.attachment_url} target="_blank" rel="noreferrer"><img src={message.attachment_url} alt={message.attachment_name || 'Shared image'} className="rounded-lg max-h-72 max-w-full mb-1" /></a>}
-                    {message.message_type === 'voice' && message.attachment_url && <div className="min-w-[220px]"><audio src={message.attachment_url} controls preload="metadata" className="w-full h-9" /><p className={`text-[10px] mt-1 ${mine ? 'text-white/70' : 'text-gray-400'}`}>Voice note{message.voice_duration_seconds ? ` · ${Math.floor(message.voice_duration_seconds / 60)}:${String(message.voice_duration_seconds % 60).padStart(2, '0')}` : ''}</p></div>}
+                    {message.message_type === 'voice' && <div className="min-w-[220px]">{message.attachment_url ? <audio src={message.attachment_url} controls preload="metadata" className="w-full h-9" /> : <button onClick={() => loadMessages(selectedId, false)} className={`text-xs underline ${mine ? 'text-white' : 'text-brand-700'}`}>Load voice note</button>}<p className={`text-[10px] mt-1 ${mine ? 'text-white/70' : 'text-gray-400'}`}>Voice note{message.voice_duration_seconds ? ` · ${Math.floor(message.voice_duration_seconds / 60)}:${String(message.voice_duration_seconds % 60).padStart(2, '0')}` : ''}</p></div>}
                     {message.message_type === 'file' && message.attachment_url && <a href={message.attachment_url} target="_blank" rel="noreferrer" className={`flex items-center gap-2 min-w-[200px] ${mine ? 'text-white' : 'text-brand-700'}`}><FileText className="w-5 h-5" /><span className="truncate underline">{message.attachment_name || 'Download file'}</span></a>}
                     {message.body && <p className="whitespace-pre-wrap break-words">{message.body}</p>}
                   </div>
