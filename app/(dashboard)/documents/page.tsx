@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Plus, FileSignature, Trash2, Loader2, Upload, UserPlus, Download, ShieldCheck } from 'lucide-react'
+import { Plus, FileSignature, Trash2, Loader2, Upload, UserPlus, Download, ShieldCheck, PenLine } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import EmptyState from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
@@ -107,11 +107,14 @@ export default function DocumentsPage() {
           <h1>Documents</h1>
           <p className="text-gray-500 text-sm mt-0.5">{documents.length} uploaded · e-signature enabled</p>
         </div>
-        {canWrite && (
-          <button className="btn-primary" onClick={() => setShowModal(true)}>
-            <Plus className="w-4 h-4" /> Upload Document
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link href="/documents/studio" className="btn-secondary"><PenLine className="w-4 h-4" /> Document Studio</Link>
+          {canWrite && (
+            <button className="btn-primary" onClick={() => setShowModal(true)}>
+              <Plus className="w-4 h-4" /> Upload Document
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card overflow-hidden">

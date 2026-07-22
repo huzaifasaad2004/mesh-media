@@ -6,6 +6,7 @@ import { requireInvoicesSend } from '@/lib/apiAuth'
 import { escapeHtml } from '@/lib/utils'
 import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
 import { notifyUsers } from '@/lib/notify'
+import { archivePdfBestEffort } from '@/lib/documentArchive'
 
 export const runtime = 'nodejs'
 
@@ -55,6 +56,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     notes: q.notes,
     terms: q.terms,
     baseUrl,
+  })
+
+  await archivePdfBestEffort(admin(), {
+    entityType: 'quotation',
+    entityId: q.id,
+    documentNumber: q.quote_number,
+    clientName: q.client?.company_name,
+    pdf: Buffer.from(pdfBuffer),
+    generatedBy: authz.user.id,
   })
 
   const { error: sendError } = await resend.emails.send({

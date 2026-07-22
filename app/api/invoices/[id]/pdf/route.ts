@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireFinanceRead, serviceRole } from '@/lib/apiAuth'
 import { renderDocumentPdf } from '@/lib/pdf/DocumentPdf'
+import { archivePdfBestEffort } from '@/lib/documentArchive'
 
 export const runtime = 'nodejs'
 
@@ -40,6 +41,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     notes: inv.notes,
     terms: inv.terms,
     baseUrl: process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin,
+  })
+
+  await archivePdfBestEffort(serviceRole(), {
+    entityType: 'invoice',
+    entityId: inv.id,
+    documentNumber: inv.invoice_number,
+    clientName: inv.client?.company_name,
+    pdf: Buffer.from(pdf),
+    generatedBy: auth.user.id,
   })
 
   return new NextResponse(new Uint8Array(pdf), {

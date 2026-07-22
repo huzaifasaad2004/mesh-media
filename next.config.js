@@ -27,8 +27,10 @@ const nextConfig = {
   images: {
     domains: ['lh3.googleusercontent.com'],
   },
-  // Supabase uses Node.js APIs — exclude from edge bundling
-  serverExternalPackages: ['@supabase/supabase-js'],
+  // Supabase uses Node.js APIs — exclude from server-component bundling on Next 14.
+  experimental: {
+    serverComponentsExternalPackages: ['@supabase/supabase-js'],
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   },

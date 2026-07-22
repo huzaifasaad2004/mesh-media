@@ -4,6 +4,24 @@
 
 Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supabase** (Postgres, Auth, Storage, Realtime, Edge Functions, pgvector) · **Gemini** (LLM, embeddings, vision) · **Resend** (email)
 
+## 🟡 Phase 53 — Document Studio + automatic archive (prepared 2026-07-22)
+
+Official `public/templates/MeshMedia_Letterhead.docx` is the master template. `/documents/studio`
+creates letters, proposals, plans, scopes and reports with CRM recipient autofill, structured body
+blocks, live A4 preview, statuses, duplicate/delete, and one-click DOCX/PDF exports. DOCX export
+patches only `word/document.xml`; the source headers, footers, artwork, relationships and section
+geometry remain intact. Server PDF export recreates the same letterhead using the supplied brand
+assets and Helvetica, avoiding silent Avenir Next substitution on Vercel Linux.
+
+Invoice/quotation downloads and sends now upsert their generated PDFs into a private
+`document-archive` bucket. A launchd helper on the office Mac mirrors cloud archives every minute
+to `MESH MEDIA DOCUMENTS/QUOTATION`, `MESH MEDIA DOCUMENTS/INVOICES`, and `MESH MEDIA
+DOCUMENTS/DOCUMENT STUDIO` without deleting local files. Migration:
+`supabase/migrations/20260722152124_document_studio_archive.sql`.
+
+**Not live yet:** migration, launchd installation and production deployment require explicit
+approval after local verification.
+
 ## ✅ Phase 51 — Mesh Chat presence & notifications (shipped 2026-07-22)
 
 Private Realtime presence, per-channel typing
