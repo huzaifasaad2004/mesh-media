@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { X, Send, Loader2, ChevronDown } from 'lucide-react'
 import { useAiChat, type Message } from '@/components/AiChatContext'
 
@@ -16,6 +16,7 @@ const CYAN = '#2BD6D6' // Aether-only accent — never on general UI
 
 export default function AiChat() {
   const router = useRouter()
+  const pathname = usePathname()
   const {
     open, setOpen, messages, setMessages, loading, setLoading, error, setError,
     clientContext, clearClientContext, pendingPrompt, clearPendingPrompt,
@@ -79,6 +80,9 @@ export default function AiChat() {
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br>')
   }
+
+  // Mesh Chat owns the bottom composer area; never cover its send/voice controls.
+  if (pathname.startsWith('/chat')) return null
 
   return (
     <>

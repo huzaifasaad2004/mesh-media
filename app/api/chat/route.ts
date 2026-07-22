@@ -24,13 +24,26 @@ export async function GET() {
   ])
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  const enriched = await Promise.all((channels ?? []).map(async (channel: any) => {
+  // One message query for the whole sidebar. The old implementation ran two
+  // extra queries per channel, making chat progressively slower as channels grew.
+  const channelIds = (channels ?? []).map((channel: any) => channel.id)
+  const { data: sidebarMessages } = channelIds.length
+    ? await db.from('chat_messages').select('id, channel_id, sender_id, body, message_type, created_at').in('channel_id', channelIds).is('deleted_at', null).order('created_at', { ascending: false }).limit(5000)
+    : { data: [] }
+  const byChannel = new Map<string, any[]>()
+  for (const message of sidebarMessages ?? []) {
+    const list = byChannel.get(message.channel_id) ?? []
+    list.push(message)
+    byChannel.set(message.channel_id, list)
+  }
+
+  const enriched = (channels ?? []).map((channel: any) => {
     const mine = channel.members?.find((m: any) => m.user_id === auth.user.id)
-    const { count: unread } = await db.from('chat_messages').select('id', { count: 'exact', head: true })
-      .eq('channel_id', channel.id).neq('sender_id', auth.user.id).gt('created_at', mine?.last_read_at ?? '1970-01-01')
-    const { data: last } = await db.from('chat_messages').select('body, message_type, created_at').eq('channel_id', channel.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle()
-    return { ...channel, unread_count: unread ?? 0, last_message: last }
-  }))
+    const list = byChannel.get(channel.id) ?? []
+    const lastRead = new Date(mine?.last_read_at ?? 0).getTime()
+    const unread = list.filter((message) => message.sender_id !== auth.user.id && new Date(message.created_at).getTime() > lastRead).length
+    return { ...channel, unread_count: unread, last_message: list[0] ?? null }
+  })
   return NextResponse.json({ channels: enriched, people: people ?? [], me: auth.user.id })
 }
 

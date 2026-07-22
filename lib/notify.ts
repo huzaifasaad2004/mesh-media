@@ -2,9 +2,13 @@ import { Resend } from 'resend'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { COMPANY } from '@/lib/company'
 
-/** Keep in sync with the CHECK constraint in supabase/phase28_notification_preferences.sql
- *  (extended by phase45_task_feedback.sql to add task_feedback/meeting). */
-export type NotifyCategory = 'task_assignment' | 'approval_request' | 'content_review' | 'critical_alert' | 'task_feedback' | 'meeting'
+/** Keep in sync with the notification_preferences CHECK constraint
+ *  (extended through phase51_chat_notifications.sql). */
+export type NotifyCategory = 'task_assignment' | 'approval_request' | 'content_review' | 'critical_alert' | 'task_feedback' | 'meeting' | 'chat'
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 
 /**
  * Creates the existing in-app notification rows, then — unless the
@@ -46,8 +50,8 @@ export async function notifyUsers(db: SupabaseClient, opts: {
 <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
   <div style="background:#6E1318;padding:24px 32px;"><h1 style="color:#fff;margin:0;font-size:18px;">${COMPANY.name}</h1></div>
   <div style="padding:24px 32px;font-size:14px;line-height:1.6;color:#1a1a1a;">
-    <p style="font-weight:600;margin:0 0 8px;">${opts.title}</p>
-    ${opts.body ? `<p style="color:#555;margin:0 0 16px;">${opts.body}</p>` : ''}
+    <p style="font-weight:600;margin:0 0 8px;">${escapeHtml(opts.title)}</p>
+    ${opts.body ? `<p style="color:#555;margin:0 0 16px;">${escapeHtml(opts.body)}</p>` : ''}
     ${opts.href ? `<p><a href="${baseUrl}${opts.href}" style="display:inline-block;background:#6E1318;color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;">Open in Agency OS →</a></p>` : ''}
   </div>
   <div style="background:#f9f9f9;border-top:1px solid #eee;padding:14px 32px;font-size:11px;color:#999;text-align:center;">${COMPANY.name} · manage email alerts in the bell menu → Notification settings</div>

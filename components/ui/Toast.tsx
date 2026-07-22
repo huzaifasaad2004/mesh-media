@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { CheckCircle, XCircle, X } from 'lucide-react'
 
 type ToastKind = 'success' | 'error'
@@ -33,10 +33,12 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
     setTimeout(() => dismiss(id), 4000)
   }, [dismiss])
 
-  const value: ToastContextValue = {
+  // Keep the context identity stable so showing a toast does not re-render the
+  // entire application tree (including pages that fetch data in effects).
+  const value = useMemo<ToastContextValue>(() => ({
     success: (message: string) => push('success', message),
     error: (message: string) => push('error', message),
-  }
+  }), [push])
 
   return (
     <ToastContext.Provider value={value}>

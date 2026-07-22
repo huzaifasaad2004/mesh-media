@@ -12,6 +12,7 @@ const LABELS: Record<string, { title: string; helper: string }> = {
   critical_alert:    { title: 'Critical alerts', helper: 'Invoices/quotations sent, documents signed, payslips, and other important events.' },
   task_feedback:     { title: 'Task feedback', helper: 'A comment left on a task you\'re assigned to or created.' },
   meeting:           { title: 'Meetings', helper: 'Meetings scheduled with you, changes, and reminders before they start.' },
+  chat:              { title: 'Chat messages', helper: 'An email when a teammate sends you a new message.' },
 }
 
 export default function NotificationPreferencesPage() {

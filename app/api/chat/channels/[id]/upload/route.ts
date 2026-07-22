@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireStaff, serviceRole } from '@/lib/apiAuth'
-import { canAccessChatChannel } from '@/lib/chat'
+import { attachSignedUrls, canAccessChatChannel } from '@/lib/chat'
 
 const ALLOWED = new Set(['image/jpeg','image/png','image/gif','image/webp','application/pdf','audio/webm','audio/mp4','audio/mpeg','audio/ogg','video/webm'])
 
@@ -26,8 +26,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     attachment_type: file.type, attachment_size: file.size,
     voice_duration_seconds: messageType === 'voice' && Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : null,
     reply_to_id: (form.get('reply_to_id') as string) || null,
-  }).select('*').single()
+  }).select('*, sender:profiles!chat_messages_sender_id_fkey(id, full_name, email, avatar_url, role), reply:chat_messages!chat_messages_reply_to_id_fkey(id, body, sender_id), reactions:chat_reactions(emoji, user_id)').single()
   if (error) { await db.storage.from('chat-attachments').remove([path]); return NextResponse.json({ error: error.message }, { status: 400 }) }
   await db.from('chat_channels').update({ updated_at: new Date().toISOString() }).eq('id', params.id)
-  return NextResponse.json(data, { status: 201 })
+  const [withUrl] = await attachSignedUrls([data])
+  return NextResponse.json(withUrl, { status: 201 })
 }

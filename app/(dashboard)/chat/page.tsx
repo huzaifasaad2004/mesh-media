@@ -62,10 +62,12 @@ export default function ChatPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [people, setPeople] = useState<Person[]>([])
   const [me, setMe] = useState('')
+  const [myProfile, setMyProfile] = useState<Person | undefined>()
   const [selectedId, setSelectedId] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [messageError, setMessageError] = useState('')
   const [draft, setDraft] = useState('')
   const [replying, setReplying] = useState<Message | null>(null)
   const [sending, setSending] = useState(false)
@@ -85,33 +87,50 @@ export default function ChatPage() {
   const loadChannels = useCallback(async (keepSelection = true) => {
     const res = await fetch('/api/chat'); const data = await res.json()
     if (!res.ok) { setLoading(false); return toast.error(data.error ?? 'Chat needs its database migration') }
-    setChannels(data.channels); setPeople(data.people.filter((p: Person) => p.id !== data.me)); setMe(data.me)
-    if (!keepSelection || !selectedId) setSelectedId(data.channels[0]?.id ?? '')
+    setChannels(data.channels)
+    setMyProfile(data.people.find((person: Person) => person.id === data.me))
+    setPeople(data.people.filter((person: Person) => person.id !== data.me))
+    setMe(data.me)
+    if (!keepSelection) {
+      const requested = new URLSearchParams(window.location.search).get('channel')
+      setSelectedId(data.channels.some((channel: Channel) => channel.id === requested) ? requested! : data.channels[0]?.id ?? '')
+    }
     setLoading(false)
-  }, [selectedId, toast])
+  }, [toast])
 
-  const loadMessages = useCallback(async (channelId: string) => {
+  const loadMessages = useCallback(async (channelId: string, showLoader = true) => {
     if (!channelId) return
-    setLoadingMessages(true)
+    if (showLoader) setLoadingMessages(true)
+    setMessageError('')
     const res = await fetch(`/api/chat/channels/${channelId}/messages`); const data = await res.json()
-    setMessages(Array.isArray(data) ? data : []); setLoadingMessages(false)
+    if (!res.ok) {
+      setMessageError(data.error ?? 'Messages could not be loaded')
+      setLoadingMessages(false)
+      return
+    }
+    setMessages(Array.isArray(data) ? data : [])
+    setLoadingMessages(false)
     if (res.ok) fetch(`/api/chat/channels/${channelId}/read`, { method: 'POST' }).then(() => setChannels((all) => all.map((c) => c.id === channelId ? { ...c, unread_count: 0 } : c)))
   }, [])
 
-  useEffect(() => { loadChannels(false) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadChannels(false) }, [loadChannels])
   useEffect(() => { if (selectedId) loadMessages(selectedId) }, [selectedId, loadMessages])
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }) }, [messages])
   useEffect(() => {
-    const subscription = supabase.channel(`mesh-chat-${selectedId || 'none'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, (payload: any) => {
-        const channelId = payload.new?.channel_id ?? payload.old?.channel_id
-        if (channelId === selectedId) loadMessages(selectedId)
-        loadChannels(true)
+    const subscription = supabase.channel('mesh-chat-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload: any) => {
+        const incoming = payload.new
+        setChannels((all) => all.map((channel) => channel.id === incoming.channel_id ? {
+          ...channel,
+          last_message: incoming,
+          unread_count: incoming.channel_id !== selectedId && incoming.sender_id !== me ? channel.unread_count + 1 : channel.unread_count,
+        } : channel))
+        if (incoming.channel_id === selectedId && incoming.sender_id !== me) loadMessages(selectedId, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reactions' }, () => selectedId && loadMessages(selectedId))
       .subscribe()
     return () => { supabase.removeChannel(subscription) }
-  }, [supabase, selectedId, loadMessages, loadChannels])
+  }, [supabase, selectedId, me, loadMessages])
 
   useEffect(() => {
     if (!recording) return
@@ -128,11 +147,30 @@ export default function ChatPage() {
 
   const sendText = async () => {
     if (!draft.trim() || !selectedId || sending) return
+    const text = draft.trim()
+    const reply = replying
+    const optimisticId = `pending-${crypto.randomUUID()}`
+    const optimistic: Message = {
+      id: optimisticId, channel_id: selectedId, sender_id: me, body: text,
+      message_type: 'text', created_at: new Date().toISOString(), sender: myProfile,
+      reply: reply ? { id: reply.id, body: reply.body, sender: { full_name: reply.sender?.full_name ?? 'Team member' } } : undefined,
+      reactions: [],
+    }
+    setMessages((current) => [...current, optimistic])
+    setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: optimistic } : channel))
+    setDraft('')
+    setReplying(null)
     setSending(true)
-    const res = await fetch(`/api/chat/channels/${selectedId}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: draft, reply_to_id: replying?.id }) })
+    const res = await fetch(`/api/chat/channels/${selectedId}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text, reply_to_id: reply?.id }) })
     const data = await res.json(); setSending(false)
-    if (!res.ok) return toast.error(data.error ?? 'Message failed')
-    setDraft(''); setReplying(null); loadMessages(selectedId)
+    if (!res.ok) {
+      setMessages((current) => current.filter((message) => message.id !== optimisticId))
+      setDraft(text)
+      return toast.error(data.error ?? 'Message failed')
+    }
+    const confirmed = { ...data, reply: optimistic.reply }
+    setMessages((current) => current.map((message) => message.id === optimisticId ? confirmed : message))
+    void fetch(`/api/chat/messages/${data.id}/notify`, { method: 'POST' }).catch(() => {})
   }
 
   const upload = async (file: File, duration = 0) => {
@@ -141,7 +179,10 @@ export default function ChatPage() {
     const form = new FormData(); form.append('file', file); form.append('duration', String(duration)); if (replying) form.append('reply_to_id', replying.id)
     const res = await fetch(`/api/chat/channels/${selectedId}/upload`, { method: 'POST', body: form }); const data = await res.json()
     setSending(false); if (!res.ok) return toast.error(data.error ?? 'Upload failed')
-    setReplying(null); loadMessages(selectedId)
+    setReplying(null)
+    setMessages((current) => [...current, data])
+    setChannels((all) => all.map((channel) => channel.id === selectedId ? { ...channel, last_message: data } : channel))
+    void fetch(`/api/chat/messages/${data.id}/notify`, { method: 'POST' }).catch(() => {})
   }
 
   const startRecording = async () => {
@@ -172,7 +213,7 @@ export default function ChatPage() {
 
   if (loading) return <div className="h-[70vh] flex items-center justify-center text-sm text-gray-500">Opening Mesh Chat…</div>
 
-  return <div className="-mx-4 sm:-mx-6 -my-6 h-[calc(100vh-3.5rem)] lg:h-screen flex bg-white overflow-hidden">
+  return <div className="-mx-4 sm:-mx-6 -my-6 h-[calc(100dvh-3.5rem)] lg:h-screen flex bg-white overflow-hidden">
     <aside className={`${mobileList ? 'flex' : 'hidden'} md:flex w-full md:w-80 lg:w-96 border-r border-gray-200 flex-col bg-paper-50`}>
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-3"><div><h1 className="text-xl font-semibold text-gray-900">Mesh Chat</h1><p className="text-xs text-gray-500">Your team, in one place</p></div><button onClick={() => setShowCreate(true)} className="w-9 h-9 rounded-lg bg-brand-600 text-white flex items-center justify-center" title="New conversation"><Plus className="w-4 h-4" /></button></div>
@@ -193,7 +234,7 @@ export default function ChatPage() {
       {!selected ? <div className="flex-1 flex flex-col items-center justify-center text-center p-8"><MessageCircle className="w-12 h-12 text-brand-200 mb-3" /><h2 className="font-semibold text-gray-900">Start a conversation</h2><p className="text-sm text-gray-500 mt-1">Choose a channel or create a new chat.</p></div> : <>
         <header className="h-16 px-3 sm:px-5 border-b border-gray-200 flex items-center gap-3 flex-shrink-0"><button className="md:hidden p-1.5" onClick={() => setMobileList(true)}><ArrowLeft className="w-5 h-5" /></button><div className="w-9 h-9 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center">{selected.kind === 'direct' ? <MessageCircle className="w-4 h-4" /> : selected.kind === 'channel' ? <Hash className="w-4 h-4" /> : <Users className="w-4 h-4" />}</div><div className="min-w-0"><h2 className="font-semibold text-gray-900 truncate">{titleFor(selected)}</h2><p className="text-xs text-gray-500 truncate">{selected.description || `${selected.members?.length || (selected.is_private ? 0 : people.length + 1)} member${selected.members?.length === 1 ? '' : 's'}`}</p></div></header>
         <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-1 bg-paper-0">
-          {loadingMessages ? <p className="text-center text-sm text-gray-400 py-12">Loading messages…</p> : !messages.length ? <div className="text-center py-20"><div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3"><MessageCircle className="w-6 h-6" /></div><h3 className="font-medium text-gray-900">This is the beginning of {titleFor(selected)}</h3><p className="text-sm text-gray-500 mt-1">Send the first message.</p></div> : messages.map((message, index) => {
+          {loadingMessages ? <p className="text-center text-sm text-gray-400 py-12">Loading messages…</p> : messageError ? <div className="mx-auto mt-12 max-w-sm rounded-xl border border-red-200 bg-red-50 p-4 text-center"><p className="text-sm font-medium text-red-700">Messages didn’t load</p><p className="mt-1 text-xs text-red-600">{messageError}</p><button onClick={() => loadMessages(selectedId)} className="btn-secondary btn-sm mt-3">Try again</button></div> : !messages.length ? <div className="text-center py-20"><div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3"><MessageCircle className="w-6 h-6" /></div><h3 className="font-medium text-gray-900">This is the beginning of {titleFor(selected)}</h3><p className="text-sm text-gray-500 mt-1">Send the first message.</p></div> : messages.map((message, index) => {
             const mine = message.sender_id === me; const previous = messages[index - 1]; const grouped = previous?.sender_id === message.sender_id && +new Date(message.created_at) - +new Date(previous.created_at) < 5 * 60_000
             return <div key={message.id} className={`group flex gap-2.5 ${grouped ? 'pt-0.5' : 'pt-4'} ${mine ? 'flex-row-reverse' : ''}`}>
               <div className="w-8 flex-shrink-0">{!grouped && <Avatar person={message.sender} size="sm" />}</div>
@@ -214,13 +255,13 @@ export default function ChatPage() {
             </div> })}
           <div ref={bottomRef} />
         </div>
-        <footer className="border-t border-gray-200 bg-white p-3 sm:p-4 flex-shrink-0">
+        <footer className="border-t border-gray-200 bg-white p-2.5 sm:p-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] flex-shrink-0">
           {replying && <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 bg-paper-50 border-l-2 border-brand-500 rounded-r-lg px-3 py-2"><Reply className="w-3.5 h-3.5 text-brand-600" /><div className="min-w-0 flex-1"><p className="text-[10px] font-medium text-brand-700">Replying to {replying.sender_id === me ? 'yourself' : replying.sender?.full_name}</p><p className="text-xs text-gray-500 truncate">{replying.body || replying.attachment_name || 'Attachment'}</p></div><button onClick={() => setReplying(null)}><X className="w-4 h-4 text-gray-400" /></button></div>}
           <div className="max-w-4xl mx-auto flex items-end gap-2">
             <input ref={fileRef} type="file" className="hidden" accept="image/*,application/pdf,audio/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) upload(file); e.target.value = '' }} />
-            <button onClick={() => fileRef.current?.click()} disabled={sending || recording} className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 flex-shrink-0" title="Attach a file"><Paperclip className="w-5 h-5" /></button>
+            <button onClick={() => fileRef.current?.click()} disabled={sending || recording} className="w-11 h-11 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 flex-shrink-0" title="Attach a file" aria-label="Attach a file"><Paperclip className="w-5 h-5" /></button>
             {recording ? <div className="flex-1 h-11 border border-red-200 bg-red-50 rounded-xl flex items-center px-3 gap-3"><span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" /><span className="text-sm text-red-700 flex-1">Recording {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, '0')}</span><button onClick={() => stopRecording(false)} className="text-xs text-gray-500">Cancel</button><button onClick={() => stopRecording(true)} className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center" title="Send voice note"><Send className="w-3.5 h-3.5" /></button></div> : <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() } }} className={`${inputClass} min-h-10 max-h-32 resize-none py-2.5`} placeholder={`Message ${titleFor(selected)}`} />}
-            {!recording && (draft.trim() ? <button onClick={sendText} disabled={sending} className="w-10 h-10 rounded-lg bg-brand-600 text-white flex items-center justify-center flex-shrink-0"><Send className="w-4 h-4" /></button> : <button onClick={startRecording} disabled={sending} className="w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0" title="Record voice note"><Mic className="w-5 h-5" /></button>)}
+            {!recording && (draft.trim() ? <button onClick={sendText} disabled={sending} className="w-11 h-11 rounded-xl bg-brand-600 text-white flex items-center justify-center flex-shrink-0 disabled:opacity-60" aria-label="Send message"><Send className="w-4 h-4" /></button> : <button onClick={startRecording} disabled={sending} className="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0" title="Record voice note" aria-label="Record voice note"><Mic className="w-5 h-5" /></button>)}
           </div>
           <p className="hidden sm:block max-w-4xl mx-auto text-[10px] text-gray-400 mt-1.5 pl-12">Enter to send · Shift + Enter for a new line · attachments up to 20MB</p>
         </footer>
