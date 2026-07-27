@@ -33,6 +33,9 @@ interface DocumentTemplateProps {
   taxRate?: number
   taxAmount?: number
   total: number
+  status?: string | null
+  amountPaid?: number
+  paidDate?: string | null
   notes?: string | null
   terms?: string | null
 }
@@ -48,9 +51,12 @@ function fmtDate(s?: string | null) {
 
 export default function DocumentTemplate({
   type, number, issueDate, dueOrExpiryDate, dueOrExpiryLabel,
-  subject, client, items, subtotal, discountAmount = 0, taxRate = 0, taxAmount = 0, total, notes, terms,
+  subject, client, items, subtotal, discountAmount = 0, taxRate = 0, taxAmount = 0, total,
+  status, amountPaid = 0, paidDate, notes, terms,
 }: DocumentTemplateProps) {
   const isInvoice = type === 'invoice'
+  const isPaid = isInvoice && status === 'paid'
+  const balanceDue = isPaid ? 0 : Math.max(0, total - amountPaid)
   const docLabel = isInvoice ? 'INVOICE' : 'QUOTATION'
 
   return (
@@ -65,7 +71,20 @@ export default function DocumentTemplate({
       fontSize: 12.5,
       color: '#1a1a1a',
       boxSizing: 'border-box',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+
+      {isPaid && (
+        <div aria-label="Paid in full" style={{
+          position: 'absolute', top: 38, right: -54, width: 210,
+          transform: 'rotate(38deg)', background: '#238B57', color: 'white',
+          padding: '9px 0', textAlign: 'center', fontSize: 15, fontWeight: 800,
+          letterSpacing: '0.16em', boxShadow: '0 2px 7px rgba(0,0,0,0.16)', zIndex: 2,
+        }}>
+          PAID
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
@@ -87,7 +106,7 @@ export default function DocumentTemplate({
             <div style={{ marginTop: 8, textAlign: 'right' }}>
               <div style={{ fontSize: 9.5, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Balance Due</div>
               <div style={{ fontSize: 19, fontWeight: 700, color: BRAND, fontFamily: 'Cormorant, Georgia, serif' }}>
-                AED {fmt(total)}
+                AED {fmt(balanceDue)}
               </div>
             </div>
           )}
@@ -127,6 +146,12 @@ export default function DocumentTemplate({
                 <tr>
                   <td style={{ color: '#888', paddingRight: 12 }}>{dueOrExpiryLabel}</td>
                   <td style={{ fontWeight: 600 }}>{fmtDate(dueOrExpiryDate)}</td>
+                </tr>
+              )}
+              {isPaid && paidDate && (
+                <tr>
+                  <td style={{ color: '#238B57', paddingTop: 5, paddingRight: 12 }}>Paid Date</td>
+                  <td style={{ fontWeight: 700, color: '#238B57', paddingTop: 5 }}>{fmtDate(paidDate)}</td>
                 </tr>
               )}
             </tbody>
@@ -209,7 +234,7 @@ export default function DocumentTemplate({
             {isInvoice && (
               <tr>
                 <td style={{ padding: '3px 20px 0 0', fontWeight: 600, fontSize: 12 }}>Balance Due</td>
-                <td style={{ padding: '3px 0 0', textAlign: 'right', fontWeight: 600, fontSize: 12 }}>AED {fmt(total)}</td>
+                <td style={{ padding: '3px 0 0', textAlign: 'right', fontWeight: 600, fontSize: 12, color: isPaid ? '#238B57' : undefined }}>AED {fmt(balanceDue)}</td>
               </tr>
             )}
           </tbody>

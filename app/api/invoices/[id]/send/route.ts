@@ -38,6 +38,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const subtotal = items.reduce((s: number, i: any) => s + i.amount, 0)
   const discountAmount = inv.discount_type === 'percent' ? subtotal * (Number(inv.discount_value ?? 0) / 100)
     : inv.discount_type === 'flat' ? Number(inv.discount_value ?? 0) : 0
+  const isPaid = inv.status === 'paid'
+  const balanceDue = isPaid ? 0 : Math.max(0, Number(inv.total ?? 0) - Number(inv.amount_paid ?? 0))
 
   const pdfBuffer = await renderDocumentPdf({
     type: 'invoice',
@@ -53,6 +55,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     taxRate: Number(inv.tax_rate ?? 0),
     taxAmount: Number(inv.tax_amount ?? 0),
     total: Number(inv.total ?? 0),
+    status: inv.status,
+    amountPaid: Number(inv.amount_paid ?? 0),
+    paidDate: inv.paid_date,
     notes: inv.notes,
     terms: inv.terms,
     baseUrl,
@@ -98,13 +103,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   </div>
   <div class="body">
     <p>Dear ${clientName},</p>
-    <p>Please find your invoice from MeshMedia. You can view, download, or pay directly using the link below.</p>
+    <p>${isPaid ? 'Please find your paid invoice from MeshMedia. This invoice has been settled in full.' : 'Please find your invoice from MeshMedia. You can view, download, or pay directly using the link below.'}</p>
     <div class="amount-box">
-      <div class="label">Amount Due</div>
-      <div class="amount">AED ${Number(inv.total).toLocaleString('en-AE', { minimumFractionDigits: 2 })}</div>
+      <div class="label">${isPaid ? 'Payment Status' : 'Amount Due'}</div>
+      <div class="amount">${isPaid ? 'PAID IN FULL' : `AED ${balanceDue.toLocaleString('en-AE', { minimumFractionDigits: 2 })}`}</div>
     </div>
-    ${inv.due_date ? `<p style="color:#888;font-size:13px;">Due by: <strong style="color:#1a1a1a;">${new Date(inv.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>` : ''}
-    <a href="${invoiceUrl}" class="cta">View &amp; Download Invoice →</a>
+    ${isPaid && inv.paid_date ? `<p style="color:#238B57;font-size:13px;">Paid on: <strong>${new Date(inv.paid_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>` : inv.due_date ? `<p style="color:#888;font-size:13px;">Due by: <strong style="color:#1a1a1a;">${new Date(inv.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>` : ''}
+    <a href="${invoiceUrl}" class="cta">View &amp; Download ${isPaid ? 'Paid ' : ''}Invoice →</a>
     <table class="details">
       ${(inv.items ?? []).slice(0, 5).map((item: any) => `
       <tr><td>${escapeHtml(item.description)}</td><td>AED ${Number(item.amount).toLocaleString()}</td></tr>`).join('')}
@@ -129,9 +134,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (sendError) return NextResponse.json({ error: sendError.message }, { status: 500 })
 
-  // Auto-update status to 'sent'
+  // Sending is a delivery action, not a payment-state change. Only move a
+  // draft into sent; never downgrade paid, partially-paid, or overdue invoices.
   const db = admin()
-  await db.from('invoices').update({ status: 'sent' }).eq('id', params.id)
+  await db.from('invoices').update({ status: 'sent' }).eq('id', params.id).eq('status', 'draft')
 
   // Notify admins
   const { data: admins } = await db.from('profiles').select('id').in('role', ['owner', 'admin'])

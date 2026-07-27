@@ -30,6 +30,9 @@ export interface PdfDocProps {
   taxRate: number
   taxAmount: number
   total: number
+  status?: string | null
+  amountPaid?: number
+  paidDate?: string | null
   notes?: string | null
   terms?: string | null
   /** Absolute origin used to fetch /logo.jpg and /signature.png */
@@ -61,6 +64,8 @@ const st = StyleSheet.create({
 
 function Doc(p: PdfDocProps) {
   const isInvoice = p.type === 'invoice'
+  const isPaid = isInvoice && p.status === 'paid'
+  const balanceDue = isPaid ? 0 : Math.max(0, p.total - (p.amountPaid ?? 0))
   return (
     <Document title={`${isInvoice ? 'Invoice' : 'Quotation'} ${p.number}`} author={COMPANY.name}>
       <Page size="A4" style={st.page}>
@@ -76,11 +81,21 @@ function Doc(p: PdfDocProps) {
             {isInvoice && (
               <View style={{ alignItems: 'flex-end', marginTop: 6 }}>
                 <Text style={st.label}>Balance Due</Text>
-                <Text style={{ fontFamily: 'Times-Bold', fontSize: 14, color: BRAND }}>AED {fmt(p.total)}</Text>
+                <Text style={{ fontFamily: 'Times-Bold', fontSize: 14, color: isPaid ? '#238B57' : BRAND }}>AED {fmt(balanceDue)}</Text>
               </View>
             )}
           </View>
         </View>
+
+        {isPaid && (
+          <View fixed style={{
+            position: 'absolute', top: 35, right: -48, width: 190,
+            transform: 'rotate(38deg)', backgroundColor: '#238B57',
+            paddingVertical: 7, alignItems: 'center', zIndex: 5,
+          }}>
+            <Text style={{ color: 'white', fontFamily: 'Helvetica-Bold', fontSize: 13, letterSpacing: 2, marginLeft: 24 }}>PAID</Text>
+          </View>
+        )}
 
         <View style={st.divider} />
 
@@ -109,6 +124,12 @@ function Doc(p: PdfDocProps) {
               <View style={{ flexDirection: 'row' }}>
                 <Text style={{ color: '#888', marginRight: 10 }}>{p.dueOrExpiryLabel}</Text>
                 <Text style={st.bold}>{fmtDate(p.dueOrExpiryDate)}</Text>
+              </View>
+            ) : null}
+            {isPaid && p.paidDate ? (
+              <View style={{ flexDirection: 'row', marginTop: 3 }}>
+                <Text style={{ color: '#238B57', marginRight: 10 }}>Paid Date</Text>
+                <Text style={[st.bold, { color: '#238B57' }]}>{fmtDate(p.paidDate)}</Text>
               </View>
             ) : null}
           </View>
@@ -178,7 +199,7 @@ function Doc(p: PdfDocProps) {
             {isInvoice && (
               <View style={[st.row, { marginTop: 3 }]}>
                 <Text style={st.bold}>Balance Due</Text>
-                <Text style={st.bold}>AED {fmt(p.total)}</Text>
+                <Text style={[st.bold, isPaid ? { color: '#238B57' } : {}]}>AED {fmt(balanceDue)}</Text>
               </View>
             )}
           </View>
