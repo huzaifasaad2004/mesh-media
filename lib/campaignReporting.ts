@@ -69,6 +69,26 @@ async function metaMetrics(connection: CampaignConnection, since: string, until:
   }))
 }
 
+async function metaAdMetrics(connection: CampaignConnection, since: string, until: string) {
+  const token = decryptCampaignToken(connection.access_token_ciphertext!)
+  const version = process.env.META_GRAPH_VERSION ?? 'v23.0'
+  const account = connection.external_account_id.replace(/^act_/, '')
+  const fields = 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,date_start,impressions,reach,clicks,spend,actions,action_values'
+  let url = `https://graph.facebook.com/${version}/act_${encodeURIComponent(account)}/insights?level=ad&time_increment=1&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&fields=${fields}&limit=500&access_token=${encodeURIComponent(token)}`
+  const rows: any[] = []
+  while (url) { const response = await fetch(url); const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? 'Meta ad detail request failed'); rows.push(...(payload.data ?? [])); url = payload.paging?.next ?? '' }
+  return rows.map(row => ({
+    connection_id: connection.id, client_id: connection.client_id, project_id: connection.project_id, provider: connection.provider,
+    external_campaign_id: row.campaign_id, campaign_name: row.campaign_name, external_ad_group_id: row.adset_id,
+    ad_group_name: row.adset_name, external_ad_id: row.ad_id, ad_name: row.ad_name, ad_type: 'META_AD', ad_status: null,
+    metric_date: row.date_start, currency: 'AED', impressions: num(row.impressions), clicks: num(row.clicks),
+    engagements: actionValue(row.actions, ['post_engagement','page_engagement']), video_views: actionValue(row.actions, ['video_view']),
+    conversions: actionValue(row.actions, ['purchase','offsite_conversion.fb_pixel_purchase','lead','onsite_conversion.lead_grouped']),
+    spend: num(row.spend), revenue: actionValue(row.action_values, ['purchase','offsite_conversion.fb_pixel_purchase']),
+    creative: { adName: row.ad_name }, raw: row, synced_at: new Date().toISOString(),
+  }))
+}
+
 async function instagramMetrics(connection: CampaignConnection, since: string, until: string): Promise<CampaignMetric[]> {
   const token = decryptCampaignToken(connection.access_token_ciphertext!)
   const version = process.env.META_GRAPH_VERSION ?? 'v23.0'
@@ -119,6 +139,29 @@ async function googleMetrics(connection: CampaignConnection, since: string, unti
   }))
 }
 
+async function googleAdMetrics(connection: CampaignConnection, since: string, until: string) {
+  const token = await googleAccessToken(connection)
+  const customer = connection.external_account_id.replace(/-/g, '')
+  const query = `SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.ad.type, ad_group_ad.ad.final_urls, ad_group_ad.status, segments.date, customer.currency_code, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value, metrics.engagements, metrics.video_trueview_views FROM ad_group_ad WHERE segments.date BETWEEN '${since}' AND '${until}'`
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '', 'Content-Type': 'application/json' }
+  if (connection.settings?.login_customer_id) headers['login-customer-id'] = connection.settings.login_customer_id.replace(/-/g, '')
+  const version = process.env.GOOGLE_ADS_API_VERSION ?? 'v23'
+  const response = await fetch(`https://googleads.googleapis.com/${version}/customers/${customer}/googleAds:searchStream`, { method: 'POST', headers, body: JSON.stringify({ query }) })
+  const payload = await response.json()
+  if (!response.ok) throw new Error(googleAdsError(payload, response.status))
+  return (payload as any[]).flatMap(batch => batch.results ?? []).map((row: any) => ({
+    connection_id: connection.id, client_id: connection.client_id, project_id: connection.project_id, provider: connection.provider,
+    external_campaign_id: String(row.campaign.id), campaign_name: row.campaign.name,
+    external_ad_group_id: String(row.adGroup.id), ad_group_name: row.adGroup.name,
+    external_ad_id: String(row.adGroupAd.ad.id), ad_name: row.adGroupAd.ad.name || `Ad ${row.adGroupAd.ad.id}`,
+    ad_type: row.adGroupAd.ad.type, ad_status: row.adGroupAd.status, metric_date: row.segments.date,
+    currency: row.customer.currencyCode, impressions: num(row.metrics.impressions), clicks: num(row.metrics.clicks),
+    engagements: num(row.metrics.engagements), video_views: num(row.metrics.videoTrueviewViews), conversions: num(row.metrics.conversions),
+    spend: num(row.metrics.costMicros) / 1_000_000, revenue: num(row.metrics.conversionsValue),
+    creative: { finalUrls: row.adGroupAd.ad.finalUrls ?? [] }, raw: row, synced_at: new Date().toISOString(),
+  }))
+}
+
 export async function syncCampaignConnection(db: SupabaseClient, connection: CampaignConnection, since: string, until: string) {
   if (!connection.access_token_ciphertext) throw new Error('Connection has not been authorised')
   const metrics = connection.provider === 'meta_ads' ? await metaMetrics(connection, since, until)
@@ -134,6 +177,19 @@ export async function syncCampaignConnection(db: SupabaseClient, connection: Cam
       spend: metric.spend ?? 0, revenue: metric.revenue ?? 0, raw: metric.raw ?? {}, synced_at: new Date().toISOString(),
     })), { onConflict: 'connection_id,external_campaign_id,metric_date' })
     if (error) throw error
+  }
+  if (connection.provider === 'google_ads' || connection.provider === 'meta_ads') {
+    try {
+      const ads: any[] = connection.provider === 'google_ads' ? await googleAdMetrics(connection, since, until) : await metaAdMetrics(connection, since, until)
+      if (ads.length) {
+        const { error } = await db.from('campaign_ad_metrics_daily').upsert(ads, { onConflict: 'connection_id,external_ad_id,metric_date' })
+        if (error) throw error
+      }
+    } catch (error) {
+      // Main campaign totals remain usable if an account has an ad format that
+      // Google does not expose through the detail resource.
+      console.warn('Campaign creative detail sync skipped:', error instanceof Error ? error.message : error)
+    }
   }
   await db.from('campaign_connections').update({ status: 'active', last_synced_at: new Date().toISOString(), last_error: null }).eq('id', connection.id)
   return metrics.length
