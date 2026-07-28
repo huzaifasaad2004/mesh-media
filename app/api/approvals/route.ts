@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       body: `${mine?.full_name ?? 'A team member'} submitted a ${b.type.replace('_', ' ')} request`,
       href: '/approvals',
       category: 'approval_request',
+      entityType: 'approval', entityId: data.id, actions: ['approve', 'reject'],
     })
   }
   return NextResponse.json(data)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireFinanceRead, requireFinanceWrite, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { computeTotals } from '@/lib/documentTotals'
+import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
 
 export async function GET() {
   const auth = await requireFinanceRead()
@@ -45,5 +46,6 @@ export async function POST(req: NextRequest) {
     )
   }
   await logActivity(auth.user, 'create', 'invoice', invoice.id, invoice.invoice_number)
+  if (invoice.status === 'paid') await sendPaymentReceiptBestEffort(serviceRole(), invoice.id)
   return NextResponse.json(invoice)
 }

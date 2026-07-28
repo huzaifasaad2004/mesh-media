@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       body: data.title,
       href: '/tasks',
       category: 'task_assignment',
+      entityType: 'task', entityId: data.id, actions: ['complete', 'reply'],
     })
   }
 

@@ -1,13 +1,32 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, Settings, X } from 'lucide-react'
+import { Bell, Check, MessageSquare, Settings, X } from 'lucide-react'
 import Link from 'next/link'
 import { useNotifications } from '@/components/NotificationsContext'
 
 export default function NotificationBell() {
-  const { items, unreadCount, markRead, markAllRead } = useNotifications()
+  const { items, unreadCount, markRead, markAllRead, refresh } = useNotifications()
   const [open, setOpen] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [reply, setReply] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [errorNotification, setErrorNotification] = useState<string | null>(null)
+
+  async function runAction(id: string, action: string) {
+    setBusy(`${id}:${action}`); setError(null); setErrorNotification(null)
+    try {
+      const res = await fetch(`/api/notifications/${id}/action`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reply: action === 'reply' ? reply : undefined }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Action failed')
+      setReplyingTo(null); setReply(''); await refresh()
+    } catch (e) { setError(e instanceof Error ? e.message : 'Action failed'); setErrorNotification(id) }
+    finally { setBusy(null) }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -65,15 +84,24 @@ export default function NotificationBell() {
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {items.length > 0 ? items.map(n => (
-                <Link key={n.id} href={n.href ?? '#'} onClick={() => { markRead(n.id); setOpen(false) }}
-                  className="block px-4 py-3 border-b border-paper-200 last:border-0 hover:bg-paper-50 transition-colors relative">
+                <div key={n.id} className="px-4 py-3 border-b border-paper-200 last:border-0 hover:bg-paper-50 transition-colors relative">
                   {!n.read && <span className="absolute left-1.5 top-4 w-1.5 h-1.5 rounded-full bg-brand-600" />}
-                  <p className="text-sm font-medium text-ink pl-2">{n.title}</p>
-                  {n.body && <p className="text-xs text-taupe-600 mt-0.5 line-clamp-2 pl-2">{n.body}</p>}
-                  <p className="text-[10px] text-taupe-500 mt-1 pl-2">
-                    {new Date(n.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </Link>
+                  <Link href={n.href ?? '#'} onClick={() => { markRead(n.id); setOpen(false) }} className="block pl-2">
+                    <p className="text-sm font-medium text-ink">{n.title}</p>
+                    {n.body && <p className="text-xs text-taupe-600 mt-0.5 line-clamp-2">{n.body}</p>}
+                    <p className="text-[10px] text-taupe-500 mt-1">{new Date(n.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                  </Link>
+                  {n.available_actions?.length > 0 && !n.action_completed_at ? (
+                    <div className="pl-2 mt-2 flex flex-wrap gap-1.5">
+                      {n.available_actions.includes('approve') && <button disabled={!!busy} onClick={() => runAction(n.id, 'approve')} className="btn-primary !px-2.5 !py-1.5 !text-[11px]"><Check className="w-3 h-3" /> Approve</button>}
+                      {n.available_actions.includes('reject') && <button disabled={!!busy} onClick={() => runAction(n.id, 'reject')} className="btn-secondary !px-2.5 !py-1.5 !text-[11px]">Reject</button>}
+                      {n.available_actions.includes('complete') && <button disabled={!!busy} onClick={() => runAction(n.id, 'complete')} className="btn-primary !px-2.5 !py-1.5 !text-[11px]"><Check className="w-3 h-3" /> Complete</button>}
+                      {n.available_actions.includes('reply') && <button disabled={!!busy} onClick={() => { setReplyingTo(n.id); setError(null) }} className="btn-secondary !px-2.5 !py-1.5 !text-[11px]"><MessageSquare className="w-3 h-3" /> Reply</button>}
+                    </div>
+                  ) : null}
+                  {replyingTo === n.id ? <div className="pl-2 mt-2 flex gap-1.5"><input autoFocus value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && reply.trim()) runAction(n.id, 'reply') }} maxLength={2000} placeholder="Write a reply..." className="input !py-1.5 !text-xs flex-1 min-w-0" /><button disabled={!reply.trim() || !!busy} onClick={() => runAction(n.id, 'reply')} className="btn-primary !px-2.5 !py-1.5 !text-[11px]">Send</button></div> : null}
+                  {error && errorNotification === n.id ? <p className="pl-2 mt-1 text-[11px] text-red-600">{error}</p> : null}
+                </div>
               )) : (
                 <p className="px-4 py-8 text-center text-sm text-taupe-500">No notifications yet</p>
               )}

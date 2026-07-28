@@ -5,6 +5,7 @@ import { requireFinanceWrite } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { emitCelineEvent } from '@/lib/celine/events'
 import { computeTotals } from '@/lib/documentTotals'
+import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -89,6 +90,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { data, error } = await admin().from('invoices').update(invoiceData).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   await logActivity(auth.user, 'update', 'invoice', params.id, data.invoice_number)
+  if (data.status === 'paid') await sendPaymentReceiptBestEffort(admin(), params.id)
   return NextResponse.json(data)
 }
 

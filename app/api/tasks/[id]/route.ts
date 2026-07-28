@@ -37,12 +37,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body: data.title,
       href: '/tasks',
       category: 'task_assignment',
+      entityType: 'task', entityId: data.id, actions: ['complete', 'reply'],
     })
   }
 
   // Closing the loop: tell whoever created the task once it's marked done
   // (skip if they did it themselves, or if it was already done — status
   // toggled back and forth shouldn't re-notify every time).
+  if (data.status === 'done' && before?.status !== 'done') {
+    await db.from('notifications').update({
+      available_actions: [], action_completed_at: new Date().toISOString(), action_completed_by: auth.user.id,
+    }).eq('entity_type', 'task').eq('entity_id', data.id)
+  }
   if (data.status === 'done' && before?.status !== 'done' && data.created_by && data.created_by !== auth.user.id) {
     await notifyUsers(db, {
       userIds: [data.created_by],

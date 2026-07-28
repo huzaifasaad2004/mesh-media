@@ -49,6 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       body: `${data.author?.full_name ?? 'Someone'} on "${task.title}": ${comment.trim()}`,
       href: '/tasks',
       category: 'task_feedback',
+      entityType: 'task', entityId: task.id, actions: ['reply'],
     })
   }
 

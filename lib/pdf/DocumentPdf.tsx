@@ -11,7 +11,7 @@ const BRAND = '#6E1318'
 const CREAM = '#F3EEE6'
 
 export interface PdfDocProps {
-  type: 'invoice' | 'quotation'
+  type: 'invoice' | 'quotation' | 'receipt'
   number: string
   issueDate: string
   dueOrExpiryDate?: string | null
@@ -64,30 +64,31 @@ const st = StyleSheet.create({
 
 function Doc(p: PdfDocProps) {
   const isInvoice = p.type === 'invoice'
-  const isPaid = isInvoice && p.status === 'paid'
+  const isReceipt = p.type === 'receipt'
+  const isPaid = (isInvoice && p.status === 'paid') || isReceipt
   const balanceDue = isPaid ? 0 : Math.max(0, p.total - (p.amountPaid ?? 0))
   return (
-    <Document title={`${isInvoice ? 'Invoice' : 'Quotation'} ${p.number}`} author={COMPANY.name}>
+    <Document title={`${isReceipt ? 'Payment Receipt' : isInvoice ? 'Invoice' : 'Quotation'} ${p.number}`} author={COMPANY.name}>
       <Page size="A4" style={st.page}>
         {/* Header */}
         <View style={[st.row, { alignItems: 'flex-start', marginBottom: 6 }]}>
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src={`${p.baseUrl}/logo.jpg`} style={{ height: 54, width: 132, objectFit: 'contain' }} />
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontFamily: 'Times-Bold', fontSize: 34, color: BRAND }}>
-              {isInvoice ? 'INVOICE' : 'QUOTATION'}
+            <Text style={{ fontFamily: 'Times-Bold', fontSize: isReceipt ? 25 : 34, color: BRAND }}>
+              {isReceipt ? 'PAYMENT RECEIPT' : isInvoice ? 'INVOICE' : 'QUOTATION'}
             </Text>
             <Text style={{ fontSize: 9, color: '#555', marginTop: 2 }}>#{p.number}</Text>
-            {isInvoice && (
+            {(isInvoice || isReceipt) && (
               <View style={{ alignItems: 'flex-end', marginTop: 6 }}>
-                <Text style={st.label}>Balance Due</Text>
-                <Text style={{ fontFamily: 'Times-Bold', fontSize: 14, color: isPaid ? '#238B57' : BRAND }}>AED {fmt(balanceDue)}</Text>
+                <Text style={st.label}>{isReceipt ? 'Amount Received' : 'Balance Due'}</Text>
+                <Text style={{ fontFamily: 'Times-Bold', fontSize: 14, color: isPaid ? '#238B57' : BRAND }}>AED {fmt(isReceipt ? p.total : balanceDue)}</Text>
               </View>
             )}
           </View>
         </View>
 
-        {isPaid && (
+        {isInvoice && isPaid && (
           <View fixed style={{
             position: 'absolute', top: 35, right: -48, width: 190,
             transform: 'rotate(38deg)', backgroundColor: '#238B57',
@@ -111,7 +112,7 @@ function Doc(p: PdfDocProps) {
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <View style={{ flexDirection: 'row', marginBottom: 3 }}>
-              <Text style={{ color: '#888', marginRight: 10 }}>{isInvoice ? 'Invoice Date' : 'Quote Date'}</Text>
+              <Text style={{ color: '#888', marginRight: 10 }}>{isReceipt ? 'Payment Date' : isInvoice ? 'Invoice Date' : 'Quote Date'}</Text>
               <Text style={st.bold}>{fmtDate(p.issueDate)}</Text>
             </View>
             {isInvoice && (
@@ -120,13 +121,13 @@ function Doc(p: PdfDocProps) {
                 <Text style={st.bold}>Due on Receipt</Text>
               </View>
             )}
-            {p.dueOrExpiryDate ? (
+            {p.dueOrExpiryDate && !isReceipt ? (
               <View style={{ flexDirection: 'row' }}>
                 <Text style={{ color: '#888', marginRight: 10 }}>{p.dueOrExpiryLabel}</Text>
                 <Text style={st.bold}>{fmtDate(p.dueOrExpiryDate)}</Text>
               </View>
             ) : null}
-            {isPaid && p.paidDate ? (
+            {isPaid && !isReceipt && p.paidDate ? (
               <View style={{ flexDirection: 'row', marginTop: 3 }}>
                 <Text style={{ color: '#238B57', marginRight: 10 }}>Paid Date</Text>
                 <Text style={[st.bold, { color: '#238B57' }]}>{fmtDate(p.paidDate)}</Text>
@@ -137,7 +138,7 @@ function Doc(p: PdfDocProps) {
 
         {/* Bill To */}
         <View style={st.billBox}>
-          <Text style={[st.label, { marginBottom: 3 }]}>{isInvoice ? 'Bill To' : 'Prepared For'}</Text>
+          <Text style={[st.label, { marginBottom: 3 }]}>{isReceipt ? 'Received From' : isInvoice ? 'Bill To' : 'Prepared For'}</Text>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, color: BRAND }}>{p.client.company_name}</Text>
           {p.client.contact_person ? <Text style={{ color: '#444', marginTop: 1 }}>{p.client.contact_person}</Text> : null}
           {p.client.address ? <Text style={st.muted}>{p.client.address}</Text> : null}
@@ -202,6 +203,7 @@ function Doc(p: PdfDocProps) {
                 <Text style={[st.bold, isPaid ? { color: '#238B57' } : {}]}>AED {fmt(balanceDue)}</Text>
               </View>
             )}
+            {isReceipt && <View style={[st.row, { marginTop: 3 }]}><Text style={st.bold}>Amount Received</Text><Text style={[st.bold, { color: '#238B57' }]}>AED {fmt(p.total)}</Text></View>}
           </View>
         </View>
 
@@ -212,7 +214,7 @@ function Doc(p: PdfDocProps) {
         </View>
 
         {/* Bank details (invoices) */}
-        {isInvoice && (
+        {isInvoice && !isReceipt && (
           <View style={{ borderTopWidth: 1, borderTopColor: '#ece7e0', paddingTop: 9, marginBottom: 11 }}>
             <Text style={[st.label, { marginBottom: 5 }]}>Payment Details</Text>
             {([

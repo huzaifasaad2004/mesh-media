@@ -21,8 +21,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const db = admin()
   const { data, error } = await db.from('approvals')
     .update({ status, decided_by: user.id, decided_at: new Date().toISOString() })
-    .eq('id', params.id).select().single()
+    .eq('id', params.id).eq('status', 'pending').select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  await db.from('notifications').update({
+    available_actions: [], action_completed_at: new Date().toISOString(), action_completed_by: user.id,
+  }).eq('entity_type', 'approval').eq('entity_id', params.id)
 
   // Notify the requester of the decision
   await notifyUsers(db, {
