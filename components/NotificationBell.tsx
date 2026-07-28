@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Bell, Settings } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Bell, Settings, X } from 'lucide-react'
 import Link from 'next/link'
 import { useNotifications } from '@/components/NotificationsContext'
 
@@ -9,12 +9,23 @@ export default function NotificationBell() {
   const { items, unreadCount, markRead, markAllRead } = useNotifications()
   const [open, setOpen] = useState(false)
 
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [open])
+
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         className="relative p-1.5 rounded-lg text-taupe-600 hover:bg-paper-200 hover:text-ink transition-colors"
         aria-label="Notifications"
+        aria-expanded={open}
+        aria-controls="notification-panel"
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
@@ -26,8 +37,14 @@ export default function NotificationBell() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-9 z-50 w-72 card overflow-hidden">
+          <div className="fixed inset-0 z-[60] bg-black/20 sm:bg-transparent" onClick={() => setOpen(false)} />
+          <div
+            id="notification-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Notifications"
+            className="fixed inset-x-3 top-[calc(env(safe-area-inset-top)+4rem)] bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-[70] card overflow-hidden flex flex-col sm:absolute sm:inset-auto sm:right-0 sm:top-9 sm:w-80 sm:max-h-[28rem]"
+          >
             <div className="px-4 py-2.5 border-b border-paper-200 flex items-center justify-between">
               <span className="text-xs font-semibold text-taupe-600 uppercase tracking-wider">Notifications</span>
               <div className="flex items-center gap-2">
@@ -35,12 +52,18 @@ export default function NotificationBell() {
                   <button onClick={markAllRead} className="text-[11px] text-taupe-500 hover:text-brand-600">Mark all read</button>
                 )}
                 <Link href="/notification-preferences" onClick={() => setOpen(false)} title="Notification settings"
-                  className="text-taupe-500 hover:text-ink">
+                  className="w-9 h-9 -my-2 flex items-center justify-center rounded-lg text-taupe-500 hover:text-ink hover:bg-paper-100"
+                  aria-label="Notification settings">
                   <Settings className="w-3.5 h-3.5" />
                 </Link>
+                <button onClick={() => setOpen(false)}
+                  className="sm:hidden w-9 h-9 -my-2 -mr-2 flex items-center justify-center rounded-lg text-taupe-500 hover:text-ink hover:bg-paper-100"
+                  aria-label="Close notifications">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {items.length > 0 ? items.map(n => (
                 <Link key={n.id} href={n.href ?? '#'} onClick={() => { markRead(n.id); setOpen(false) }}
                   className="block px-4 py-3 border-b border-paper-200 last:border-0 hover:bg-paper-50 transition-colors relative">
