@@ -237,6 +237,9 @@ function InvoicePrintContent() {
             taxRate={Number(invoice.tax_rate ?? 0)}
             taxAmount={Number(invoice.tax_amount ?? 0)}
             total={total}
+            status={invoice.status}
+            amountPaid={Number(invoice.amount_paid ?? 0)}
+            paidDate={invoice.paid_date}
             notes={invoice.notes}
             terms={invoice.terms}
           />
