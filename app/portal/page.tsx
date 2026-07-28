@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { FileText, FolderOpen, FileSignature, FileBarChart, ImageUp, ExternalLink } from 'lucide-react'
+import { FileText, FolderOpen, FileSignature, FileBarChart, ImageUp, ExternalLink, BarChart3 } from 'lucide-react'
 import PortalQuoteActions from '@/components/portal/PortalQuoteActions'
 import PortalContentActions from '@/components/portal/PortalContentActions'
 import PortalRequests from '@/components/portal/PortalRequests'
@@ -13,7 +13,8 @@ export default async function PortalPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   // RLS scopes every query below to this client's own rows
-  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }, { data: reports }, { data: contentItems }] =
+  const reportStart = new Date(); reportStart.setDate(reportStart.getDate() - 29)
+  const [{ data: clients }, { data: projects }, { data: invoices }, { data: quotations }, { data: files }, { data: documents }, { data: reports }, { data: contentItems }, { data: campaignMetrics }] =
     await Promise.all([
       supabase.from('clients').select('id, company_name'),
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
@@ -23,6 +24,7 @@ export default async function PortalPage() {
       supabase.from('signable_documents').select('*, signatures:document_signatures(party, signed_at)').order('created_at', { ascending: false }).limit(10),
       supabase.from('client_reports').select('*').order('period', { ascending: false }).limit(12),
       supabase.from('content_items').select('*').in('status', ['pending_client', 'client_approved', 'client_declined']).order('created_at', { ascending: false }).limit(10),
+      supabase.from('campaign_metrics_daily').select('impressions, clicks, leads, conversions, spend').gte('metric_date', reportStart.toISOString().slice(0, 10)),
     ])
 
   const pendingDocuments = (documents ?? []).filter((d: any) => !d.signatures?.some((s: any) => s.party === 'client'))
@@ -32,6 +34,7 @@ export default async function PortalPage() {
   // Show quotes needing a decision, plus recently decided ones
   const portalQuotes = (quotations ?? []).filter(q => ['sent', 'draft', 'accepted', 'declined'].includes(q.status))
   const pendingQuotes = portalQuotes.filter(q => ['sent', 'draft'].includes(q.status))
+  const campaign = (campaignMetrics ?? []).reduce((a: any, row: any) => ({ impressions: a.impressions + Number(row.impressions ?? 0), clicks: a.clicks + Number(row.clicks ?? 0), leads: a.leads + Number(row.leads ?? 0), conversions: a.conversions + Number(row.conversions ?? 0), spend: a.spend + Number(row.spend ?? 0) }), { impressions: 0, clicks: 0, leads: 0, conversions: 0, spend: 0 })
 
   return (
     <div>
@@ -41,6 +44,14 @@ export default async function PortalPage() {
       <p className="text-sm text-taupe-600 mt-1 mb-6">Here&apos;s everything in motion with your brand.</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {campaignMetrics && campaignMetrics.length > 0 && <div className="card p-5 md:col-span-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}><BarChart3 className="w-5 h-5 text-brand-600"/>Campaign performance</h2>
+          <p className="text-xs text-taupe-500 mt-1 mb-4">Combined results from the last 30 days</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            <div><p className="text-taupe-500">Spend</p><b>{formatCurrency(campaign.spend)}</b></div><div><p className="text-taupe-500">Impressions</p><b>{campaign.impressions.toLocaleString()}</b></div><div><p className="text-taupe-500">Clicks</p><b>{campaign.clicks.toLocaleString()}</b></div><div><p className="text-taupe-500">Leads</p><b>{campaign.leads.toLocaleString()}</b></div><div><p className="text-taupe-500">Conversions</p><b>{campaign.conversions.toLocaleString()}</b></div>
+          </div>
+        </div>}
 
         {/* Projects */}
         <div className="card p-5">

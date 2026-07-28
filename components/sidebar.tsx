@@ -13,7 +13,7 @@ import { useNotifications } from '@/components/NotificationsContext'
 import {
   LayoutDashboard, Users, CheckSquare, FolderOpen,
   FileText, DollarSign, UserCog, LogOut, Settings, FolderKanban, Inbox, Clock, CheckCircle2, Wallet,
-  Menu, X, Search, FileSignature, ImageUp, HardHat, Filter, Newspaper, BookOpen, Video, MessageCircle
+  Menu, X, Search, FileSignature, ImageUp, HardHat, Filter, Newspaper, BookOpen, Video, MessageCircle, BarChart3
 } from 'lucide-react'
 
 const openCommandPalette = () => window.dispatchEvent(new Event('mm:open-command-palette'))
@@ -23,6 +23,7 @@ const navItems = [
   { href: '/crm',        label: 'CRM',         icon: Filter },
   { href: '/clients',    label: 'Clients',     icon: Users },
   { href: '/projects',   label: 'Projects',    icon: FolderKanban },
+  { href: '/campaign-reporting', label: 'Campaign Reports', icon: BarChart3 },
   { href: '/tasks',      label: 'Tasks',       icon: CheckSquare },
   { href: '/chat',       label: 'Chat',        icon: MessageCircle },
   { href: '/meetings',   label: 'Meetings',    icon: Video },

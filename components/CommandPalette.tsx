@@ -10,6 +10,7 @@ const PAGES: Result[] = [
   { type: 'Page', label: 'Dashboard', href: '/dashboard' },
   { type: 'Page', label: 'Clients', href: '/clients' },
   { type: 'Page', label: 'Projects', href: '/projects' },
+  { type: 'Page', label: 'Campaign Reports', href: '/campaign-reporting' },
   { type: 'Page', label: 'Tasks', href: '/tasks' },
   { type: 'Page', label: 'Time', href: '/time' },
   { type: 'Page', label: 'Finance', href: '/finance' },

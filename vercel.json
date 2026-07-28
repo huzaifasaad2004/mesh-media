@@ -5,6 +5,7 @@
     { "path": "/api/cron/recurring-invoices", "schedule": "0 6 1 * *" },
     { "path": "/api/cron/dunning", "schedule": "0 8 * * *" },
     { "path": "/api/cron/impact-reports", "schedule": "0 7 1 * *" },
-    { "path": "/api/cron/refresh-embeddings", "schedule": "0 2 * * *" }
+    { "path": "/api/cron/refresh-embeddings", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/campaign-reporting", "schedule": "0 3 * * *" }
   ]
 }
