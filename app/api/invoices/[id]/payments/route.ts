@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireFinanceWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
+import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
 
 // Body: { amount, payment_date?, notes? } — records a payment (full or
 // partial) against an invoice and recomputes its running amount_paid/status.
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       category: 'critical_alert',
     })
   }
+
+  if (isFullyPaid) await sendPaymentReceiptBestEffort(db, invoice.id)
 
   return NextResponse.json({ payment, invoice: updated })
 }

@@ -5,6 +5,7 @@ import { COMPANY } from '@/lib/company'
 /** Keep in sync with the notification_preferences CHECK constraint
  *  (extended through phase51_chat_notifications.sql). */
 export type NotifyCategory = 'task_assignment' | 'approval_request' | 'content_review' | 'critical_alert' | 'task_feedback' | 'meeting' | 'chat'
+export type NotificationAction = 'approve' | 'reject' | 'complete' | 'reply'
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -22,12 +23,17 @@ export async function notifyUsers(db: SupabaseClient, opts: {
   body?: string | null
   href?: string | null
   category: NotifyCategory
+  entityType?: 'approval' | 'task'
+  entityId?: string
+  actions?: NotificationAction[]
 }) {
   const ids = Array.from(new Set(opts.userIds.filter((id): id is string => !!id)))
   if (ids.length === 0) return
 
   await db.from('notifications').insert(ids.map(id => ({
     user_id: id, title: opts.title, body: opts.body ?? null, href: opts.href ?? null,
+    entity_type: opts.entityType ?? null, entity_id: opts.entityId ?? null,
+    available_actions: opts.actions ?? [],
   })))
 
   if (!process.env.RESEND_API_KEY) return

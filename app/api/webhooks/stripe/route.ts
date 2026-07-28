@@ -3,6 +3,7 @@ import { serviceRole } from '@/lib/apiAuth'
 import { getStripe } from '@/lib/stripe'
 import { logActivity } from '@/lib/activityLog'
 import type { User } from '@supabase/supabase-js'
+import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
 
 export const runtime = 'nodejs'
 
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
         const systemActor = { id: null, email: 'stripe-webhook' } as unknown as User
         await logActivity(systemActor, 'pay', 'invoice', invoiceId, `${invoice.invoice_number} · paid online via Stripe`)
       }
+      if (invoice) await sendPaymentReceiptBestEffort(db, invoiceId)
     }
   }
 

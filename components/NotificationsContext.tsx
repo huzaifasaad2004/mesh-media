@@ -10,6 +10,10 @@ export interface Notification {
   href: string | null
   read: boolean
   created_at: string
+  entity_type: 'approval' | 'task' | null
+  entity_id: string | null
+  available_actions: ('approve' | 'reject' | 'complete' | 'reply')[]
+  action_completed_at: string | null
 }
 
 interface NotificationsState {
@@ -20,6 +24,7 @@ interface NotificationsState {
   unreadHrefs: string[]
   markRead: (id: string) => void
   markAllRead: () => void
+  refresh: () => Promise<void>
 }
 
 const NotificationsCtx = createContext<NotificationsState | null>(null)
@@ -59,6 +64,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       channel = supabase
         .channel(`notifications-${Math.random().toString(36).slice(2)}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => load())
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, () => load())
         .subscribe()
     } catch { /* realtime unavailable — still works via the initial load */ }
     return () => { if (channel) { try { supabase.removeChannel(channel) } catch { /* noop */ } } }
@@ -80,7 +86,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const unreadHrefs = items.filter((n) => !n.read && n.href).map((n) => n.href as string)
 
   return (
-    <NotificationsCtx.Provider value={{ items, unreadCount, unreadHrefs, markRead, markAllRead }}>
+    <NotificationsCtx.Provider value={{ items, unreadCount, unreadHrefs, markRead, markAllRead, refresh: load }}>
       {children}
     </NotificationsCtx.Provider>
   )
