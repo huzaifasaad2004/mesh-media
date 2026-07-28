@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Pencil, Trash2, LayoutGrid, List, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, LayoutGrid, List, Search, SlidersHorizontal, X } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import TaskForm from '@/components/forms/TaskForm'
 import TaskComments from '@/components/tasks/TaskComments'
@@ -26,7 +26,13 @@ const priorityDot: Record<string, string> = {
   low: 'bg-gray-300',
 }
 
-const today = () => new Date().toISOString().split('T')[0]
+const dateKey = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+const today = () => dateKey(new Date())
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([])
@@ -41,8 +47,13 @@ export default function TasksPage() {
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('')
+  const [dueFilter, setDueFilter] = useState('')
+  const [clientFilter, setClientFilter] = useState('')
   const [page, setPage] = useState(1)
   const [canManage, setCanManage] = useState(false)
+  const [meId, setMeId] = useState('')
   const toast = useToast()
 
   const fetchTasks = useCallback(async () => {
@@ -63,7 +74,10 @@ export default function TasksPage() {
     fetchTasks()
     fetch('/api/clients').then(r => r.json()).then(d => setClients(Array.isArray(d) ? d : []))
     fetch('/api/profiles').then(r => r.json()).then(d => setProfiles(Array.isArray(d) ? d : [])).catch(() => {})
-    fetch('/api/profiles/me').then(r => r.json()).then(d => setCanManage(['owner', 'admin', 'manager'].includes(d.role))).catch(() => {})
+    fetch('/api/profiles/me').then(r => r.json()).then(d => {
+      setMeId(d.id ?? '')
+      setCanManage(['owner', 'admin', 'manager'].includes(d.role))
+    }).catch(() => {})
   }, [fetchTasks])
 
   const moveTask = async (taskId: string, status: string) => {
@@ -91,23 +105,40 @@ export default function TasksPage() {
 
   const isOverdue = (t: any) => t.due_date && t.due_date < today() && t.status !== 'done'
 
-  const searched = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return tasks
-    return tasks.filter(t =>
-      t.title?.toLowerCase().includes(q) ||
-      t.client?.company_name?.toLowerCase().includes(q) ||
-      t.assignee?.full_name?.toLowerCase().includes(q)
-    )
-  }, [tasks, query])
+    const todayKey = dateKey(new Date())
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+    const nextWeekKey = dateKey(nextWeek)
 
-  const listFiltered = useMemo(
-    () => statusFilter ? searched.filter(t => t.status === statusFilter) : searched,
-    [searched, statusFilter]
-  )
-  const pageCount = Math.max(1, Math.ceil(listFiltered.length / PAGE_SIZE))
+    return tasks.filter(t => {
+      const matchesSearch = !q || t.title?.toLowerCase().includes(q) ||
+        t.client?.company_name?.toLowerCase().includes(q) ||
+        t.assignee?.full_name?.toLowerCase().includes(q)
+      const matchesStatus = !statusFilter ||
+        (statusFilter === 'open' ? t.status !== 'done' : t.status === statusFilter)
+      const matchesAssignee = !assigneeFilter ||
+        (assigneeFilter === 'me' ? t.assigned_to === meId :
+          assigneeFilter === 'unassigned' ? !t.assigned_to : t.assigned_to === assigneeFilter)
+      const matchesPriority = !priorityFilter || t.priority === priorityFilter
+      const matchesClient = !clientFilter || t.client_id === clientFilter
+      const matchesDue = !dueFilter ||
+        (dueFilter === 'overdue' ? t.due_date && t.due_date < todayKey && t.status !== 'done' :
+          dueFilter === 'today' ? t.due_date === todayKey :
+            dueFilter === 'next7' ? t.due_date && t.due_date >= todayKey && t.due_date <= nextWeekKey :
+              dueFilter === 'no_date' ? !t.due_date : true)
+      return matchesSearch && matchesStatus && matchesAssignee && matchesPriority && matchesClient && matchesDue
+    })
+  }, [tasks, query, statusFilter, assigneeFilter, priorityFilter, dueFilter, clientFilter, meId])
+
+  const activeFilterCount = [statusFilter, assigneeFilter, priorityFilter, dueFilter, clientFilter].filter(Boolean).length
+  const clearFilters = () => {
+    setQuery(''); setStatusFilter(''); setAssigneeFilter(''); setPriorityFilter(''); setDueFilter(''); setClientFilter(''); setPage(1)
+  }
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount)
-  const listVisible = listFiltered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const listVisible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const TaskCard = ({ task }: { task: any }) => (
     <div
@@ -187,9 +218,10 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Search + status filter */}
-      <div className="card px-4 py-3 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="flex items-center gap-2 flex-1">
+      {/* Unified filters — these apply to both board and list views. */}
+      <div className="card px-4 py-3 mb-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-[220px]">
           <Search className="w-4 h-4 text-taupe-500 flex-shrink-0" />
           <input
             className="flex-1 text-sm focus:outline-none bg-transparent placeholder:text-taupe-500"
@@ -197,17 +229,40 @@ export default function TasksPage() {
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1) }}
           />
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-taupe-500">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            Showing <span className="font-semibold text-ink">{filtered.length}</span> of {tasks.length}
+          </div>
         </div>
-        {view === 'list' && (
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-            className="border border-sand-300 rounded-lg px-2 py-1.5 text-xs text-umber-700 bg-white"
-          >
-            <option value="">All statuses</option>
-            {COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+          <select value={assigneeFilter} onChange={e => { setAssigneeFilter(e.target.value); setPage(1) }} className="border border-sand-300 rounded-lg px-2.5 py-2 text-xs text-umber-700 bg-white min-w-0" aria-label="Filter by assignee">
+            <option value="">All assignees</option>
+            <option value="me">Assigned to me</option>
+            <option value="unassigned">Unassigned</option>
+            {profiles.filter(p => p.id !== meId).map(p => <option key={p.id} value={p.id}>{p.full_name ?? p.email}</option>)}
           </select>
-        )}
+          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className="border border-sand-300 rounded-lg px-2.5 py-2 text-xs text-umber-700 bg-white min-w-0" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="open">Open / Pending</option>
+            {COLUMNS.map(c => <option key={c.key} value={c.key}>{c.key === 'done' ? 'Completed' : c.label}</option>)}
+          </select>
+          <select value={priorityFilter} onChange={e => { setPriorityFilter(e.target.value); setPage(1) }} className="border border-sand-300 rounded-lg px-2.5 py-2 text-xs text-umber-700 bg-white min-w-0" aria-label="Filter by priority">
+            <option value="">All priorities</option>
+            <option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+          </select>
+          <select value={dueFilter} onChange={e => { setDueFilter(e.target.value); setPage(1) }} className="border border-sand-300 rounded-lg px-2.5 py-2 text-xs text-umber-700 bg-white min-w-0" aria-label="Filter by due date">
+            <option value="">Any due date</option>
+            <option value="overdue">Overdue</option><option value="today">Due today</option><option value="next7">Next 7 days</option><option value="no_date">No due date</option>
+          </select>
+          <select value={clientFilter} onChange={e => { setClientFilter(e.target.value); setPage(1) }} className="border border-sand-300 rounded-lg px-2.5 py-2 text-xs text-umber-700 bg-white min-w-0" aria-label="Filter by client">
+            <option value="">All clients</option>
+            {clients.map(client => <option key={client.id} value={client.id}>{client.company_name}</option>)}
+          </select>
+          <button onClick={clearFilters} disabled={!query && activeFilterCount === 0} className="border border-sand-300 rounded-lg px-2.5 py-2 text-xs text-taupe-600 hover:text-brand-600 hover:border-brand-300 disabled:opacity-40 disabled:hover:text-taupe-600 flex items-center justify-center gap-1.5 transition-colors">
+            <X className="w-3.5 h-3.5" /> Clear filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -218,7 +273,7 @@ export default function TasksPage() {
         /* ── Kanban board ── */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
           {COLUMNS.map(col => {
-            const colTasks = searched.filter(t => t.status === col.key)
+            const colTasks = filtered.filter(t => t.status === col.key)
             return (
               <div key={col.key}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(col.key) }}
@@ -232,7 +287,7 @@ export default function TasksPage() {
                 <div className="space-y-2">
                   {colTasks.map(task => <TaskCard key={task.id} task={task} />)}
                   {colTasks.length === 0 && (
-                    <p className="text-xs text-taupe-500 text-center py-6">Drop tasks here</p>
+                    <p className="text-xs text-taupe-500 text-center py-6">{query || activeFilterCount > 0 ? 'No matching tasks' : 'Drop tasks here'}</p>
                   )}
                 </div>
               </div>
@@ -298,14 +353,14 @@ export default function TasksPage() {
               )) : (
                 <EmptyState
                   colSpan={7}
-                  title={tasks.length === 0 ? 'No tasks yet' : 'No tasks match your search'}
-                  helper={tasks.length === 0 ? (canManage ? 'Create a task to start tracking work.' : 'No tasks are assigned to you yet.') : 'Try a different search term or status filter.'}
+                  title={tasks.length === 0 ? 'No tasks yet' : 'No tasks match these filters'}
+                  helper={tasks.length === 0 ? (canManage ? 'Create a task to start tracking work.' : 'No tasks are assigned to you yet.') : 'Clear or adjust a filter to see more tasks.'}
                   action={tasks.length === 0 && canManage ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditingTask(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Task</button> : undefined}
                 />
               )}
             </tbody>
           </table>
-          <Pagination page={currentPage} pageCount={pageCount} total={listFiltered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+          <Pagination page={currentPage} pageCount={pageCount} total={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
         </div>
       )}
 
