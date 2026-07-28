@@ -6,6 +6,7 @@ import { Plus, Search, ExternalLink, FileBarChart, Loader2 } from 'lucide-react'
 import { formatCurrency, statusColor, statusLabel } from '@/lib/utils'
 import type { Client } from '@/types/database'
 import InvitePortalButton from '@/components/clients/InvitePortalButton'
+import ViewAsButton from '@/components/ViewAsButton'
 import Pagination from '@/components/ui/Pagination'
 import EmptyState from '@/components/ui/EmptyState'
 import { useToast } from '@/components/ui/Toast'
@@ -13,7 +14,13 @@ import { CHURN_LEVEL_LABEL, CHURN_LEVEL_COLOR, type ChurnLevel } from '@/lib/chu
 
 const PAGE_SIZE = 10
 
-export default function ClientsTable({ clients, isManagerUp }: { clients: Client[]; isManagerUp: boolean }) {
+type PortalUser = { id: string; full_name: string | null; email: string | null }
+
+export default function ClientsTable({ clients, isManagerUp, portalUserByClient }: {
+  clients: Client[]
+  isManagerUp: boolean
+  portalUserByClient: Record<string, PortalUser>
+}) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -155,6 +162,12 @@ export default function ClientsTable({ clients, isManagerUp }: { clients: Client
                       </a>
                     )}
                     {isManagerUp && <InvitePortalButton clientId={client.id} disabled={!client.email} />}
+                    {portalUserByClient[client.id] && (
+                      <ViewAsButton
+                        userId={portalUserByClient[client.id].id}
+                        name={portalUserByClient[client.id].full_name ?? portalUserByClient[client.id].email ?? client.company_name}
+                      />
+                    )}
                     <Link href={`/clients/${client.id}`} className="btn-secondary btn-sm">View</Link>
                     {isManagerUp && <Link href={`/clients/${client.id}/edit`} className="btn-ghost btn-sm">Edit</Link>}
                   </div>
