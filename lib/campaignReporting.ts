@@ -40,6 +40,12 @@ export function decryptCampaignToken(value: string) {
 const num = (value: unknown) => Number(value ?? 0) || 0
 const actionValue = (actions: any[] | undefined, names: string[]) => num(actions?.find(a => names.includes(a.action_type))?.value)
 
+function googleAdsError(payload: any, status: number) {
+  const envelope = Array.isArray(payload) ? payload.find(item => item?.error)?.error : payload?.error
+  const failure = envelope?.details?.flatMap((detail: any) => detail?.errors ?? detail?.error?.errors ?? [])?.[0]
+  return failure?.message ?? envelope?.message ?? `Google Ads reporting request failed (HTTP ${status})`
+}
+
 async function metaMetrics(connection: CampaignConnection, since: string, until: string): Promise<CampaignMetric[]> {
   const token = decryptCampaignToken(connection.access_token_ciphertext!)
   const version = process.env.META_GRAPH_VERSION ?? 'v23.0'
@@ -103,7 +109,7 @@ async function googleMetrics(connection: CampaignConnection, since: string, unti
   const apiVersion = process.env.GOOGLE_ADS_API_VERSION ?? 'v23'
   const response = await fetch(`https://googleads.googleapis.com/${apiVersion}/customers/${customer}/googleAds:searchStream`, { method: 'POST', headers, body: JSON.stringify({ query }) })
   const payload = await response.json()
-  if (!response.ok) throw new Error(payload.error?.message ?? 'Google Ads reporting request failed')
+  if (!response.ok) throw new Error(googleAdsError(payload, response.status))
   return (payload as any[]).flatMap(batch => batch.results ?? []).map(row => ({
     external_campaign_id: String(row.campaign.id), campaign_name: row.campaign.name, metric_date: row.segments.date,
     currency: row.customer.currencyCode, impressions: num(row.metrics.impressions), clicks: num(row.metrics.clicks),
