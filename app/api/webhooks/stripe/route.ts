@@ -4,6 +4,7 @@ import { getStripe } from '@/lib/stripe'
 import { logActivity } from '@/lib/activityLog'
 import type { User } from '@supabase/supabase-js'
 import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 export const runtime = 'nodejs'
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const invoiceId = session.metadata?.invoice_id
     if (invoiceId) {
       const db = serviceRole()
-      const { data: invoice } = await db.from('invoices').select('id, status, invoice_number, total, amount_paid').eq('id', invoiceId).single()
+      const { data: invoice } = await db.from('invoices').select('id, status, invoice_number, total, amount_paid, client_id, project_id, client:clients(company_name)').eq('id', invoiceId).single()
       // Idempotent — Stripe can send this event more than once.
       if (invoice && invoice.status !== 'paid') {
         const paymentDate = new Date().toISOString().split('T')[0]
@@ -57,6 +58,10 @@ export async function POST(req: NextRequest) {
         // is a webhook, there's no authenticated actor.
         const systemActor = { id: null, email: 'stripe-webhook' } as unknown as User
         await logActivity(systemActor, 'pay', 'invoice', invoiceId, `${invoice.invoice_number} · paid online via Stripe`)
+        await emitAutomationEvent('invoice_paid', {
+          eventKey: invoice.id, entityId: invoice.id, entityType: 'invoice', clientId: invoice.client_id, projectId: invoice.project_id,
+          values: { invoice_number: invoice.invoice_number, client_name: (invoice.client as any)?.company_name, company_name: (invoice.client as any)?.company_name, total: invoice.total, status: 'paid' },
+        })
       }
       if (invoice) await sendPaymentReceiptBestEffort(db, invoiceId)
     }

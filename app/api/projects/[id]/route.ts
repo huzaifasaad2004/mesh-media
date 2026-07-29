@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser, requireProjectsWrite, requireProjectsDelete, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { isAdmin } from '@/lib/roles'
 import { hasPermission } from '@/lib/permissions'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUser()
@@ -30,8 +31,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const auth = await requireProjectsWrite()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
-  const { data, error } = await serviceRole().from('projects').update(body).eq('id', params.id).select().single()
+  const db = serviceRole()
+  const { data: before } = await db.from('projects').select('status').eq('id', params.id).single()
+  const { data, error } = await db.from('projects').update(body).eq('id', params.id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (data.status === 'completed' && before?.status !== 'completed') {
+    const { data: client } = data.client_id ? await db.from('clients').select('company_name').eq('id', data.client_id).single() : { data: null }
+    await emitAutomationEvent('project_completed', {
+      eventKey: data.id, actorId: auth.user.id, entityId: data.id, entityType: 'project', clientId: data.client_id, projectId: data.id,
+      values: { project_name: data.name, client_name: client?.company_name, company_name: client?.company_name, status: data.status },
+    })
+  }
   return NextResponse.json(data)
 }
 

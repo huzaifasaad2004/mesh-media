@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireLeadsWrite, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { pickLeadFields, LEAD_SELECT } from '@/lib/leads'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 // Body: any subset of lead fields, plus optional { status, lost_reason }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -47,6 +48,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   await logActivity(auth.user, 'update', 'lead', lead.id, lead.company_name)
+  if (clean.status === 'won' && before.status !== 'won') {
+    await emitAutomationEvent('lead_won', {
+      eventKey: lead.id, actorId: auth.user.id, entityId: lead.id, entityType: 'lead',
+      clientId: lead.converted_client_id ?? null,
+      values: { company_name: lead.company_name, client_name: lead.company_name, estimated_value: lead.estimated_value, source: lead.source, status: lead.status },
+    })
+  }
   return NextResponse.json(lead)
 }
 

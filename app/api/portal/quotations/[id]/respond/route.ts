@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { notifyUsers } from '@/lib/notify'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 const admin = () => createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -64,6 +65,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       body,
       href: '/finance/quotations',
       category: 'critical_alert',
+    })
+  }
+
+  if (status === 'accepted') {
+    const company = (quote as any).client?.company_name
+    await emitAutomationEvent('quotation_accepted', {
+      eventKey: quote.id, actorId: user.id, entityId: quote.id, entityType: 'quotation', clientId: quote.client_id,
+      values: { quote_number: quote.quote_number, client_name: company, company_name: company, total: quote.total, status },
     })
   }
 

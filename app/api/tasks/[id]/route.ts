@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser, requireTasksManage, serviceRole, stripProtected } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUser()
@@ -56,6 +57,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body: data.title,
       href: '/tasks',
       category: 'task_feedback',
+    })
+  }
+  if (data.status === 'done' && before?.status !== 'done') {
+    await emitAutomationEvent('task_completed', {
+      eventKey: data.id, actorId: auth.user.id, entityId: data.id, entityType: 'task', clientId: data.client_id, projectId: data.project_id,
+      values: { task_title: data.title, status: data.status, priority: data.priority, assigned_to: data.assigned_to },
     })
   }
 

@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activityLog'
 import { emitCelineEvent } from '@/lib/celine/events'
 import { computeTotals } from '@/lib/documentTotals'
 import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -46,14 +47,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const body = await req.json()
   const { items, ...invoiceData } = body
+  const { data: before } = await admin().from('invoices').select('status, paid_date').eq('id', params.id).single()
 
   // Revenue reporting is keyed off paid_date, not status — stamp it the
   // moment an invoice is marked paid (unless already set / explicitly
   // provided), and clear it if the status is reverted away from paid.
   if (invoiceData.status === 'paid') {
     if (!invoiceData.paid_date) {
-      const { data: existing } = await admin().from('invoices').select('paid_date').eq('id', params.id).single()
-      if (!existing?.paid_date) invoiceData.paid_date = new Date().toISOString().split('T')[0]
+      if (!before?.paid_date) invoiceData.paid_date = new Date().toISOString().split('T')[0]
     }
     // Manually marking paid (without going through the payments flow) should
     // still leave the running total consistent for outstanding-balance math.
@@ -91,6 +92,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   await logActivity(auth.user, 'update', 'invoice', params.id, data.invoice_number)
   if (data.status === 'paid') await sendPaymentReceiptBestEffort(admin(), params.id)
+  if (data.status === 'paid' && before?.status !== 'paid') {
+    const { data: client } = await admin().from('clients').select('company_name').eq('id', data.client_id).single()
+    await emitAutomationEvent('invoice_paid', {
+      eventKey: data.id, actorId: auth.user.id, entityId: data.id, entityType: 'invoice', clientId: data.client_id, projectId: data.project_id,
+      values: { invoice_number: data.invoice_number, client_name: client?.company_name, company_name: client?.company_name, total: data.total, status: data.status },
+    })
+  }
   return NextResponse.json(data)
 }
 

@@ -3,6 +3,7 @@ import { requireFinanceWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 import { sendPaymentReceiptBestEffort } from '@/lib/paymentReceipt'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 // Body: { amount, payment_date?, notes? } — records a payment (full or
 // partial) against an invoice and recomputes its running amount_paid/status.
@@ -65,6 +66,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   if (isFullyPaid) await sendPaymentReceiptBestEffort(db, invoice.id)
+  if (isFullyPaid) await emitAutomationEvent('invoice_paid', {
+    eventKey: invoice.id, actorId: auth.user.id, entityId: invoice.id, entityType: 'invoice', clientId: updated.client_id, projectId: updated.project_id,
+    values: { invoice_number: invoice.invoice_number, client_name: (invoice.client as any)?.company_name, company_name: (invoice.client as any)?.company_name, total: invoice.total, status: 'paid' },
+  })
 
   return NextResponse.json({ payment, invoice: updated })
 }

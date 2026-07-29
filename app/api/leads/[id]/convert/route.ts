@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireLeadsWrite, serviceRole } from '@/lib/apiAuth'
 import { logActivity } from '@/lib/activityLog'
+import { emitAutomationEvent } from '@/lib/automations/engine'
 
 /** Convert a won lead into a real client row. Idempotent: if the lead was
  *  already converted, returns the existing client instead of creating another. */
@@ -32,5 +33,13 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   })
 
   await logActivity(auth.user, 'convert', 'lead', lead.id, lead.company_name)
+  await emitAutomationEvent('lead_won', {
+    eventKey: lead.id, actorId: auth.user.id, entityId: lead.id, entityType: 'lead', clientId: client.id,
+    values: { company_name: lead.company_name, client_name: lead.company_name, estimated_value: lead.estimated_value, source: lead.source, status: 'won' },
+  })
+  await emitAutomationEvent('client_created', {
+    eventKey: client.id, actorId: auth.user.id, entityId: client.id, entityType: 'client', clientId: client.id,
+    values: { company_name: client.company_name, client_name: client.company_name, status: 'onboarding' },
+  })
   return NextResponse.json({ clientId: client.id })
 }

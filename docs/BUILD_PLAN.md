@@ -4,6 +4,26 @@
 
 Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supabase** (Postgres, Auth, Storage, Realtime, Edge Functions, pgvector) · **Gemini** (LLM, embeddings, vision) · **Resend** (email)
 
+## ✅ Phase 54 — Visual Workflow Automation Builder (released 2026-07-29)
+
+`/settings/automations` upgrades the existing onboarding-template concept into a general,
+manager-only WHEN / ONLY IF / DO THIS builder. It includes starter recipes, draft/active states,
+ordered multi-action workflows, variable placeholders, manual test runs, duplicate-event
+protection, and an auditable run history with per-action success/failure results.
+
+Initial triggers: client created, lead won, quotation accepted, invoice paid (manual, split-payment,
+or Stripe), task completed, project completed, and manual. Initial actions: create/assign a task,
+notify selected staff roles by in-app notification + email, start an onboarding checklist, create a
+client project, and update client status. Existing business mutations remain successful if the
+automation migration is not live or an action fails; failures are recorded instead of rolling back
+the source transaction.
+
+Migration: `supabase/migrations/20260729151620_workflow_automation_builder.sql`.
+
+Production migration applied and verified with all three tables under RLS and nine manager-only
+policies. The application release includes no pre-activated rules; admins intentionally choose
+which recipes to create and activate.
+
 ## 🟡 Phase 53 — Document Studio + automatic archive (prepared 2026-07-22)
 
 Official `public/templates/MeshMedia_Letterhead.docx` is the master template. `/documents/studio`
