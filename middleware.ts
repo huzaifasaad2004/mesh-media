@@ -31,6 +31,8 @@ export async function middleware(request: NextRequest) {
   const isSetPassword = request.nextUrl.pathname === '/set-password'
   const isPublicPath = request.nextUrl.pathname === '/'
     || request.nextUrl.pathname.startsWith('/auth/')
+    || request.nextUrl.pathname.startsWith('/campaign-report/')
+    || request.nextUrl.pathname.startsWith('/api/campaign-reporting/public/')
     // Celine's action API authenticates its own requests via CELINE_API_TOKEN
     // bearer token (see lib/celine/auth.ts) — it has no browser session to check.
     || request.nextUrl.pathname.startsWith('/api/celine/')
