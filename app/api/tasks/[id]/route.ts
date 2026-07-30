@@ -73,9 +73,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   // Only holders of tasks.manage can delete tasks — members lose delete entirely.
   const auth = await requireTasksManage()
   if ('res' in auth) return auth.res
-  const { data: existing } = await serviceRole().from('tasks').select('title').eq('id', params.id).single()
-  const { error } = await serviceRole().from('tasks').delete().eq('id', params.id)
+  const db = serviceRole()
+  const [{ data: existing }, { data: attachments }] = await Promise.all([
+    db.from('tasks').select('title').eq('id', params.id).single(),
+    db.from('task_attachments').select('storage_path').eq('task_id', params.id),
+  ])
+  const { error } = await db.from('tasks').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  const paths = (attachments ?? []).map(attachment => attachment.storage_path).filter(Boolean)
+  if (paths.length) await db.storage.from('task-attachments').remove(paths)
   await logActivity(auth.user, 'delete', 'task', params.id, existing?.title)
   return NextResponse.json({ success: true })
 }

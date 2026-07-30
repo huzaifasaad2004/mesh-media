@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Pencil, Trash2, LayoutGrid, List, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, LayoutGrid, List, Search, SlidersHorizontal, X, Images } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import TaskForm from '@/components/forms/TaskForm'
 import TaskComments from '@/components/tasks/TaskComments'
@@ -162,6 +162,12 @@ export default function TasksPage() {
       {task.client?.company_name && (
         <p className="text-xs text-taupe-500 mt-1">{task.client.company_name}</p>
       )}
+      {task.attachments?.length > 0 && (
+        <div className="flex items-center gap-1 mt-2 text-[11px] text-brand-700">
+          <Images className="w-3.5 h-3.5" />
+          {task.attachments.length} reference {task.attachments.length === 1 ? 'image' : 'images'}
+        </div>
+      )}
       <div className="flex items-center justify-between mt-2.5">
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${priorityDot[task.priority] ?? 'bg-gray-300'}`} title={task.priority} />
@@ -312,7 +318,16 @@ export default function TasksPage() {
             <tbody className="divide-y divide-paper-200">
               {listVisible.length > 0 ? listVisible.map((task) => (
                 <tr key={task.id} className="hover:bg-paper-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-ink">{task.title}</td>
+                  <td className="px-5 py-3 font-medium text-ink">
+                    <div className="flex items-center gap-2">
+                      <span>{task.title}</span>
+                      {task.attachments?.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-brand-700 bg-brand-50 rounded-full px-1.5 py-0.5" title={`${task.attachments.length} reference images`}>
+                          <Images className="w-3 h-3" /> {task.attachments.length}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-5 py-3 text-taupe-600">{task.client?.company_name ?? '—'}</td>
                   <td className="px-5 py-3">
                     {task.assignee ? (
