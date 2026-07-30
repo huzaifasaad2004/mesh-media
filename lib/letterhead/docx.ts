@@ -12,17 +12,25 @@ const xml = (value: string | null | undefined) => (value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&apos;')
 
-const run = (text: string, options: { bold?: boolean; italic?: boolean; color?: string; size?: number; caps?: boolean; tracking?: number } = {}) => (
-  `<w:r><w:rPr>` +
-  `<w:rFonts w:ascii="Avenir Next" w:hAnsi="Avenir Next"/>` +
-  `<w:sz w:val="${options.size ?? 21}"/><w:szCs w:val="${options.size ?? 21}"/>` +
-  (options.bold ? '<w:b/><w:bCs/>' : '') +
-  (options.italic ? '<w:i/><w:iCs/>' : '') +
-  (options.color ? `<w:color w:val="${options.color}"/>` : '') +
-  (options.caps ? '<w:caps/>' : '') +
-  (options.tracking ? `<w:spacing w:val="${options.tracking}"/>` : '') +
-  `</w:rPr><w:t xml:space="preserve">${xml(text)}</w:t></w:r>`
-)
+const run = (text: string, options: { bold?: boolean; italic?: boolean; color?: string; size?: number; caps?: boolean; tracking?: number } = {}) => {
+  const textWithBreaks = text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => `<w:t xml:space="preserve">${xml(line)}</w:t>`)
+    .join('<w:br/>')
+
+  return (
+    `<w:r><w:rPr>` +
+    `<w:rFonts w:ascii="Avenir Next" w:hAnsi="Avenir Next"/>` +
+    `<w:sz w:val="${options.size ?? 21}"/><w:szCs w:val="${options.size ?? 21}"/>` +
+    (options.bold ? '<w:b/><w:bCs/>' : '') +
+    (options.italic ? '<w:i/><w:iCs/>' : '') +
+    (options.color ? `<w:color w:val="${options.color}"/>` : '') +
+    (options.caps ? '<w:caps/>' : '') +
+    (options.tracking ? `<w:spacing w:val="${options.tracking}"/>` : '') +
+    `</w:rPr>${textWithBreaks}</w:r>`
+  )
+}
 
 const paragraph = (text: string, options: {
   after?: number

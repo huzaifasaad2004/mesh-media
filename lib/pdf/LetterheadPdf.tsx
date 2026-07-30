@@ -86,7 +86,7 @@ function Footer() {
 
 function Block({ block, number }: { block: DocumentBlock; number: number }) {
   const common = {
-    fontFamily: block.bold ? 'Helvetica-Bold' : block.italic ? 'Helvetica-Oblique' : 'Helvetica',
+    fontFamily: block.bold && block.italic ? 'Helvetica-BoldOblique' : block.bold ? 'Helvetica-Bold' : block.italic ? 'Helvetica-Oblique' : 'Helvetica',
     textAlign: block.align ?? 'left' as const,
   }
   if (block.type === 'heading') return <Text style={[styles.heading, common]}>{block.text}</Text>

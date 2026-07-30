@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import type { AgencyDocumentData, DocumentBlock, DocumentBlockType } from '@/lib/letterhead/types'
 import { EMPTY_BLOCKS } from '@/lib/letterhead/types'
 
-const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white'
+const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white'
 const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1'
 const newId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
@@ -57,13 +57,18 @@ export default function DocumentStudioEditor({ documentId }: { documentId?: stri
   }, [documentId])
 
   const update = (patch: Record<string, unknown>) => setDocument((current: any) => ({ ...current, ...patch }))
-  const updateBlock = (id: string, patch: Partial<DocumentBlock>) => update({
-    content: document.content.map((block: DocumentBlock) => block.id === id ? { ...block, ...patch } : block),
-  })
-  const addBlock = (type: DocumentBlockType = 'paragraph') => update({
-    content: [...document.content, { id: newId(), type, text: '', align: 'left' }],
-  })
-  const removeBlock = (id: string) => update({ content: document.content.filter((block: DocumentBlock) => block.id !== id) })
+  const updateBlock = (id: string, patch: Partial<DocumentBlock>) => setDocument((current: any) => ({
+    ...current,
+    content: current.content.map((block: DocumentBlock) => block.id === id ? { ...block, ...patch } : block),
+  }))
+  const addBlock = (type: DocumentBlockType = 'paragraph') => setDocument((current: any) => ({
+    ...current,
+    content: [...current.content, { id: newId(), type, text: '', align: 'left' }],
+  }))
+  const removeBlock = (id: string) => setDocument((current: any) => ({
+    ...current,
+    content: current.content.filter((block: DocumentBlock) => block.id !== id),
+  }))
 
   const chooseClient = (id: string) => {
     const client = clients.find((item) => item.id === id)
@@ -114,10 +119,10 @@ export default function DocumentStudioEditor({ documentId }: { documentId?: stri
       if (block.type === 'numbered') number += 1
       else number = 0
       const style = { textAlign: block.align || 'left', fontWeight: block.bold ? 700 : undefined, fontStyle: block.italic ? 'italic' : undefined } as const
-      if (block.type === 'heading') return <h3 key={block.id} className="mt-4 mb-1 text-sm font-bold text-[#6E1318]" style={style}>{block.text || 'Section heading'}</h3>
-      if (block.type === 'bullet') return <p key={block.id} className="mb-1 pl-4" style={style}>• {block.text}</p>
-      if (block.type === 'numbered') return <p key={block.id} className="mb-1 pl-4" style={style}>{number}. {block.text}</p>
-      return <p key={block.id} className="mb-2" style={style}>{block.text || 'Start writing…'}</p>
+      if (block.type === 'heading') return <h3 key={block.id} className="mt-4 mb-1 text-sm font-bold text-[#6E1318] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={style}>{block.text || 'Section heading'}</h3>
+      if (block.type === 'bullet') return <p key={block.id} className="mb-1 pl-4 whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={style}>• {block.text}</p>
+      if (block.type === 'numbered') return <p key={block.id} className="mb-1 pl-4 whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={style}>{number}. {block.text}</p>
+      return <p key={block.id} className="mb-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={style}>{block.text || 'Start writing…'}</p>
     })
   }, [document.content])
 
@@ -175,7 +180,8 @@ export default function DocumentStudioEditor({ documentId }: { documentId?: stri
                     {(['left', 'center', 'right'] as const).map((align) => { const Icon = align === 'left' ? AlignLeft : align === 'center' ? AlignCenter : AlignRight; return <button key={align} className={`p-1.5 rounded ${block.align === align ? 'bg-brand-100 text-brand-700' : 'hover:bg-gray-100'}`} onClick={() => updateBlock(block.id, { align })}><Icon className="w-3.5 h-3.5" /></button> })}
                     <button className="ml-auto p-1.5 rounded hover:bg-red-50 hover:text-red-600" onClick={() => removeBlock(block.id)}><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
-                  <textarea className={`${inputClass} min-h-[92px] resize-y`} value={block.text} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder={block.type === 'heading' ? 'Section heading' : 'Write here…'} />
+                  <textarea className={`${inputClass} min-h-[120px] resize-y whitespace-pre-wrap [overflow-wrap:anywhere]`} value={block.text} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder={block.type === 'heading' ? 'Section heading' : 'Write here…'} />
+                  <p className="mt-1.5 text-right text-[10px] text-gray-400">{block.text.length.toLocaleString()} / 10,000 characters</p>
                 </div>
               ))}
               {!document.content.length && <button className="w-full border-2 border-dashed border-gray-200 rounded-xl py-8 text-sm text-gray-500 hover:border-brand-300" onClick={() => addBlock()}>Add your first paragraph</button>}
@@ -190,14 +196,14 @@ export default function DocumentStudioEditor({ documentId }: { documentId?: stri
 
         <aside className="xl:sticky xl:top-5">
           <div className="flex items-center gap-2 mb-2 text-xs font-medium text-gray-500"><FileText className="w-3.5 h-3.5" /> Live A4 preview</div>
-          <div className="relative bg-white shadow-xl border border-gray-200 mx-auto overflow-hidden" style={{ width: '100%', aspectRatio: '210 / 297', fontFamily: 'Arial, Helvetica, sans-serif' }}>
+          <div className="relative bg-[#fff] shadow-xl border border-gray-200 mx-auto overflow-hidden text-[#151312]" style={{ width: '100%', aspectRatio: '210 / 297', fontFamily: 'Arial, Helvetica, sans-serif', colorScheme: 'light' }}>
             <div className="absolute left-[14.3%] right-[10.5%] top-[4.2%]">
               <div className="flex justify-between items-start"><img src="/templates/letterhead-assets/logo_lockup.png" alt="MeshMedia" className="w-[41%] h-auto" /><div className="text-right mt-2"><p className="text-[7px] font-bold tracking-[0.14em] text-[#6E1318]">MARKETING &amp; PUBLIC RELATIONS</p><p className="text-[6px] tracking-[0.14em] text-[#9C9384] mt-1">ABU DHABI · UNITED ARAB EMIRATES</p></div></div>
               <div className="flex items-center mt-3"><div className="h-[3px] w-[16%] bg-[#6E1318]" /><div className="h-px flex-1 bg-[#C8BCA8] ml-2" /></div>
             </div>
             <img src="/templates/letterhead-assets/ghost_mark.png" alt="" className="absolute opacity-[0.035] w-[65%] right-[-8%] top-[43%]" />
             <img src="/templates/letterhead-assets/edge_type.png" alt="" className="absolute opacity-70 w-[1.4%] left-[6.5%] top-[57%]" />
-            <div className="absolute left-[14.3%] right-[10.5%] top-[15%] bottom-[12%] overflow-hidden text-[8px] leading-[1.5] text-[#151312]">
+            <div className="relative z-10 min-h-full pt-[15%] pb-[12%] pl-[14.3%] pr-[10.5%] text-[8px] leading-[1.5] text-[#151312] break-words [overflow-wrap:anywhere]">
               <p className="text-[6px] tracking-[0.18em] text-[#9C9384] mb-4">{new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date()).toUpperCase()}</p>
               {document.recipient_name && <p className="font-bold">{document.recipient_name}</p>}<p className="text-[#6E655B]">{document.recipient_title}</p><p className="text-[#6E655B]">{document.company_name}</p><p className="text-[#6E655B]">{document.address_line}</p>
               <p className="text-[7px] font-bold tracking-[0.12em] text-[#6E1318] my-4">SUBJECT: {document.subject?.toUpperCase() || 'YOUR SUBJECT'}</p>
@@ -206,7 +212,7 @@ export default function DocumentStudioEditor({ documentId }: { documentId?: stri
             </div>
             <div className="absolute left-[14.3%] right-[10.5%] bottom-[3.7%] border-t border-[#C8BCA8] pt-2 text-[5px] tracking-[0.08em] text-[#9C9384]"><div className="flex justify-between"><span>MAZYAD MALL, TOWER 2, OFFICE 619</span><span>+971 50 950 1326</span><span>THEMESHMEDIA.COM</span></div><div className="flex justify-between"><span>MBZ · ABU DHABI · U.A.E.</span><span>HELLO@M3M.AE</span><span>TRADE LICENCE 1594410</span></div></div>
           </div>
-          <p className="text-[11px] text-gray-400 mt-2 text-center">Preview is scaled. PDF and Word downloads use exact A4 geometry.</p>
+          <p className="text-[11px] text-gray-400 mt-2 text-center">The preview expands as you write. PDF and Word downloads use exact A4 page breaks.</p>
         </aside>
       </div>
     </div>
