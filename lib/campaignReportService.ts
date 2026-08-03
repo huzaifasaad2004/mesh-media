@@ -4,6 +4,7 @@ import { getCampaignReportData } from '@/lib/campaignReportData'
 import { renderCampaignReportPdf } from '@/lib/pdf/CampaignReportPdf'
 import { COMPANY } from '@/lib/company'
 import { generateCampaignInsights } from '@/lib/campaignInsights'
+import { loadCreativeIntelligence } from '@/lib/creativeLab'
 
 export type GenerateCampaignReportOptions = {
   clientId: string; projectId?: string | null; start: string; end: string; timezone?: string
@@ -19,6 +20,9 @@ export async function generateCampaignReport(db: SupabaseClient, options: Genera
   ])
   if (!client) throw new Error('Client not found')
   const data = await getCampaignReportData(db, { clientId:options.clientId, projectId:options.projectId, start:options.start, end:options.end, provider:options.provider, campaign:options.campaign, compare:true })
+  try {
+    ;(data as any).creativeLab = await loadCreativeIntelligence(db, { clientId:options.clientId, projectId:options.projectId, start:options.start, end:options.end, provider:options.provider, campaign:options.campaign })
+  } catch { /* Reports remain available if creative detail is not migrated yet. */ }
   let summary = options.summary
   if (!summary?.summary) { try { summary = await generateCampaignInsights({ clientName:client.company_name, start:options.start, end:options.end, language:options.language, data }) } catch { summary = {} } }
   const pdf = await renderCampaignReportPdf({ clientName:client.company_name, projectName:project?.name, start:options.start, end:options.end, timezone:options.timezone ?? 'Asia/Dubai', commentary:options.commentary, summary, language:options.language, data, baseUrl:options.baseUrl })

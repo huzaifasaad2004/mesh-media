@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, FileSignature, Pencil, Trash2 } from 'lucide-react'
+import { Plus, FileSignature, Pencil, Trash2, ExternalLink, Upload } from 'lucide-react'
+import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import ContractForm from '@/components/forms/ContractForm'
 import EmptyState from '@/components/ui/EmptyState'
@@ -11,6 +12,7 @@ import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/util
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<any[]>([])
   const [clients, setClients] = useState<{ id: string; company_name: string }[]>([])
+  const [documents, setDocuments] = useState<{ id: string; title: string; status: string; client_id: string | null }[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingContract, setEditingContract] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -26,6 +28,7 @@ export default function ContractsPage() {
   useEffect(() => {
     fetchContracts()
     fetch('/api/clients').then((r) => r.json()).then((d) => setClients(Array.isArray(d) ? d : []))
+    fetch('/api/documents').then((r) => r.json()).then((d) => setDocuments(Array.isArray(d) ? d : []))
   }, [fetchContracts])
 
   const deleteContract = async (id: string) => {
@@ -62,11 +65,12 @@ export default function ContractsPage() {
       <div className="page-header">
         <div>
           <h1>Contracts</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{contracts.length} contracts · {formatCurrency(totalValue)} signed value</p>
+          <p className="text-gray-500 text-sm mt-0.5">Commercial register for agreement value, dates, renewals, and signing status · {formatCurrency(totalValue)} signed value</p>
         </div>
-        <button className="btn-primary" onClick={() => { setEditingContract(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> New Contract
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/documents" className="btn-secondary"><Upload className="w-4 h-4" /> Upload for signature</Link>
+          <button className="btn-primary" onClick={() => { setEditingContract(null); setShowModal(true) }}><Plus className="w-4 h-4" /> New Contract</button>
+        </div>
       </div>
 
       {/* Status cards */}
@@ -105,6 +109,11 @@ export default function ContractsPage() {
                         <FileSignature className="w-4 h-4 text-brand-600" />
                       </div>
                       <span className="font-medium text-gray-900">{contract.title}</span>
+                      {contract.document && (
+                        <a href={contract.document.merged_file_url ?? contract.document.file_url} target="_blank" rel="noreferrer" title="Open linked signed document" className="text-brand-600 hover:text-brand-700">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                     </div>
                   </td>
                   <td className="px-5 py-3 text-gray-600">{contract.client?.company_name ?? '—'}</td>
@@ -151,6 +160,7 @@ export default function ContractsPage() {
           key={editingContract?.id ?? 'new'}
           onSuccess={handleSuccess}
           clients={clients}
+          documents={documents}
           initialData={editingContract ?? undefined}
         />
       </Modal>

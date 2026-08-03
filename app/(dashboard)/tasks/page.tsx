@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Pencil, Trash2, LayoutGrid, List, Search, SlidersHorizontal, X, Images } from 'lucide-react'
+import { Plus, Pencil, Trash2, LayoutGrid, List, Search, SlidersHorizontal, X, Images, ExternalLink } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import TaskForm from '@/components/forms/TaskForm'
 import TaskComments from '@/components/tasks/TaskComments'
@@ -168,6 +168,12 @@ export default function TasksPage() {
           {task.attachments.length} reference {task.attachments.length === 1 ? 'image' : 'images'}
         </div>
       )}
+      {task.reference_url && (
+        <a href={task.reference_url} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-brand-700 hover:underline">
+          <ExternalLink className="w-3.5 h-3.5" /> Open Drive reference
+        </a>
+      )}
+      {task.creator && <p className="mt-2 text-[10px] text-taupe-500">Added by {task.creator.full_name ?? task.creator.email}</p>}
       <div className="flex items-center justify-between mt-2.5">
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${priorityDot[task.priority] ?? 'bg-gray-300'}`} title={task.priority} />
@@ -309,6 +315,7 @@ export default function TasksPage() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Task</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Client</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Assigned To</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Added By</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Priority</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Due Date</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-taupe-600">Status</th>
@@ -339,6 +346,7 @@ export default function TasksPage() {
                       </div>
                     ) : <span className="text-taupe-500">Unassigned</span>}
                   </td>
+                  <td className="px-5 py-3 text-taupe-600">{task.creator?.full_name ?? task.creator?.email ?? '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1.5">
                       <span className={`w-2 h-2 rounded-full ${priorityDot[task.priority] ?? 'bg-gray-300'}`} />
@@ -367,7 +375,7 @@ export default function TasksPage() {
                 </tr>
               )) : (
                 <EmptyState
-                  colSpan={7}
+                  colSpan={8}
                   title={tasks.length === 0 ? 'No tasks yet' : 'No tasks match these filters'}
                   helper={tasks.length === 0 ? (canManage ? 'Create a task to start tracking work.' : 'No tasks are assigned to you yet.') : 'Clear or adjust a filter to see more tasks.'}
                   action={tasks.length === 0 && canManage ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditingTask(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Task</button> : undefined}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Plus, DollarSign, Loader2, Eye, Play } from 'lucide-react'
+import { ArrowLeft, Plus, DollarSign, Loader2, Eye, Play, Pencil } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import SalaryForm from '@/components/forms/SalaryForm'
 import SalaryPaymentsModal from '@/components/finance/SalaryPaymentsModal'
@@ -14,6 +14,7 @@ export default function SalariesPage() {
   const [canManage, setCanManage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingSalary, setEditingSalary] = useState<any | null>(null)
   const [payingSalaryId, setPayingSalaryId] = useState<string | null>(null)
   const [runningPayroll, setRunningPayroll] = useState(false)
   const toast = useToast()
@@ -70,7 +71,7 @@ export default function SalariesPage() {
             <button onClick={runPayroll} disabled={runningPayroll} className="btn-secondary">
               {runningPayroll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} Run This Month&apos;s Payroll
             </button>
-            <button onClick={() => setShowModal(true)} className="btn-primary">
+            <button onClick={() => { setEditingSalary(null); setShowModal(true) }} className="btn-primary">
               <Plus className="w-4 h-4" /> Set Salary
             </button>
           </div>
@@ -130,10 +131,10 @@ export default function SalariesPage() {
                     {canManage && (
                       <td className="px-5 py-3">
                         {!sal.effective_to && (
-                          <button onClick={() => setPayingSalaryId(sal.id)}
-                            className="btn-secondary btn-sm ml-auto flex items-center gap-1">
-                            <DollarSign className="w-3 h-3" /> Payments
-                          </button>
+                          <div className="ml-auto flex items-center gap-1">
+                            <button onClick={() => { setEditingSalary(sal); setShowModal(true) }} className="btn-secondary btn-sm flex items-center gap-1"><Pencil className="w-3 h-3" /> Edit</button>
+                            <button onClick={() => setPayingSalaryId(sal.id)} className="btn-secondary btn-sm flex items-center gap-1"><DollarSign className="w-3 h-3" /> Payments</button>
+                          </div>
                         )}
                       </td>
                     )}
@@ -151,8 +152,8 @@ export default function SalariesPage() {
         )}
       </div>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Set Salary">
-        <SalaryForm onSuccess={() => { setShowModal(false); load() }} />
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditingSalary(null) }} title={editingSalary ? 'Edit Salary' : 'Set Salary'}>
+        <SalaryForm initialData={editingSalary ?? undefined} onSuccess={() => { setShowModal(false); setEditingSalary(null); load() }} />
       </Modal>
 
       <Modal isOpen={!!payingSalaryId} onClose={() => setPayingSalaryId(null)} title={payingSalary ? `Payments · ${payingSalary.profile?.full_name ?? payingSalary.profile?.email ?? ''}` : 'Payments'}>

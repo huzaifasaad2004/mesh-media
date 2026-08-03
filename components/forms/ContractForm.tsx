@@ -8,10 +8,11 @@ const labelClass = 'block text-sm font-medium text-gray-700 mb-1'
 interface ContractFormProps {
   onSuccess: () => void
   clients: { id: string; company_name: string }[]
+  documents: { id: string; title: string; status: string; client_id: string | null }[]
   initialData?: Record<string, unknown>
 }
 
-export default function ContractForm({ onSuccess, clients, initialData }: ContractFormProps) {
+export default function ContractForm({ onSuccess, clients, documents, initialData }: ContractFormProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
@@ -22,6 +23,7 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
     start_date: (initialData?.start_date as string) ?? '',
     end_date: (initialData?.end_date as string) ?? '',
     content: (initialData?.content as string) ?? '',
+    signable_document_id: (initialData?.signable_document_id as string) ?? '',
   })
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -38,6 +40,7 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
       start_date: form.start_date || null,
       end_date: form.end_date || null,
       content: form.content || null,
+      signable_document_id: form.signable_document_id || null,
     }
     const id = initialData?.id as string | undefined
     const url = id ? `/api/contracts/${id}` : '/api/contracts'
@@ -97,6 +100,17 @@ export default function ContractForm({ onSuccess, clients, initialData }: Contra
       <div>
         <label className={labelClass}>Content <span className="text-gray-400 font-normal">(terms, scope, clauses)</span></label>
         <textarea className={inputClass} rows={6} value={form.content} onChange={set('content')} />
+      </div>
+
+      <div>
+        <label className={labelClass}>Signed / signable document</label>
+        <select className={inputClass} value={form.signable_document_id} onChange={set('signable_document_id')}>
+          <option value="">Not linked yet</option>
+          {documents.filter(document => !form.client_id || !document.client_id || document.client_id === form.client_id).map(document => (
+            <option key={document.id} value={document.id}>{document.title} · {document.status.replace('_', ' ')}</option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-400 mt-1">Upload and sign the legal PDF in Documents, then link it here for lifecycle and value tracking.</p>
       </div>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}

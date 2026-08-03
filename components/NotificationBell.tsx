@@ -62,7 +62,7 @@ export default function NotificationBell() {
             role="dialog"
             aria-modal="true"
             aria-label="Notifications"
-            className="fixed inset-x-3 top-[calc(env(safe-area-inset-top)+4rem)] bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-[70] card overflow-hidden flex flex-col sm:absolute sm:inset-auto sm:right-0 sm:top-9 sm:w-80 sm:max-h-[28rem]"
+            className="fixed inset-x-3 top-[calc(env(safe-area-inset-top)+4rem)] bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-[70] card overflow-hidden flex flex-col lg:absolute lg:inset-auto lg:left-0 lg:right-auto lg:top-9 lg:w-80 lg:max-h-[28rem]"
           >
             <div className="px-4 py-2.5 border-b border-paper-200 flex items-center justify-between">
               <span className="text-xs font-semibold text-taupe-600 uppercase tracking-wider">Notifications</span>

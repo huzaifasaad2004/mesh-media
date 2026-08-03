@@ -20,7 +20,12 @@ export async function GET() {
 
   const retainerIncome = (clients ?? []).reduce((s, c) => s + Number(c.monthly_retainer ?? 0), 0)
   const outstanding = (outstandingInvoices ?? []).reduce((s, i) => s + (Number(i.total ?? 0) - Number(i.amount_paid ?? 0)), 0)
-  const monthlyPayroll = (salaries ?? []).filter((s) => (s.currency ?? 'AED') === 'AED').reduce((s, sal) => s + Number(sal.amount), 0)
+  const payrollByCurrency = (salaries ?? []).reduce<Record<string, number>>((totals, salary) => {
+    const currency = salary.currency ?? 'AED'
+    totals[currency] = (totals[currency] ?? 0) + Number(salary.amount ?? 0)
+    return totals
+  }, {})
+  const monthlyPayroll = payrollByCurrency.AED ?? 0
   const recurringExpenseTotal = (recurringExpenses ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
 
   const monthlyBurn = monthlyPayroll + recurringExpenseTotal
@@ -33,6 +38,7 @@ export async function GET() {
   ]
 
   return NextResponse.json({
-    retainerIncome, outstanding, monthlyPayroll, recurringExpenseTotal, monthlyBurn, steadyStateNet, months,
+    retainerIncome, outstanding, monthlyPayroll, payrollByCurrency, recurringExpenseTotal, monthlyBurn, steadyStateNet, months,
+    basisCurrency: 'AED',
   })
 }

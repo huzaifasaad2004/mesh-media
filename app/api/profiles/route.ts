@@ -8,7 +8,7 @@ export async function GET() {
   // Excludes role='client' rows — this endpoint feeds staff pickers
   // (task assignee, salary recipient); client-portal accounts have a
   // profiles row too but must never appear in those dropdowns.
-  const { data, error } = await auth.db.from('profiles').select('id, full_name, email, role').neq('role', 'client').order('full_name')
+  const { data, error } = await auth.db.from('profiles').select('id, full_name, email, role').neq('role', 'client').is('archived_at', null).order('full_name')
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data)
 }

@@ -20,11 +20,34 @@ const canWriteLeads = (role: string) => ['owner', 'admin', 'manager'].includes(r
 
 const today = () => new Date().toISOString().split('T')[0]
 
+async function cashReceiptsFor(db: SupabaseClient, start: string | null, end: string | null) {
+  let paymentQuery = db.from('invoice_payments').select('invoice_id, amount, payment_date, invoice:invoices(total, tax_amount, client:clients(company_name))')
+  let legacyQuery = db.from('invoices').select('id, total, tax_amount, paid_date, client:clients(company_name), payments:invoice_payments(id)').eq('status', 'paid')
+  if (start) { paymentQuery = paymentQuery.gte('payment_date', start); legacyQuery = legacyQuery.gte('paid_date', start) }
+  if (end) { paymentQuery = paymentQuery.lte('payment_date', end); legacyQuery = legacyQuery.lte('paid_date', end) }
+  const [payments, legacyInvoices] = await Promise.all([paymentQuery, legacyQuery])
+  if (payments.error) throw payments.error
+  if (legacyInvoices.error) throw legacyInvoices.error
+  const one = (value: any) => Array.isArray(value) ? value[0] : value
+  return [
+    ...(payments.data ?? []).map((payment: any) => {
+      const invoice = one(payment.invoice)
+      const total = Number(invoice?.total ?? 0)
+      const ratio = total > 0 ? Math.max(0, total - Number(invoice?.tax_amount ?? 0)) / total : 1
+      return { amount: Number(payment.amount ?? 0) * ratio, client: one(invoice?.client)?.company_name ?? 'Unknown' }
+    }),
+    ...(legacyInvoices.data ?? []).filter((invoice: any) => (invoice.payments?.length ?? 0) === 0).map((invoice: any) => ({
+      amount: Math.max(0, Number(invoice.total ?? 0) - Number(invoice.tax_amount ?? 0)),
+      client: one(invoice.client)?.company_name ?? 'Unknown',
+    })),
+  ]
+}
+
 // ─── Gemini function declarations ──────────────────────────────
 export const toolDeclarations = [
   {
     name: 'get_financials',
-    description: 'Get a live financial summary for a time period: revenue COLLECTED (paid invoices, counted on the date they were paid — not issued), outstanding balance (sent/overdue, all-time), total expenses in the period, net profit, active client count, and number of overdue invoices. Always pass a period — never assume "all time" unless the user says "ever" or "all time".',
+    description: 'Get a live financial summary for a time period: cash COLLECTED (full and partial invoice payments, counted on the date received — not issued), outstanding balance (sent/overdue/partially paid, all-time), total expenses in the period, AED net result, active client count, and number of overdue invoices. Always pass a period — never assume "all time" unless the user says "ever" or "all time".',
     parameters: {
       type: 'object',
       properties: {
@@ -197,29 +220,36 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
       const period: ReportPeriod = ALL_PERIODS.includes(args.period) ? args.period : 'this_month'
       const { start, end } = resolvePeriod(period)
 
-      // Revenue is pre-VAT (total minus tax_amount) — VAT collected isn't agency income.
-      let paidQuery = db.from('invoices').select('total, tax_amount').eq('status', 'paid')
-      if (start) paidQuery = paidQuery.gte('paid_date', start)
-      if (end) paidQuery = paidQuery.lte('paid_date', end)
       let expenseQuery = db.from('expenses').select('amount')
+      let payrollQuery = db.from('salary_payments').select('amount, salary:salaries(currency)')
       if (start) expenseQuery = expenseQuery.gte('date', start)
       if (end) expenseQuery = expenseQuery.lte('date', end)
+      if (start) payrollQuery = payrollQuery.gte('payment_date', start)
+      if (end) payrollQuery = payrollQuery.lte('payment_date', end)
 
-      const [{ data: paidInvoices }, { data: allInvoices }, { data: clients }, { data: expenses }] = await Promise.all([
-        paidQuery,
+      const [receipts, { data: allInvoices }, { data: clients }, { data: expenses }, { data: payrollPayments }] = await Promise.all([
+        cashReceiptsFor(db, start, end),
         db.from('invoices').select('status, total, amount_paid'),
         db.from('clients').select('status'),
         expenseQuery,
+        payrollQuery,
       ])
-      const paid = (paidInvoices ?? []).reduce((s, i) => s + (Number(i.total) - Number(i.tax_amount ?? 0)), 0)
+      const paid = receipts.reduce((sum, receipt) => sum + receipt.amount, 0)
       const outstanding = (allInvoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i: any) => s + (Number(i.total ?? 0) - Number(i.amount_paid ?? 0)), 0)
       const totalExp = (expenses ?? []).reduce((s, e) => s + Number(e.amount), 0)
+      const payrollByCurrency = (payrollPayments ?? []).reduce<Record<string, number>>((totals, payment: any) => {
+        const salary = Array.isArray(payment.salary) ? payment.salary[0] : payment.salary
+        const currency = salary?.currency ?? 'AED'
+        totals[currency] = (totals[currency] ?? 0) + Number(payment.amount ?? 0)
+        return totals
+      }, {})
       return {
         period,
         revenue_collected: paid,
         outstanding_all_time: outstanding,
         expenses_in_period: totalExp,
-        net_profit_for_period: paid - totalExp,
+        payroll_paid_in_period: payrollByCurrency,
+        net_cash_result_aed: paid - totalExp - (payrollByCurrency.AED ?? 0),
         active_clients: (clients ?? []).filter(c => c.status === 'active').length,
         overdue_invoices: (allInvoices ?? []).filter(i => i.status === 'overdue').length,
         currency: 'AED',
@@ -229,14 +259,10 @@ export async function executeTool(name: string, args: any, ctx: ToolContext): Pr
     case 'top_clients_by_revenue': {
       const period: ReportPeriod = ALL_PERIODS.includes(args.period) ? args.period : 'this_month'
       const { start, end } = resolvePeriod(period)
-      let q = db.from('invoices').select('total, tax_amount, client:clients(company_name)').eq('status', 'paid')
-      if (start) q = q.gte('paid_date', start)
-      if (end) q = q.lte('paid_date', end)
-      const { data } = await q
+      const receipts = await cashReceiptsFor(db, start, end)
       const byClient = new Map<string, number>()
-      for (const inv of data ?? []) {
-        const name = (inv as any).client?.company_name ?? 'Unknown'
-        byClient.set(name, (byClient.get(name) ?? 0) + (Number(inv.total) - Number(inv.tax_amount ?? 0)))
+      for (const receipt of receipts) {
+        byClient.set(receipt.client, (byClient.get(receipt.client) ?? 0) + receipt.amount)
       }
       const limit = Number(args.limit) || 5
       return {

@@ -8,6 +8,7 @@ type Forecast = {
   retainerIncome: number
   outstanding: number
   monthlyPayroll: number
+  payrollByCurrency: Record<string, number>
   recurringExpenseTotal: number
   monthlyBurn: number
   steadyStateNet: number
@@ -26,13 +27,21 @@ export default function CashFlowForecast() {
   if (!data) return null
 
   const maxAbs = Math.max(1, ...data.months.map((m) => Math.abs(m.net)))
+  const nonAedPayroll = Object.entries(data.payrollByCurrency ?? {}).filter(([currency]) => currency !== 'AED')
 
   return (
     <div className="card p-5 mb-8">
       <div className="flex items-center justify-between mb-4">
         <h3>Cash-Flow Forecast</h3>
-        <span className="text-xs text-gray-400">Retainers + outstanding − payroll − recurring expenses</span>
+        <span className="text-xs text-gray-400">AED forecast · retainers + outstanding − AED costs</span>
       </div>
+
+      {nonAedPayroll.length > 0 && (
+        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Separate monthly payroll commitments: {nonAedPayroll.map(([currency, amount]) => formatCurrency(amount, currency)).join(' + ')}.
+          They are shown separately and are not mixed into the AED forecast without an approved exchange rate.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5 text-sm">
         <div>

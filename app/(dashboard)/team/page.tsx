@@ -5,6 +5,7 @@ import InviteMember from '@/components/team/InviteMember'
 import ManageAccess from '@/components/team/ManageAccess'
 import ManagePassword from '@/components/team/ManagePassword'
 import ViewAsButton from '@/components/ViewAsButton'
+import ManageMember from '@/components/team/ManageMember'
 
 const roleColors: Record<string, string> = {
   owner:   'bg-brand-600 text-paper-100',
@@ -17,12 +18,15 @@ const roleColors: Record<string, string> = {
 
 export default async function TeamPage() {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: profiles }, { data: salaries }, { data: taskCounts }] = await Promise.all([
-    supabase.from('profiles').select('*').neq('role', 'client').order('created_at'),
+  const [{ data: profiles }, { data: salaries }, { data: taskCounts }, { data: me }] = await Promise.all([
+    supabase.from('profiles').select('*').neq('role', 'client').is('archived_at', null).order('created_at'),
     supabase.from('salaries').select('*, profile:profiles(id)').is('effective_to', null),
     supabase.from('tasks').select('assigned_to').neq('status', 'done'),
+    supabase.from('profiles').select('role').eq('id', user?.id ?? '').maybeSingle(),
   ])
+  const canAdminTeam = ['owner', 'admin'].includes(me?.role ?? '')
 
   const taskCountByUser = (taskCounts ?? []).reduce((acc: Record<string, number>, t: any) => {
     if (t.assigned_to) acc[t.assigned_to] = (acc[t.assigned_to] ?? 0) + 1
@@ -41,7 +45,7 @@ export default async function TeamPage() {
           <h1>Team</h1>
           <p className="text-gray-500 text-sm mt-0.5">{profiles?.length ?? 0} team members</p>
         </div>
-        <InviteMember />
+        {canAdminTeam && <InviteMember />}
       </div>
 
       {/* Role overview */}
@@ -99,13 +103,14 @@ export default async function TeamPage() {
                 {member.role !== 'owner' && <ManageAccess userId={member.id} name={member.full_name ?? member.email ?? 'this person'} />}
                 {member.role !== 'owner' && <ManagePassword userId={member.id} name={member.full_name ?? member.email ?? 'this person'} />}
                 {!['owner', 'admin'].includes(member.role) && <ViewAsButton userId={member.id} name={member.full_name ?? member.email ?? 'this person'} />}
+                {canAdminTeam && member.role !== 'owner' && <ManageMember member={member} />}
               </div>
             </div>
           )
         })}
 
         {/* Invite card */}
-        <InviteMember variant="card" />
+        {canAdminTeam && <InviteMember variant="card" />}
       </div>
     </div>
   )

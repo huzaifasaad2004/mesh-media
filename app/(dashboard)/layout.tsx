@@ -25,6 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Client-portal and contractor-portal users never see the staff dashboard
   if (profile?.role === 'client') redirect('/portal')
   if (profile?.role === 'contractor') redirect('/contractor-portal')
+  if (profile?.archived_at) redirect('/login?error=access_removed')
 
   // Effective permissions = role defaults with any per-person overrides applied.
   // Depends on migrations (role_permissions/user_permissions) — never let a

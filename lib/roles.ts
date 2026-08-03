@@ -25,5 +25,6 @@ export function navVisible(role: string | null | undefined, href: string, permis
   if (href === '/crm') return has('leads.read') || has('leads.write')
   if (href === '/media') return has('media.read') || has('media.write')
   if (href === '/knowledge') return has('kb.read') || has('kb.write')
+  if (href === '/creative-lab') return has('creative.read') || has('creative.write')
   return isStaff(role)
 }

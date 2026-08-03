@@ -5,6 +5,7 @@ export const AUTOMATION_TRIGGERS = [
   { value: 'invoice_paid', label: 'Invoice is paid', description: 'Runs the first time an invoice becomes fully paid.' },
   { value: 'task_completed', label: 'Task is completed', description: 'Runs when a task moves to Done.' },
   { value: 'project_completed', label: 'Project is completed', description: 'Runs when a project is completed.' },
+  { value: 'creative_test_created', label: 'Creative test is created', description: 'Runs when Creative Lab opens a new experiment.' },
   { value: 'manual', label: 'Manual trigger', description: 'Runs only when an admin presses Run now.' },
 ] as const
 

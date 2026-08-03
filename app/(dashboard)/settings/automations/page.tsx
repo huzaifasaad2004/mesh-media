@@ -27,6 +27,10 @@ const STARTERS: { name: string; description: string; draft: AutomationRuleDraft 
     { action_type: 'send_notification', config: { roles: ['owner', 'admin'], title: 'Invoice {{invoice_number}} paid', body: '{{client_name}} paid AED {{total}}.' } },
     { action_type: 'create_task', config: { title: 'Thank {{client_name}} for payment', priority: 'medium', due_in_days: 1 } },
   ] } },
+  { name: 'Creative test kickoff', description: 'Notify the account team and create the production task for every approved experiment.', draft: { name: 'Creative test kickoff', description: 'Turns a Creative Lab experiment into a clear production handoff.', trigger_type: 'creative_test_created', is_active: false, conditions: [], actions: [
+    { action_type: 'send_notification', config: { roles: ['owner', 'admin', 'manager'], title: 'New creative test: {{experiment_name}}', body: '{{client_name}} · {{hypothesis}}', href: '/creative-lab' } },
+    { action_type: 'create_task', config: { title: 'Produce variants for {{experiment_name}}', description: '{{hypothesis}}', priority: 'high', due_in_days: 3 } },
+  ] } },
 ]
 
 const input = 'input w-full'

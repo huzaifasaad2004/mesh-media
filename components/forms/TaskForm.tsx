@@ -77,6 +77,7 @@ export default function TaskForm({ onSuccess, clients, profiles, initialData, st
     priority: (initialData?.priority as string) ?? 'medium',
     status: (initialData?.status as string) ?? 'todo',
     due_date: (initialData?.due_date as string) ?? '',
+    reference_url: (initialData?.reference_url as string) ?? '',
   })
 
   useEffect(() => {
@@ -151,6 +152,7 @@ export default function TaskForm({ onSuccess, clients, profiles, initialData, st
       assigned_to: form.assigned_to || null,
       due_date: form.due_date || null,
       description: form.description || null,
+      reference_url: form.reference_url || null,
     }
     const id = persistedTaskId || undefined
     const url = id ? `/api/tasks/${id}` : '/api/tasks'
@@ -263,6 +265,15 @@ export default function TaskForm({ onSuccess, clients, profiles, initialData, st
       <div>
         <label className={labelClass}>Description</label>
         <textarea className={inputClass} rows={3} value={form.description} onChange={set('description')} />
+      </div>
+
+      <div>
+        <label className={labelClass}>Google Drive reference link</label>
+        <div className="relative">
+          <ExternalLink className="absolute left-3 top-2.5 w-4 h-4 text-taupe-500" />
+          <input className={`${inputClass} pl-9`} type="url" value={form.reference_url} onChange={set('reference_url')} placeholder="https://drive.google.com/…" />
+        </div>
+        <p className="text-xs text-taupe-500 mt-1">Paste a Drive file, folder, Google Doc, Sheet, or Slides link.</p>
       </div>
 
       <div>

@@ -130,6 +130,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await db.from('signable_documents').update({
         status: newStatus, merged_file_url: mergedPublicUrl.publicUrl, completion_certificate_url: certPublicUrl.publicUrl,
       }).eq('id', params.id)
+      await db.from('contracts').update({ status: 'signed', signed_at: new Date().toISOString() }).eq('signable_document_id', params.id)
 
       // Every signer, plus whoever uploaded the document, gets the signed PDF + certificate.
       if (process.env.RESEND_API_KEY) {

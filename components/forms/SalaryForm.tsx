@@ -7,13 +7,13 @@ const labelClass = 'block text-sm font-medium text-umber-700 mb-1'
 
 const CURRENCIES = ['AED', 'PKR', 'USD', 'GBP', 'INR']
 
-export default function SalaryForm({ onSuccess }: { onSuccess: () => void }) {
+export default function SalaryForm({ onSuccess, initialData }: { onSuccess: () => void; initialData?: Record<string, any> }) {
   const [members, setMembers] = useState<{ id: string; full_name: string | null; email: string | null }[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
-    profile_id: '', amount: '', currency: 'AED', pay_period: 'monthly',
-    effective_from: new Date().toISOString().split('T')[0], notes: '',
+    profile_id: initialData?.profile_id ?? '', amount: initialData?.amount?.toString() ?? '', currency: initialData?.currency ?? 'AED', pay_period: initialData?.pay_period ?? 'monthly',
+    effective_from: initialData?.effective_from ?? new Date().toISOString().split('T')[0], notes: initialData?.notes ?? '',
   })
 
   useEffect(() => {
@@ -26,8 +26,8 @@ export default function SalaryForm({ onSuccess }: { onSuccess: () => void }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError('')
-    const res = await fetch('/api/salaries', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+    const res = await fetch(initialData?.id ? `/api/salaries/${initialData.id}` : '/api/salaries', {
+      method: initialData?.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
     })
     const d = await res.json()
     setSaving(false)
@@ -39,7 +39,7 @@ export default function SalaryForm({ onSuccess }: { onSuccess: () => void }) {
     <form onSubmit={submit} className="space-y-4">
       <div>
         <label className={labelClass}>Team Member *</label>
-        <select className={inputClass} value={form.profile_id} onChange={set('profile_id')} required>
+        <select className={inputClass} value={form.profile_id} onChange={set('profile_id')} required disabled={!!initialData?.id}>
           <option value="">Select…</option>
           {members.map(m => <option key={m.id} value={m.id}>{m.full_name ?? m.email}</option>)}
         </select>
@@ -81,7 +81,7 @@ export default function SalaryForm({ onSuccess }: { onSuccess: () => void }) {
       )}
       {error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p>}
       <button type="submit" className="btn-primary w-full justify-center" disabled={saving}>
-        {saving ? 'Saving…' : 'Set Salary'}
+        {saving ? 'Saving…' : initialData?.id ? 'Update Salary' : 'Set Salary'}
       </button>
     </form>
   )

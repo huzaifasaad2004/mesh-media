@@ -70,6 +70,13 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isAuthPage) {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('archived_at').eq('id', user.id).single()
+      if (profile?.archived_at) {
+        await supabase.auth.signOut()
+        return supabaseResponse
+      }
+    } catch { /* migration not applied yet — preserve the existing login flow */ }
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
@@ -81,7 +88,14 @@ export async function middleware(request: NextRequest) {
   // worst case we just skip the redirect for this request.
   if (user && !isSetPassword && !isPublicPath && !request.nextUrl.pathname.startsWith('/api')) {
     try {
-      const { data: profile } = await supabase.from('profiles').select('password_set').eq('id', user.id).single()
+      const { data: profile } = await supabase.from('profiles').select('password_set, archived_at').eq('id', user.id).single()
+      if (profile?.archived_at) {
+        await supabase.auth.signOut()
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        url.searchParams.set('error', 'access_removed')
+        return NextResponse.redirect(url)
+      }
       if (profile && profile.password_set === false) {
         const url = request.nextUrl.clone()
         url.pathname = '/set-password'

@@ -3,6 +3,7 @@ import { requireUser, requireTasksManage, serviceRole, stripProtected } from '@/
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 import { emitAutomationEvent } from '@/lib/automations/engine'
+import { normalizeTaskReferenceUrl } from '@/lib/taskReference'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUser()
@@ -14,6 +15,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   let body = stripProtected(await req.json())
+  if ('reference_url' in body) {
+    try {
+      body.reference_url = normalizeTaskReferenceUrl(body.reference_url)
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid reference link' }, { status: 400 })
+    }
+  }
   const db = serviceRole()
   const { data: before } = await db.from('tasks').select('assigned_to, created_by, status, title').eq('id', params.id).single()
 

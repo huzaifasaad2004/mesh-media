@@ -24,16 +24,19 @@ export default async function FinancePage() {
   const outstanding = (invoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status)).reduce((s, i) => s + ((i.total ?? 0) - (i.amount_paid ?? 0)), 0)
   const overdueCount = (invoices ?? []).filter(i => i.status === 'overdue' || (i.status === 'sent' && i.due_date && i.due_date < today)).length
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
-  // AED-only: mixing currencies into one number would misrepresent payroll (see docs/BUILD_PLAN.md §C #17)
-  const totalSalariesAED = (salaries ?? []).filter(sal => (sal.currency ?? 'AED') === 'AED').reduce((s, sal) => s + (sal.amount ?? 0), 0)
-  const hasNonAedSalaries = (salaries ?? []).some(sal => (sal.currency ?? 'AED') !== 'AED')
+  const salaryTotals = (salaries ?? []).reduce<Record<string, number>>((totals, salary) => {
+    const currency = salary.currency ?? 'AED'
+    totals[currency] = (totals[currency] ?? 0) + Number(salary.amount ?? 0)
+    return totals
+  }, {})
+  const salarySummary = Object.entries(salaryTotals).map(([currency, amount]) => formatCurrency(amount, currency)).join(' + ')
 
   const modules = [
     {
       href: '/finance/invoices',
       label: 'Invoices',
       description: `${(invoices ?? []).length} total · ${overdueCount > 0 ? `${overdueCount} overdue` : 'all clear'}`,
-      icon: FileText,
+      icon: <FileText className="w-5 h-5" style={{ color: '#6E1318' }} />,
       accent: '#6E1318',
       stat: formatCurrency(outstanding),
       statLabel: 'outstanding',
@@ -42,7 +45,7 @@ export default async function FinancePage() {
       href: '/finance/quotations',
       label: 'Quotations',
       description: `${(quotations ?? []).length} total`,
-      icon: FileSpreadsheet,
+      icon: <FileSpreadsheet className="w-5 h-5" style={{ color: '#1d4ed8' }} />,
       accent: '#1d4ed8',
       stat: formatCurrency((quotations ?? []).filter(q => q.status === 'accepted').reduce((s, q) => s + (q.total ?? 0), 0)),
       statLabel: 'accepted',
@@ -51,7 +54,7 @@ export default async function FinancePage() {
       href: '/finance/expenses',
       label: 'Expenses',
       description: `${(expenses ?? []).length} records`,
-      icon: Receipt,
+      icon: <Receipt className="w-5 h-5" style={{ color: '#b45309' }} />,
       accent: '#b45309',
       stat: formatCurrency(totalExpenses),
       statLabel: 'this period',
@@ -60,10 +63,10 @@ export default async function FinancePage() {
       href: '/finance/salaries',
       label: 'Salaries',
       description: `${(salaries ?? []).length} active`,
-      icon: Users,
+      icon: <Users className="w-5 h-5" style={{ color: '#059669' }} />,
       accent: '#059669',
-      stat: formatCurrency(totalSalariesAED) + (hasNonAedSalaries ? ' +' : ''),
-      statLabel: hasNonAedSalaries ? 'per month (AED only, see Salaries for other currencies)' : 'per month',
+      stat: salarySummary || 'No active payroll',
+      statLabel: 'active payroll per month · currencies kept separate',
     },
   ]
 
@@ -84,11 +87,11 @@ export default async function FinancePage() {
 
       {/* Module cards */}
       <div className="grid grid-cols-2 gap-5">
-        {modules.map(({ href, label, description, icon: Icon, accent, stat, statLabel }) => (
+        {modules.map(({ href, label, description, icon, accent, stat, statLabel }) => (
           <Link key={href} href={href} className="card p-6 hover:shadow-md transition-shadow group">
             <div className="flex items-start justify-between mb-4">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: accent + '15' }}>
-                <Icon className="w-5 h-5" style={{ color: accent }} />
+                {icon}
               </div>
               <span className="text-xs text-gray-400 group-hover:text-brand-600 transition-colors">Open →</span>
             </div>

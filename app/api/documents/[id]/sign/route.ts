@@ -44,6 +44,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parties = new Set((allSignatures ?? []).map((s) => s.party))
   const newStatus = parties.has('agency') && parties.has('client') ? 'signed' : 'partially_signed'
   await db.from('signable_documents').update({ status: newStatus }).eq('id', params.id)
+  if (newStatus === 'signed') {
+    await db.from('contracts').update({ status: 'signed', signed_at: new Date().toISOString() }).eq('signable_document_id', params.id)
+  }
 
   await logActivity(user, 'sign', 'signable_document', params.id, `${party} signature by ${signer_name.trim()}`)
 

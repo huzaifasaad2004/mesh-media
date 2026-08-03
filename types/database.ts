@@ -12,6 +12,7 @@ export interface Profile {
   full_name: string | null
   role: UserRole
   avatar_url: string | null
+  archived_at?: string | null
   created_at: string
 }
 
@@ -56,6 +57,7 @@ export interface OnboardingStep {
   client_id: string
   title: string
   description: string | null
+  reference_url?: string | null
   is_completed: boolean
   completed_at: string | null
   completed_by: string | null

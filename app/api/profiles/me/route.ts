@@ -11,8 +11,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const db = admin()
-  const { data: profile } = await db.from('profiles').select('id, full_name, email, role, avatar_url').eq('id', user.id).single()
+  const { data: profile } = await db.from('profiles').select('id, full_name, email, role, avatar_url, archived_at').eq('id', user.id).single()
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  if (profile.archived_at) return NextResponse.json({ error: 'This team account has been archived' }, { status: 403 })
 
   const effective = await getEffectivePermissions(db, user.id, profile.role)
   return NextResponse.json({ ...profile, permissions: Array.from(effective) })

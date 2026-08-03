@@ -4,6 +4,46 @@
 
 Stack: **GitHub** (source/CI) · **Vercel** (Next.js hosting + cron) · **Supabase** (Postgres, Auth, Storage, Realtime, Edge Functions, pgvector) · **Gemini** (LLM, embeddings, vision) · **Resend** (email)
 
+## 🟡 Phase 56 — Task reference images (prepared 2026-07-30)
+
+Task creation and editing now support up to five JPG, PNG, GIF or WebP reference images. Large
+still images are resized and compressed in the browser before upload so phone photos remain easy
+to attach without exceeding the serverless request limit. Managers can add, preview, open and
+remove images; assigned team members see the same private gallery inside their status editor.
+Board and list cards show an image count so references are not missed.
+
+Files live in a private `task-attachments` Storage bucket. Metadata is stored in the RLS-protected
+`task_attachments` table, and the task API only returns one-hour signed URLs after the caller's
+existing task visibility policy succeeds. Upload/delete routes retain the existing `tasks.manage`
+permission boundary and validate both file size and image signatures server-side.
+
+Migration: `supabase/migrations/20260730090000_task_image_attachments.sql`.
+
+**Not live yet:** the production migration and deployment require explicit approval after local
+verification.
+
+## 🟡 Phase 55 — Mesh Creative Lab (prepared 2026-07-29)
+
+`/creative-lab` closes the loop between synced campaign data and the agency's creative process.
+It ranks ad-level creative performance against the selected client's benchmark, compares it with
+the preceding matching period, flags fatigue from declining CTR/rising CPA, and assigns an
+explainable score with a visible confidence level. Human-reviewed creative fingerprints capture
+format, hook, angle, offer, CTA and visual style; those attributes become reusable winning-pattern
+analysis rather than opaque AI guesses.
+
+Managers can turn a recommendation into a structured creative experiment with a named control,
+variant, hypothesis, success metric, target lift, owner, dates and documented result/decision.
+Experiments can create a linked Content Approval brief and emit a new
+`creative_test_created` workflow trigger, letting the existing automation builder notify the
+account team and create production tasks. `creative.read`/`creative.write` are editable through
+the existing permissions matrix.
+
+Migration: `supabase/migrations/20260729173000_creative_intelligence_lab.sql` (two RLS-protected
+tables, explicit Data API grants, and the workflow-trigger constraint update).
+
+**Not live yet:** the production migration and deployment require explicit approval after local
+verification.
+
 ## ✅ Phase 54 — Visual Workflow Automation Builder (released 2026-07-29)
 
 `/settings/automations` upgrades the existing onboarding-template concept into a general,

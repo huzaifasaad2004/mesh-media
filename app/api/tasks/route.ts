@@ -3,13 +3,14 @@ import { requireStaff, requireTasksManage, serviceRole, stripProtected } from '@
 import { logActivity } from '@/lib/activityLog'
 import { notifyUsers } from '@/lib/notify'
 import { attachTaskImageUrls } from '@/lib/taskAttachments'
+import { normalizeTaskReferenceUrl } from '@/lib/taskReference'
 
 export async function GET() {
   const auth = await requireStaff()
   if ('res' in auth) return auth.res
   const { data, error } = await auth.db
     .from('tasks')
-    .select('*, assignee:profiles!tasks_assigned_to_fkey(full_name, avatar_url, email), client:clients(company_name), attachments:task_attachments(id, task_id, storage_path, file_name, mime_type, file_size, uploaded_by, created_at)')
+    .select('*, assignee:profiles!tasks_assigned_to_fkey(full_name, avatar_url, email), creator:profiles!tasks_created_by_fkey(full_name, avatar_url, email), client:clients(company_name), attachments:task_attachments(id, task_id, storage_path, file_name, mime_type, file_size, uploaded_by, created_at)')
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(await attachTaskImageUrls(data ?? []))
@@ -22,8 +23,13 @@ export async function POST(req: NextRequest) {
   const auth = await requireTasksManage()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
+  try {
+    body.reference_url = normalizeTaskReferenceUrl(body.reference_url)
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid reference link' }, { status: 400 })
+  }
   const db = serviceRole()
-  const { data, error } = await db.from('tasks').insert(body).select().single()
+  const { data, error } = await db.from('tasks').insert({ ...body, created_by: auth.user.id }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   await logActivity(auth.user, 'create', 'task', data.id, data.title)
 

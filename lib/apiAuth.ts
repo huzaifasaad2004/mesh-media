@@ -31,7 +31,8 @@ export async function requireUser(): Promise<Authed | Denied> {
   const db = createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return deny(401, 'Not authenticated')
-  const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await db.from('profiles').select('role, archived_at').eq('id', user.id).single()
+  if (profile?.archived_at) return deny(403, 'This team account has been archived')
   return { user, role: (profile?.role ?? 'client') as Role, db }
 }
 
@@ -107,3 +108,7 @@ export const requireKbRead = () => requirePermission('kb.read')
 export const requireKbWrite = () => requirePermission('kb.write')
 /** Caller may schedule, edit, and cancel meetings. */
 export const requireMeetingsWrite = () => requirePermission('meetings.write')
+/** Caller may view creative intelligence and experiment results. */
+export const requireCreativeRead = () => requirePermission('creative.read')
+/** Caller may fingerprint creatives and create or manage experiments. */
+export const requireCreativeWrite = () => requirePermission('creative.write')
