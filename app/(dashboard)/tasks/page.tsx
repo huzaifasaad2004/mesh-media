@@ -40,6 +40,8 @@ export default function TasksPage() {
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string | null }[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState<any | null>(null)
+  // Bumped on every open so TaskForm remounts fresh — the Modal never unmounts its children.
+  const [formInstance, setFormInstance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [view, setView] = useState<'board' | 'list'>('board')
@@ -99,7 +101,8 @@ export default function TasksPage() {
     fetchTasks()
   }
 
-  const openEdit = (task: any) => { setEditingTask(task); setShowModal(true) }
+  const openEdit = (task: any) => { setEditingTask(task); setFormInstance(n => n + 1); setShowModal(true) }
+  const openNew = () => { setEditingTask(null); setFormInstance(n => n + 1); setShowModal(true) }
   const handleClose = () => { setShowModal(false); setEditingTask(null) }
   const handleSuccess = () => { handleClose(); fetchTasks() }
 
@@ -217,7 +220,7 @@ export default function TasksPage() {
             </button>
           </div>
           {canManage && (
-            <button className="btn-primary" onClick={() => { setEditingTask(null); setShowModal(true) }}>
+            <button className="btn-primary" onClick={openNew}>
               <Plus className="w-4 h-4" /> New Task
             </button>
           )}
@@ -378,7 +381,7 @@ export default function TasksPage() {
                   colSpan={8}
                   title={tasks.length === 0 ? 'No tasks yet' : 'No tasks match these filters'}
                   helper={tasks.length === 0 ? (canManage ? 'Create a task to start tracking work.' : 'No tasks are assigned to you yet.') : 'Clear or adjust a filter to see more tasks.'}
-                  action={tasks.length === 0 && canManage ? <button className="btn-primary btn-sm inline-flex" onClick={() => { setEditingTask(null); setShowModal(true) }}><Plus className="w-3 h-3" /> New Task</button> : undefined}
+                  action={tasks.length === 0 && canManage ? <button className="btn-primary btn-sm inline-flex" onClick={openNew}><Plus className="w-3 h-3" /> New Task</button> : undefined}
                 />
               )}
             </tbody>
@@ -394,7 +397,7 @@ export default function TasksPage() {
         size="lg"
       >
         <TaskForm
-          key={editingTask?.id ?? 'new'}
+          key={`${editingTask?.id ?? 'new'}-${formInstance}`}
           onSuccess={handleSuccess}
           clients={clients}
           profiles={profiles}
