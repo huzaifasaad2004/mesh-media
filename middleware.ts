@@ -62,6 +62,8 @@ export async function middleware(request: NextRequest) {
     // Vercel Cron calls these with no browser session — verified by
     // CRON_SECRET bearer token instead (see lib/cron.ts).
     || request.nextUrl.pathname.startsWith('/api/cron/')
+    // Portal sign-in link requests come from the login page, before any session exists.
+    || request.nextUrl.pathname === '/api/auth/portal-link'
 
   if (!user && !isAuthPage && !isPublicPath && !isSetPassword) {
     const url = request.nextUrl.clone()
@@ -108,6 +110,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // The browser must fetch the push service worker before a user session exists.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|push-sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|otf)$).*)'],
+  // The browser must fetch the push service worker before a user session exists, and the
+  // pdf.js worker before one may ever exist (signers opening an emailed link) — gating it
+  // behind /login left every token signer looking at a blank document.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|push-sw\\.js|pdf\\.worker\\.min\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|otf)$).*)'],
 }

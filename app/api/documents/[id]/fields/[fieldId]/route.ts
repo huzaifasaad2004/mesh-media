@@ -9,6 +9,7 @@ import { renderCertificatePdf } from '@/lib/pdf/CertificatePdf'
 import { escapeHtml } from '@/lib/utils'
 import { Resend } from 'resend'
 import { COMPANY } from '@/lib/company'
+import { SIGNABLE_BUCKET, storagePathFromUrl } from '@/lib/signableDocuments'
 import crypto from 'crypto'
 
 // Body: { value, token? } — base64 PNG data URL for a signature field, plain text for name/date.
@@ -48,9 +49,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Sign in, or use your personal signing link' }, { status: 401 })
     const { data: profile } = await db.from('profiles').select('role, email').eq('id', user.id).single()
-    const emailMatches = profile?.email?.toLowerCase() === recipient.email.toLowerCase()
+    const myEmail = (profile?.email ?? user.email ?? '').toLowerCase()
+    const emailMatches = myEmail === recipient.email.toLowerCase()
     const staffCanActAsAgency = isStaff(profile?.role) && recipient.role === 'agency'
-    if (!emailMatches && !staffCanActAsAgency) {
+    // A portal user signs their own company's 'client' boxes even when their login email
+    // differs from the address typed on the document — unless another recipient on this
+    // document is them by email, in which case only that recipient's boxes are theirs.
+    let clientCanActAsClient = false
+    if (!emailMatches && profile?.role === 'client' && recipient.role === 'client') {
+      const { data: visible } = await supabase.from('signable_documents').select('id').eq('id', params.id).maybeSingle()
+      const { data: others } = await db.from('document_recipients').select('email').eq('document_id', params.id)
+      clientCanActAsClient = !!visible && !(others ?? []).some((r) => r.email?.toLowerCase() === myEmail)
+    }
+    if (!emailMatches && !staffCanActAsAgency && !clientCanActAsClient) {
       return NextResponse.json({ error: 'You are not the recipient assigned to this field' }, { status: 403 })
     }
     filledByUserId = user.id
@@ -96,8 +107,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (everyoneSigned) {
     try {
-      const sourceRes = await fetch(document.file_url)
-      const originalBytes = new Uint8Array(await sourceRes.arrayBuffer())
+      const sourcePath = document.storage_path ?? storagePathFromUrl(document.file_url)
+      const { data: source, error: sourceError } = sourcePath
+        ? await db.storage.from(SIGNABLE_BUCKET).download(sourcePath)
+        : { data: null, error: new Error('Original file path is missing') }
+      if (sourceError || !source) throw new Error(`Could not load the original PDF: ${sourceError?.message ?? 'not found'}`)
+      const originalBytes = new Uint8Array(await source.arrayBuffer())
       const mergedBytes = await mergeFieldsIntoPdf(originalBytes, allFields!.map((f) => ({
         page_number: f.page_number, field_type: f.field_type, x: Number(f.x), y: Number(f.y),
         width: Number(f.width), height: Number(f.height), value: f.value,

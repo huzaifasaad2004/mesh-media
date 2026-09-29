@@ -6,10 +6,11 @@ import Link from 'next/link'
 import { ArrowLeft, Trash2, Loader2, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 import PdfPageCanvas from '@/components/esign/PdfPageCanvas'
 import { useToast } from '@/components/ui/Toast'
+import { documentFileHref } from '@/lib/documentFileLinks'
 
 type FieldType = 'signature' | 'name' | 'date'
 
-interface Recipient { id: string; name: string; email: string; role: string }
+interface Recipient { id: string; name: string; email: string; role: string; signed_at?: string | null; notified_at?: string | null }
 
 interface DraftField {
   id: string // client-side temp id, or the real db id if loaded
@@ -128,10 +129,29 @@ export default function EditFieldsPage() {
       body: JSON.stringify({ fields: fields.map(({ page_number, field_type, recipient_id, x, y, width, height }) => ({ page_number, field_type, recipient_id, x, y, width, height })) }),
     })
     const d = await res.json()
+    if (!res.ok) { setSaving(false); toast.error(d.error ?? 'Failed to save fields'); return }
+
+    // First save with boxes in place is when signers get their links — sending at upload
+    // time let people open a document with nothing on it they could sign.
+    if (unsentRecipients.length > 0 && fields.length > 0) {
+      const sendRes = await fetch(`/api/documents/${id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ only_unnotified: true }),
+      })
+      const sent = await sendRes.json().catch(() => ({}))
+      const failed = (sent.emailResults ?? []).filter((r: any) => !r.sent)
+      if (!sendRes.ok) toast.error(`Fields saved, but the signing links were not sent: ${sent.error ?? 'unknown error'}`)
+      else if (failed.length) toast.error(`Fields saved, but ${failed.length} signing email(s) failed — use "Resend links" on the Documents page`)
+      else toast.success('Saved — signing links emailed to every signer')
+    } else {
+      toast.success('Fields saved')
+    }
     setSaving(false)
-    if (res.ok) { toast.success('Fields saved'); router.push(`/documents/${id}`) }
-    else toast.error(d.error ?? 'Failed to save fields')
+    router.push(`/documents/${id}`)
   }
+
+  const unsentRecipients = recipients.filter((r) => !r.notified_at && !r.signed_at)
 
   if (loading) return <div className="py-24 text-center text-gray-400 text-sm">Loading…</div>
   if (!doc) return <div className="py-24 text-center text-sm" style={{ color: 'var(--danger, #B23A2E)' }}>Document not found</div>
@@ -154,7 +174,7 @@ export default function EditFieldsPage() {
           <p className="text-gray-500 text-sm mt-0.5">{doc.title} — drag on the document to drop a field, then save.</p>
         </div>
         <button className="btn-primary" onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save fields
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {unsentRecipients.length > 0 ? 'Save & send to signers' : 'Save fields'}
         </button>
       </div>
 
@@ -194,7 +214,7 @@ export default function EditFieldsPage() {
           onMouseUp={onMouseUp}
         >
           <PdfPageCanvas
-            fileUrl={doc.file_url}
+            fileUrl={documentFileHref(id)}
             pageNumber={page}
             width={700}
             onDocumentLoad={setNumPages}

@@ -24,22 +24,17 @@ export default function LoginPage() {
     setLoading(true)
 
     if (portal === 'client') {
-      // Magic link — no password for clients
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/portal`,
-          shouldCreateUser: false,
-        },
+      // Magic link — no password for clients. Sent by our own route so the link works on
+      // any device (a browser-side OTP link only works in the browser that requested it).
+      const res = await fetch('/api/auth/portal-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       })
+      const data = await res.json().catch(() => ({}))
       setLoading(false)
-      if (error) {
-        setError(error.message.includes('Signups not allowed')
-          ? 'This email has no portal access yet. Ask your Mesh Media contact to invite you.'
-          : error.message)
-      } else {
-        setSent(true)
-      }
+      if (!res.ok) setError(data.error ?? 'Could not send the link — try again.')
+      else setSent(true)
       return
     }
 
@@ -96,7 +91,7 @@ export default function LoginPage() {
             <div className="text-center py-6">
               <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--success)' }} />
               <p className="text-sm font-medium text-ink">Check your email</p>
-              <p className="text-xs text-taupe-600 mt-1">We sent a sign-in link to <strong>{email}</strong>. It expires in 1 hour.</p>
+              <p className="text-xs text-taupe-600 mt-1">If <strong>{email}</strong> has portal access, a sign-in link is on its way. It works on any device and expires in 1 hour. Nothing arriving? Check spam, or ask your Mesh Media contact to re-invite you.</p>
             </div>
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">

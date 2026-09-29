@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
+import { serviceRole } from '@/lib/apiAuth'
+import { documentFileHref } from '@/lib/signableDocuments'
 import { formatCurrency, formatDate, statusColor, statusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { FileText, FolderOpen, FileSignature, FileBarChart, ImageUp, ExternalLink, BarChart3 } from 'lucide-react'
+import { FileText, FolderOpen, FileSignature, FileBarChart, ImageUp, ExternalLink, BarChart3, Download, ShieldCheck } from 'lucide-react'
 import PortalQuoteActions from '@/components/portal/PortalQuoteActions'
 import PortalContentActions from '@/components/portal/PortalContentActions'
 import PortalRequests from '@/components/portal/PortalRequests'
@@ -21,13 +23,37 @@ export default async function PortalPage() {
       supabase.from('invoices').select('*').order('issue_date', { ascending: false }).limit(10),
       supabase.from('quotations').select('*').order('issue_date', { ascending: false }).limit(10),
       supabase.from('files').select('*').order('created_at', { ascending: false }).limit(8),
-      supabase.from('signable_documents').select('*, signatures:document_signatures(party, signed_at)').order('created_at', { ascending: false }).limit(10),
+      supabase.from('signable_documents').select('*, signatures:document_signatures(party, signed_at)').neq('status', 'cancelled').order('created_at', { ascending: false }).limit(50),
       supabase.from('client_reports').select('*').order('period', { ascending: false }).limit(12),
       supabase.from('content_items').select('*').in('status', ['pending_client', 'client_approved', 'client_declined']).order('created_at', { ascending: false }).limit(10),
       supabase.from('campaign_metrics_daily').select('impressions, clicks, leads, conversions, spend').gte('metric_date', reportStart.toISOString().slice(0, 10)),
     ])
 
-  const pendingDocuments = (documents ?? []).filter((d: any) => !d.signatures?.some((s: any) => s.party === 'client'))
+  // Signers live in document_recipients, which RLS keeps staff-only — read them for the
+  // documents RLS already showed this client. Field-based documents mark a signer done via
+  // recipients.signed_at; only old whole-document ones use document_signatures.
+  const docIds = (documents ?? []).map((d: any) => d.id)
+  const { data: docRecipients } = docIds.length
+    ? await serviceRole().from('document_recipients').select('document_id, role, signed_at').in('document_id', docIds)
+    : { data: [] as { document_id: string; role: string; signed_at: string | null }[] }
+  const recipientsByDoc = new Map<string, { role: string; signed_at: string | null }[]>()
+  for (const r of docRecipients ?? []) recipientsByDoc.set(r.document_id, [...(recipientsByDoc.get(r.document_id) ?? []), r])
+  const clientStillToSign = (d: any) => {
+    const recipients = recipientsByDoc.get(d.id)
+    if (!recipients?.length) return !d.signatures?.some((s: any) => s.party === 'client')
+    return recipients.some((r) => r.role === 'client' && !r.signed_at)
+  }
+  const openDocuments = (documents ?? []).filter((d: any) => d.status !== 'signed')
+  // A document still in 'sent' with signers attached has no signature boxes yet — the agency
+  // is still preparing it, so it isn't shown until there's something to sign.
+  const inPreparation = (d: any) => d.status === 'sent' && !!recipientsByDoc.get(d.id)?.length
+  const pendingDocuments = openDocuments.filter((d: any) => !inPreparation(d) && clientStillToSign(d))
+  const hasClientSigner = (d: any) => {
+    const recipients = recipientsByDoc.get(d.id)
+    return !recipients?.length || recipients.some((r) => r.role === 'client')
+  }
+  const waitingOnAgency = openDocuments.filter((d: any) => !inPreparation(d) && hasClientSigner(d) && !clientStillToSign(d))
+  const signedDocuments = (documents ?? []).filter((d: any) => d.status === 'signed')
 
   const companyName = clients?.[0]?.company_name ?? user?.email ?? 'there'
   const openInvoices = (invoices ?? []).filter(i => ['sent', 'overdue', 'partially_paid'].includes(i.status))
@@ -204,7 +230,45 @@ export default async function PortalPage() {
               {pendingDocuments.map((doc: any) => (
                 <div key={doc.id} className="flex items-center justify-between py-3 gap-3">
                   <span className="text-sm font-medium text-ink">{doc.title}</span>
-                  <Link href={`/documents/${doc.id}`} className="btn-primary btn-sm">Review &amp; Sign</Link>
+                  <Link href={`/documents/${doc.id}`} className="btn-primary btn-sm flex-shrink-0">Review &amp; Sign</Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Contracts & signed documents */}
+        {(signedDocuments.length > 0 || waitingOnAgency.length > 0) && (
+          <div className="card p-5 md:col-span-2">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}>
+              <FileSignature className="w-4 h-4 text-brand-600" /> Contracts &amp; signed documents
+            </h2>
+            <div className="divide-y divide-paper-200">
+              {waitingOnAgency.map((doc: any) => (
+                <div key={doc.id} className="flex items-center justify-between py-3 gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink">{doc.title}</p>
+                    <p className="text-xs text-taupe-500">You&apos;ve signed — waiting for Mesh Media to countersign</p>
+                  </div>
+                  <Link href={`/documents/${doc.id}`} className="btn-secondary btn-sm flex-shrink-0">View</Link>
+                </div>
+              ))}
+              {signedDocuments.map((doc: any) => (
+                <div key={doc.id} className="flex items-center justify-between py-3 gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink">{doc.title}</p>
+                    <p className="text-xs text-taupe-500">Fully signed{doc.updated_at ? ` · ${formatDate(doc.updated_at)}` : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {doc.completion_certificate_url && (
+                      <a href={documentFileHref(doc.id, 'certificate')} target="_blank" rel="noreferrer" className="btn-ghost btn-sm" title="Certificate of Completion">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Certificate
+                      </a>
+                    )}
+                    <a href={documentFileHref(doc.id, doc.merged_file_url ? 'signed' : 'original')} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
+                      <Download className="w-3.5 h-3.5" /> Signed PDF
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>

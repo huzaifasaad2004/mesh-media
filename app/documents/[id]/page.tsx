@@ -9,6 +9,7 @@ import PdfPageCanvas from '@/components/esign/PdfPageCanvas'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, statusColor, statusLabel } from '@/lib/utils'
+import { documentFileHref } from '@/lib/documentFileLinks'
 
 const STAFF_ROLES = ['owner', 'admin', 'manager', 'member', 'viewer']
 const PALETTE = ['#6E1318', '#4A5A6E', '#B8801F', '#4F7A4A', '#7A4A6E', '#2A6E6E']
@@ -19,7 +20,7 @@ export default function DocumentSignerPage() {
   const token = searchParams.get('token')
   const [me, setMe] = useState<{ role: string; full_name: string | null; email?: string } | null>(null)
   const [doc, setDoc] = useState<any>(null)
-  const [viewerRecipient, setViewerRecipient] = useState<any>(null) // set when accessing via token
+  const [viewerRecipient, setViewerRecipient] = useState<any>(null) // the recipient this visitor signs as (decided server-side)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
@@ -50,6 +51,7 @@ export default function DocumentSignerPage() {
         if (!docRes.ok) throw new Error(docData.error ?? 'Failed to load document')
         setMe(meRes.ok ? meData : null)
         setDoc(docData)
+        setViewerRecipient(docData.viewer ?? null)
       }
     } catch (e: any) {
       setError(e.message)
@@ -97,16 +99,17 @@ export default function DocumentSignerPage() {
   )
 
   // Whoever is looking at this page "is" one specific recipient: the token
-  // holder if via a personal link, or whichever recipient's email matches
-  // the logged-in user (staff can also always act for any 'agency' recipient).
-  const myRecipient = viewerRecipient
-    ? doc.recipients?.find((r: any) => r.id === viewerRecipient.id)
-    : doc.recipients?.find((r: any) => r.email?.toLowerCase() === me?.email?.toLowerCase())
-      || (isStaff ? doc.recipients?.find((r: any) => r.role === 'agency') : null)
+  // holder if via a personal link, otherwise the server's pick for the
+  // logged-in user (email match, else staff → agency, client → client).
+  const myRecipient = viewerRecipient ? doc.recipients?.find((r: any) => r.id === viewerRecipient.id) : null
 
   const pageFields = (doc.fields ?? []).filter((f: any) => f.page_number === page)
   const filledCount = (doc.fields ?? []).filter((f: any) => f.value).length
   const canFill = (f: any) => f.recipient_id === myRecipient?.id && !f.value
+  const myOpenFields = (doc.fields ?? []).filter(canFill)
+  const myOpenPages = Array.from(new Set<number>(myOpenFields.map((f: any) => f.page_number))).sort((a, b) => a - b)
+  const myFieldCount = (doc.fields ?? []).filter((f: any) => f.recipient_id === myRecipient?.id).length
+  const fileHref = (version: 'original' | 'signed' | 'certificate' = 'original') => documentFileHref(id, version, token)
 
   return (
     <div className="min-h-screen bg-paper-0">
@@ -124,12 +127,12 @@ export default function DocumentSignerPage() {
           </div>
           <div className="flex items-center gap-2">
             {doc.completion_certificate_url && (
-              <a href={doc.completion_certificate_url} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
+              <a href={fileHref('certificate')} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
                 <ShieldCheck className="w-3.5 h-3.5" /> Certificate
               </a>
             )}
             {doc.merged_file_url && (
-              <a href={doc.merged_file_url} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
+              <a href={fileHref('signed')} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
                 <Download className="w-3.5 h-3.5" /> Signed PDF
               </a>
             )}
@@ -146,6 +149,30 @@ export default function DocumentSignerPage() {
           ))}
         </div>
 
+        {doc.status !== 'signed' && doc.status !== 'cancelled' && (
+          <div className="mb-4 rounded-lg border px-4 py-3 text-sm" style={myOpenFields.length ? { borderColor: '#D98A8E', background: '#6E131808' } : { borderColor: 'var(--sand-300, #E5DDD0)' }}>
+            {myOpenFields.length > 0 ? (
+              <>
+                <p className="font-medium text-ink">
+                  {myRecipient?.name ? `${myRecipient.name}, you` : 'You'} have {myOpenFields.length} {myOpenFields.length === 1 ? 'box' : 'boxes'} to fill
+                  {numPages > 1 && ` — on page ${myOpenPages.join(', ')}`}.
+                </p>
+                <p className="text-taupe-600 mt-0.5">Tap each highlighted box that says &ldquo;Click to add&rdquo;. Everything saves as you go.</p>
+                {numPages > 1 && !myOpenPages.includes(page) && (
+                  <button className="btn-primary btn-sm mt-2" onClick={() => setPage(myOpenPages[0])}>Go to page {myOpenPages[0]}</button>
+                )}
+              </>
+            ) : myRecipient && myFieldCount > 0 ? (
+              <p className="text-taupe-600">You&apos;ve completed your part — thank you. Everyone will get the signed copy by email once all parties have signed.</p>
+            ) : (
+              <p className="text-taupe-600">
+                There&apos;s nothing for you to sign on this document{myRecipient ? '' : ' with this account'}.
+                {!token && !isStaff && ' If you were asked to sign, use the personal link in the email you received.'}
+              </p>
+            )}
+          </div>
+        )}
+
         {numPages > 1 && (
           <div className="flex items-center gap-2 text-xs mb-3">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary btn-sm">Prev</button>
@@ -154,8 +181,8 @@ export default function DocumentSignerPage() {
           </div>
         )}
 
-        <div className="relative inline-block">
-          <PdfPageCanvas fileUrl={doc.file_url} pageNumber={page} width={700} onDocumentLoad={setNumPages} onPageRender={setRenderSize}>
+        <div className="relative inline-block max-w-full">
+          <PdfPageCanvas fileUrl={fileHref()} pageNumber={page} width={700} onDocumentLoad={setNumPages} onPageRender={setRenderSize}>
             {pageFields.map((f: any) => {
               const style = {
                 left: f.x * renderSize.width, top: f.y * renderSize.height,
