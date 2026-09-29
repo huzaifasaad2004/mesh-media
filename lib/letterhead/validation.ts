@@ -1,8 +1,10 @@
 import type { AgencyDocumentData, AgencyDocumentStatus, AgencyDocumentType, DocumentBlock, DocumentBlockType } from './types'
 
-const documentTypes: AgencyDocumentType[] = ['letter', 'proposal', 'plan', 'scope', 'report']
+const documentTypes: AgencyDocumentType[] = ['letter', 'proposal', 'plan', 'scope', 'report', 'contract']
 const statuses: AgencyDocumentStatus[] = ['draft', 'review', 'approved', 'sent', 'archived']
 const blockTypes: DocumentBlockType[] = ['paragraph', 'heading', 'bullet', 'numbered']
+
+export const CONTRACT_MIGRATION_HINT = 'Contracts need a one-time database update: run supabase/migrations/20260929120000_document_studio_contracts.sql in the Supabase SQL editor, then save again.'
 
 const clean = (value: unknown, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : ''
 

@@ -79,6 +79,32 @@ function documentBody(data: AgencyDocumentData) {
     return blockXml(block, numbered)
   }).join('')
 
+  if (data.document_type === 'contract') {
+    const party = (label: string, name: string | null | undefined, role: string | null | undefined) => [
+      paragraph(label, { before: 360, after: 60, bold: true, color: '6E1318', size: 15, caps: true, tracking: 20 }),
+      paragraph(name || ' ', { bold: true, after: 20 }),
+      paragraph(role || ' ', { color: '9C9384', size: 13, caps: true, tracking: 18, after: 520 }),
+      paragraph('', { borderTop: true, after: 20 }),
+      paragraph('Signature', { color: '9C9384', size: 13, caps: true, after: 360 }),
+      paragraph('', { borderTop: true, after: 20 }),
+      paragraph('Date', { color: '9C9384', size: 13, caps: true, after: 120 }),
+    ].join('')
+    return [
+      paragraph(new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date()), { after: 420, color: '9C9384', size: 13, caps: true, tracking: 20 }),
+      data.recipient_name ? paragraph(data.recipient_name, { bold: true, after: 40 }) : '',
+      data.recipient_title ? paragraph(data.recipient_title, { color: '6E655B', size: 19, after: 40 }) : '',
+      data.company_name ? paragraph(data.company_name, { color: '6E655B', size: 19, after: 40 }) : '',
+      data.address_line ? paragraph(data.address_line, { color: '6E655B', size: 19, after: 380 }) : '',
+      paragraph(data.subject, { after: 300, color: '6E1318', bold: true, size: 30 }),
+      blocks,
+      '<w:p><w:r><w:br w:type="page"/></w:r></w:p>',
+      paragraph('Signatures', { after: 120, color: '6E1318', bold: true, size: 25 }),
+      paragraph('By signing below, each party confirms it has read and agrees to the terms of this agreement.', { color: '6E655B', after: 200 }),
+      party('For MeshMedia For Marketing and PR', data.signatory_name, data.signatory_role),
+      party(`For ${data.company_name || 'the client'}`, data.recipient_name, data.recipient_title),
+    ].join('')
+  }
+
   return [
     paragraph(new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date()), { after: 420, color: '9C9384', size: 13, caps: true, tracking: 20 }),
     data.recipient_name ? paragraph(data.recipient_name, { bold: true, after: 40 }) : '',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireStaff, requireDocumentsWrite } from '@/lib/apiAuth'
-import { normalizeAgencyDocument } from '@/lib/letterhead/validation'
+import { normalizeAgencyDocument, CONTRACT_MIGRATION_HINT } from '@/lib/letterhead/validation'
 import { logActivity } from '@/lib/activityLog'
 
 export async function GET() {
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       ...body,
       created_by: auth.user.id,
     }).select('*').single()
+    if (error?.message.includes('document_type_check')) return NextResponse.json({ error: CONTRACT_MIGRATION_HINT }, { status: 400 })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     await logActivity(auth.user, 'create', 'agency_document', data.id, data.title)
     return NextResponse.json(data, { status: 201 })

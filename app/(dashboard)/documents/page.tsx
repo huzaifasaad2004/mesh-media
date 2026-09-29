@@ -54,6 +54,11 @@ export default function DocumentsPage() {
 
   useEffect(() => { load() }, [load])
 
+  // /documents?upload=signed (linked from Document Studio) opens straight into "Already signed".
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('upload') === 'signed') { setMode('stored'); setShowModal(true) }
+  }, [])
+
   const resetForm = () => {
     setTitle(''); setClientId(''); setFile(null); setMode('sign')
     setRecipients([{ name: '', email: '', role: 'agency' }, { name: '', email: '', role: 'client' }])
@@ -139,8 +144,13 @@ export default function DocumentsPage() {
         <div className="flex items-center gap-2">
           <Link href="/documents/studio" className="btn-secondary"><PenLine className="w-4 h-4" /> Document Studio</Link>
           {canWrite && (
-            <button className="btn-primary" onClick={() => setShowModal(true)}>
-              <Plus className="w-4 h-4" /> Upload Document
+            <button className="btn-secondary" onClick={() => { setMode('stored'); setShowModal(true) }}>
+              <Archive className="w-4 h-4" /> Store signed contract
+            </button>
+          )}
+          {canWrite && (
+            <button className="btn-primary" onClick={() => { setMode('sign'); setShowModal(true) }}>
+              <Plus className="w-4 h-4" /> Upload for signature
             </button>
           )}
         </div>

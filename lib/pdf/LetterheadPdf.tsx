@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
 import type { AgencyDocumentData, DocumentBlock } from '@/lib/letterhead/types'
+import { CONTRACT_SIGNATURE_COLUMNS, CONTRACT_SIGNATURE_ROWS } from '@/lib/letterhead/contractLayout'
 
 const MAROON = '#6E1318'
 const SAND = '#C8BCA8'
@@ -95,7 +96,45 @@ function Block({ block, number }: { block: DocumentBlock; number: number }) {
   return <Text style={[styles.paragraph, common]}>{block.text}</Text>
 }
 
+// Final page of a contract. Everything is absolutely positioned from contractLayout so the
+// e-signature boxes placed on send land exactly on these lines.
+function SignaturePage({ data }: { data: AgencyDocumentData }) {
+  const r = CONTRACT_SIGNATURE_ROWS
+  const parties = [
+    { key: 'agency', label: 'FOR MESHMEDIA FOR MARKETING AND PR', name: data.signatory_name, role: data.signatory_role, col: CONTRACT_SIGNATURE_COLUMNS.agency },
+    { key: 'client', label: `FOR ${(data.company_name || 'THE CLIENT').toUpperCase()}`, name: data.recipient_name || '', role: data.recipient_title || '', col: CONTRACT_SIGNATURE_COLUMNS.client },
+  ]
+  return (
+    <Page size="A4" style={{ fontFamily: 'Helvetica', fontSize: 10.5, lineHeight: 1.52, color: INK }}>
+      <ContinuationHeader />
+      <Text style={[styles.micro, { position: 'absolute', top: 48, left: 108, color: MAROON, fontFamily: 'Helvetica-Bold' }]}>MESHMEDIA</Text>
+      <Text style={[styles.micro, { position: 'absolute', top: 48, right: 62 }]}>SIGNATURES</Text>
+      <Footer />
+      <Text style={{ position: 'absolute', top: 130, left: 85, color: MAROON, fontFamily: 'Helvetica-Bold', fontSize: 13 }}>Signatures</Text>
+      <Text style={{ position: 'absolute', top: 156, left: 85, right: 62, fontSize: 10, color: '#6E655B' }}>
+        {`By signing below, each party confirms it has read and agrees to the terms of this agreement${data.subject ? ` — ${data.subject}` : ''}.`}
+      </Text>
+      {parties.map((p) => (
+        <View key={p.key} style={{ position: 'absolute', top: r.partyLabelTop, left: p.col.left, width: p.col.width }}>
+          <Text style={[styles.micro, { color: MAROON, fontFamily: 'Helvetica-Bold' }]}>{p.label}</Text>
+          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, marginTop: 6 }}>{p.name || ' '}</Text>
+          <Text style={[styles.micro, { marginTop: 2 }]}>{p.role ? p.role.toUpperCase() : ' '}</Text>
+        </View>
+      ))}
+      {parties.map((p) => (
+        <View key={`${p.key}-lines`}>
+          <View style={{ position: 'absolute', top: r.signatureTop + r.signatureHeight, left: p.col.left, width: p.col.width, borderTopWidth: 0.8, borderTopColor: INK }} />
+          <Text style={[styles.micro, { position: 'absolute', top: r.signatureTop + r.signatureHeight + 4, left: p.col.left }]}>SIGNATURE</Text>
+          <View style={{ position: 'absolute', top: r.dateTop + r.dateHeight, left: p.col.left, width: r.dateWidth, borderTopWidth: 0.8, borderTopColor: INK }} />
+          <Text style={[styles.micro, { position: 'absolute', top: r.dateTop + r.dateHeight + 4, left: p.col.left }]}>DATE</Text>
+        </View>
+      ))}
+    </Page>
+  )
+}
+
 function LetterheadDocument({ data }: { data: AgencyDocumentData }) {
+  const isContract = data.document_type === 'contract'
   let numbered = 0
   return (
     <Document title={data.title} author="MeshMedia For Marketing and PR">
@@ -122,8 +161,14 @@ function LetterheadDocument({ data }: { data: AgencyDocumentData }) {
         {data.recipient_title ? <Text style={styles.recipient}>{data.recipient_title}</Text> : null}
         {data.company_name ? <Text style={styles.recipient}>{data.company_name}</Text> : null}
         {data.address_line ? <Text style={styles.recipient}>{data.address_line}</Text> : null}
-        <Text style={styles.subject}>SUBJECT:  {data.subject.toUpperCase()}</Text>
-        <Text style={[styles.paragraph, { marginBottom: 12 }]}>Dear {data.salutation_name || data.recipient_name || 'Sir/Madam'},</Text>
+        {isContract ? (
+          <Text style={[styles.heading, { fontSize: 16, marginTop: 16, marginBottom: 14 }]}>{data.subject}</Text>
+        ) : (
+          <>
+            <Text style={styles.subject}>SUBJECT:  {data.subject.toUpperCase()}</Text>
+            <Text style={[styles.paragraph, { marginBottom: 12 }]}>Dear {data.salutation_name || data.recipient_name || 'Sir/Madam'},</Text>
+          </>
+        )}
 
         {(data.content ?? []).map((block) => {
           if (block.type === 'numbered') numbered += 1
@@ -131,12 +176,17 @@ function LetterheadDocument({ data }: { data: AgencyDocumentData }) {
           return block.text.trim() ? <Block key={block.id} block={block} number={numbered} /> : null
         })}
 
-        <Text style={{ marginTop: 10 }}>{data.closing || 'Warm regards,'}</Text>
-        <View style={{ marginTop: 42, width: 166, borderTopWidth: 1, borderTopColor: MAROON, paddingTop: 8 }} wrap={false}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11 }}>{data.signatory_name}</Text>
-          <Text style={[styles.micro, { marginTop: 2 }]}>{data.signatory_role}</Text>
-        </View>
+        {!isContract && (
+          <>
+            <Text style={{ marginTop: 10 }}>{data.closing || 'Warm regards,'}</Text>
+            <View style={{ marginTop: 42, width: 166, borderTopWidth: 1, borderTopColor: MAROON, paddingTop: 8 }} wrap={false}>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11 }}>{data.signatory_name}</Text>
+              <Text style={[styles.micro, { marginTop: 2 }]}>{data.signatory_role}</Text>
+            </View>
+          </>
+        )}
       </Page>
+      {isContract && <SignaturePage data={data} />}
     </Document>
   )
 }

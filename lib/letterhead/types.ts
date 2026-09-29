@@ -1,4 +1,4 @@
-export type AgencyDocumentType = 'letter' | 'proposal' | 'plan' | 'scope' | 'report'
+export type AgencyDocumentType = 'letter' | 'proposal' | 'plan' | 'scope' | 'report' | 'contract'
 export type AgencyDocumentStatus = 'draft' | 'review' | 'approved' | 'sent' | 'archived'
 export type DocumentBlockType = 'paragraph' | 'heading' | 'bullet' | 'numbered'
 
@@ -30,6 +30,7 @@ export interface AgencyDocumentData {
   created_at?: string
   updated_at?: string
   created_by?: string | null
+  signable_document_id?: string | null
 }
 
 export const EMPTY_BLOCKS: DocumentBlock[] = [

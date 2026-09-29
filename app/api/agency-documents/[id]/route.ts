@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireStaff, requireDocumentsWrite } from '@/lib/apiAuth'
-import { normalizeAgencyDocument } from '@/lib/letterhead/validation'
+import { normalizeAgencyDocument, CONTRACT_MIGRATION_HINT } from '@/lib/letterhead/validation'
 import { logActivity } from '@/lib/activityLog'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -20,6 +20,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       ...body,
       updated_at: new Date().toISOString(),
     }).eq('id', params.id).select('*').single()
+    if (error?.message.includes('document_type_check')) return NextResponse.json({ error: CONTRACT_MIGRATION_HINT }, { status: 400 })
     if (error || !data) return NextResponse.json({ error: error?.message || 'Document not found' }, { status: 400 })
     await logActivity(auth.user, 'update', 'agency_document', data.id, data.title)
     return NextResponse.json(data)
