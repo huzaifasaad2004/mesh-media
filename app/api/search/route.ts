@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
     ...(clients.data ?? []).map((c: any) => ({ type: 'Client', label: c.company_name, href: `/clients/${c.id}` })),
     ...(invoices.data ?? []).map((i: any) => ({ type: 'Invoice', label: `${i.invoice_number} · ${i.client?.company_name ?? ''}`, href: `/invoice/${i.id}` })),
     ...(quotations.data ?? []).map((qt: any) => ({ type: 'Quotation', label: `${qt.quote_number} · ${qt.client?.company_name ?? ''}`, href: `/quotation/${qt.id}` })),
-    ...(tasks.data ?? []).map((t: any) => ({ type: 'Task', label: t.title, href: `/tasks` })),
+    ...(tasks.data ?? []).map((t: any) => ({ type: 'Task', label: t.title, href: `/tasks?q=${encodeURIComponent(t.title)}` })),
+    // The tasks page matches each word separately ("nine reel"), so offer it even when no title contains the exact phrase.
+    { type: 'Tasks', label: `See all tasks matching "${q}"`, href: `/tasks?q=${encodeURIComponent(q)}` },
     ...(contracts.data ?? []).map((c: any) => ({ type: 'Contract', label: c.title, href: `/contracts` })),
     ...(leads.data ?? []).map((l: any) => ({ type: 'Lead', label: l.company_name, href: `/crm` })),
   ]

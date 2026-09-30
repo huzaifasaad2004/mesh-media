@@ -34,6 +34,26 @@ const dateKey = (date: Date) => {
 }
 const today = () => dateKey(new Date())
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** Search words: each must appear somewhere in the task. Numbers match whole numbers only,
+ *  so "reel 1" finds "Reel 1" but not "Reel 12". */
+const searchTerms = (query: string) => query.trim().toLowerCase().split(/\s+/).filter(Boolean).map((word) =>
+  /^\d+$/.test(word) ? new RegExp(`(^|\\D)${word}(\\D|$)`) : new RegExp(escapeRegExp(word)))
+
+const taskSearchText = (t: any) => [
+  t.title, t.description, t.client?.company_name, t.assignee?.full_name, t.assignee?.email,
+  t.creator?.full_name, t.priority, COLUMNS.find(c => c.key === t.status)?.label,
+].filter(Boolean).join(' \n ').toLowerCase()
+
+/** Wraps each search word in <mark> so matches stand out in titles. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const words = query.trim().split(/\s+/).filter(Boolean).map(escapeRegExp)
+  if (!words.length || !text) return <>{text}</>
+  const parts = text.split(new RegExp(`(${words.join('|')})`, 'gi'))
+  return <>{parts.map((part, i) => i % 2 ? <mark key={i} className="bg-amber-100 text-inherit rounded-sm px-0.5">{part}</mark> : part)}</>
+}
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([])
   const [clients, setClients] = useState<{ id: string; company_name: string }[]>([])
@@ -73,6 +93,11 @@ export default function TasksPage() {
   }, [])
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setQuery(q)
+  }, [])
+
+  useEffect(() => {
     fetchTasks()
     fetch('/api/clients').then(r => r.json()).then(d => setClients(Array.isArray(d) ? d : []))
     fetch('/api/profiles').then(r => r.json()).then(d => setProfiles(Array.isArray(d) ? d : [])).catch(() => {})
@@ -108,19 +133,18 @@ export default function TasksPage() {
 
   const isOverdue = (t: any) => t.due_date && t.due_date < today() && t.status !== 'done'
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+  // Everything except the status filter — the search summary counts statuses from this set,
+  // so clicking a status chip narrows the list without changing the totals shown.
+  const matchedAnyStatus = useMemo(() => {
+    const terms = searchTerms(query)
     const todayKey = dateKey(new Date())
     const nextWeek = new Date()
     nextWeek.setDate(nextWeek.getDate() + 7)
     const nextWeekKey = dateKey(nextWeek)
 
     return tasks.filter(t => {
-      const matchesSearch = !q || t.title?.toLowerCase().includes(q) ||
-        t.client?.company_name?.toLowerCase().includes(q) ||
-        t.assignee?.full_name?.toLowerCase().includes(q)
-      const matchesStatus = !statusFilter ||
-        (statusFilter === 'open' ? t.status !== 'done' : t.status === statusFilter)
+      const haystack = terms.length ? taskSearchText(t) : ''
+      const matchesSearch = terms.every(term => term.test(haystack))
       const matchesAssignee = !assigneeFilter ||
         (assigneeFilter === 'me' ? t.assigned_to === meId :
           assigneeFilter === 'unassigned' ? !t.assigned_to : t.assigned_to === assigneeFilter)
@@ -131,9 +155,19 @@ export default function TasksPage() {
           dueFilter === 'today' ? t.due_date === todayKey :
             dueFilter === 'next7' ? t.due_date && t.due_date >= todayKey && t.due_date <= nextWeekKey :
               dueFilter === 'no_date' ? !t.due_date : true)
-      return matchesSearch && matchesStatus && matchesAssignee && matchesPriority && matchesClient && matchesDue
+      return matchesSearch && matchesAssignee && matchesPriority && matchesClient && matchesDue
     })
-  }, [tasks, query, statusFilter, assigneeFilter, priorityFilter, dueFilter, clientFilter, meId])
+  }, [tasks, query, assigneeFilter, priorityFilter, dueFilter, clientFilter, meId])
+
+  const filtered = useMemo(() => matchedAnyStatus.filter(t => !statusFilter ||
+    (statusFilter === 'open' ? t.status !== 'done' : t.status === statusFilter)), [matchedAnyStatus, statusFilter])
+
+  const summary = useMemo(() => {
+    const byStatus = Object.fromEntries(COLUMNS.map(c => [c.key, matchedAnyStatus.filter(t => t.status === c.key).length]))
+    const total = matchedAnyStatus.length
+    return { total, byStatus, donePct: total ? Math.round((byStatus.done / total) * 100) : 0 }
+  }, [matchedAnyStatus])
+  const showSummary = !!query.trim() || !!clientFilter || !!assigneeFilter
 
   const activeFilterCount = [statusFilter, assigneeFilter, priorityFilter, dueFilter, clientFilter].filter(Boolean).length
   const clearFilters = () => {
@@ -153,7 +187,7 @@ export default function TasksPage() {
     >
       <div className="flex items-start justify-between gap-2">
         <p className={`text-sm font-medium leading-snug ${task.status === 'done' ? 'line-through text-taupe-500' : 'text-ink'}`}>
-          {task.title}
+          <Highlight text={task.title} query={query} />
         </p>
         {canManage && (
           <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id) }}
@@ -240,7 +274,7 @@ export default function TasksPage() {
           <Search className="w-4 h-4 text-taupe-500 flex-shrink-0" />
           <input
             className="flex-1 text-sm focus:outline-none bg-transparent placeholder:text-taupe-500"
-            placeholder="Search tasks, client, assignee…"
+            placeholder="Search anything — e.g. reel 3, NINE IX, Sara…"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1) }}
           />
@@ -279,6 +313,37 @@ export default function TasksPage() {
           </button>
         </div>
       </div>
+
+      {!loading && showSummary && (
+        <div className="card px-4 py-3 mb-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm text-ink">
+              <span className="font-semibold">{summary.total}</span> {summary.total === 1 ? 'task matches' : 'tasks match'}
+              {query.trim() && <> &ldquo;<span className="font-semibold">{query.trim()}</span>&rdquo;</>}
+              {summary.total > 0 && <> · <span className="font-semibold text-green-700">{summary.byStatus.done} done</span> ({summary.donePct}%)</>}
+            </p>
+            {statusFilter && <button onClick={() => { setStatusFilter(''); setPage(1) }} className="text-xs text-brand-600 hover:underline">Show all statuses</button>}
+          </div>
+          {summary.total > 0 && (
+            <>
+              <div className="flex h-2 rounded-full overflow-hidden bg-paper-200 mt-2.5" aria-hidden>
+                {COLUMNS.map(c => summary.byStatus[c.key] > 0 && (
+                  <div key={c.key} style={{ width: `${(summary.byStatus[c.key] / summary.total) * 100}%` }}
+                    className={c.key === 'done' ? 'bg-green-600' : c.key === 'review' ? 'bg-amber-500' : c.key === 'in_progress' ? 'bg-blue-500' : 'bg-taupe-400'} />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {COLUMNS.map(c => (
+                  <button key={c.key} onClick={() => { setStatusFilter(statusFilter === c.key ? '' : c.key); setPage(1) }}
+                    className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${statusFilter === c.key ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-sand-300 text-umber-700 hover:border-brand-300'}`}>
+                    {c.label} <span className="font-semibold">{summary.byStatus[c.key]}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-4 gap-3">
@@ -330,7 +395,7 @@ export default function TasksPage() {
                 <tr key={task.id} className="hover:bg-paper-50 transition-colors">
                   <td className="px-5 py-3 font-medium text-ink">
                     <div className="flex items-center gap-2">
-                      <span>{task.title}</span>
+                      <span><Highlight text={task.title} query={query} /></span>
                       {task.attachments?.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium text-brand-700 bg-brand-50 rounded-full px-1.5 py-0.5" title={`${task.attachments.length} reference images`}>
                           <Images className="w-3 h-3" /> {task.attachments.length}
