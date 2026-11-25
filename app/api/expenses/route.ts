@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
   const auth = await requireFinanceWrite()
   if ('res' in auth) return auth.res
   const body = stripProtected(await req.json())
-  const { data, error } = await serviceRole().from('expenses').insert(body).select().single()
+  // Record who added it (stripProtected removes any client-supplied value).
+  const { data, error } = await serviceRole().from('expenses').insert({ ...body, created_by: auth.user.id }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   await logActivity(auth.user, 'create', 'expense', data.id, data.description)
   return NextResponse.json(data)

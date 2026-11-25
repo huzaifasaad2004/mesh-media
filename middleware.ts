@@ -31,6 +31,8 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isSetPassword = request.nextUrl.pathname === '/set-password'
   const isPublicPath = request.nextUrl.pathname === '/'
+    // Required by the App Store / Play Store listing for the phone app.
+    || request.nextUrl.pathname === '/privacy'
     || request.nextUrl.pathname.startsWith('/auth/')
     || request.nextUrl.pathname.startsWith('/campaign-report/')
     || request.nextUrl.pathname.startsWith('/api/campaign-reporting/public/')
