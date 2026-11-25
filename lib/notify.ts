@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { COMPANY } from '@/lib/company'
+import { sendBrowserPush } from '@/lib/push'
 
 /** Keep in sync with the notification_preferences CHECK constraint
  *  (extended through phase51_chat_notifications.sql). */
@@ -35,6 +36,11 @@ export async function notifyUsers(db: SupabaseClient, opts: {
     entity_type: opts.entityType ?? null, entity_id: opts.entityId ?? null,
     available_actions: opts.actions ?? [],
   })))
+
+  // Phone (Mesh Media app) and browser push for every in-app notification.
+  await sendBrowserPush(ids, {
+    title: opts.title, body: opts.body ?? '', href: opts.href ?? '/dashboard', tag: opts.category,
+  }).catch(() => {})
 
   if (!process.env.RESEND_API_KEY) return
 
