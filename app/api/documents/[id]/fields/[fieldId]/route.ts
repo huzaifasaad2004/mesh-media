@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
 import { serviceRole } from '@/lib/apiAuth'
 import { isStaff } from '@/lib/roles'
 import { notifyUsers } from '@/lib/notify'
@@ -42,10 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (token !== recipient.sign_token) return NextResponse.json({ error: 'Invalid signing link' }, { status: 403 })
   } else {
     // Fall back to a logged-in session — staff or a client-portal user whose email matches this recipient.
-    const cookieStore = cookies()
-    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-    })
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Sign in, or use your personal signing link' }, { status: 401 })
     const { data: profile } = await db.from('profiles').select('role, email').eq('id', user.id).single()

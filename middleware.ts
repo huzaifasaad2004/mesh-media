@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { bearerToken } from '@/lib/supabase/bearer'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -64,6 +65,20 @@ export async function middleware(request: NextRequest) {
     || request.nextUrl.pathname.startsWith('/api/cron/')
     // Portal sign-in link requests come from the login page, before any session exists.
     || request.nextUrl.pathname === '/api/auth/portal-link'
+
+  // The mobile app has no cookies — it sends its Supabase session token as
+  // `Authorization: Bearer` instead (see lib/supabase/server.ts). Verify it
+  // here rather than just waving the request through: a few routes rely on
+  // this middleware as their only sign-in check. API clients get a 401 they
+  // can act on, never an HTML redirect to /login.
+  const apiToken = request.nextUrl.pathname.startsWith('/api/')
+    ? bearerToken(request.headers.get('authorization'))
+    : null
+  if (!user && apiToken && !isPublicPath) {
+    const { data } = await supabase.auth.getUser(apiToken)
+    if (!data.user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    return NextResponse.next({ request })
+  }
 
   if (!user && !isAuthPage && !isPublicPath && !isSetPassword) {
     const url = request.nextUrl.clone()
