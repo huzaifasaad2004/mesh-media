@@ -2,6 +2,22 @@
 
 Written 2026-11-23. Companion to `BUILD_PLAN.md` (web). Two tracks: **A. the app**, **B. web upgrades**.
 
+## Status — 25 Nov 2026
+
+**Built and tested on the simulator** (code: `~/mesh-media-app`, private repo `huzaifasaad2004/mesh-media-app`, Expo project `@huzaifabinsaad/mesh-media`):
+
+- Sign-in, Face ID lock (relocks after 5 min), session-expiry → back to sign-in, push registration (`/api/push/device`).
+- **Admin portal**: Home (money, overdue invoices, tasks to finish, waiting-on-you, meetings, quick actions), Tasks (filters with counts, search, detail with status/priority/reassign/comments/delete, new task), Review (content to approve → forward/send back, team time-off/expense requests → approve/decline), Money (outstanding/overdue/collected/spent, unpaid/overdue/paid/expenses), invoice detail (record payment, email invoice, share PDF), receipt scanner (photo → AI reads supplier/amount/date/category → expense).
+- **Team portal**: Today, Tasks, Requests & pay (time off, expense claims → manager approval, salary history/payslips).
+- **Client portal**: Home (to review, to pay, meetings, projects, files), Content (approve / request changes), Invoices (pay online via Stripe), Requests.
+- Shared: notifications inbox + bell with unread count (push taps open the right screen), meetings (join/accept/decline, schedule with Google Meet), Ask Aether chat, email preferences, in-app account deletion request, privacy policy link.
+
+**Website changes shipped for the app:** bearer-token auth, Expo push for every in-app notification, `/api/push/device`, `/api/account/delete-request`, public `/privacy`, expense `created_by`, test logins hidden from pickers, Gemini 2.5 "thinking" fix (receipt reading was failing on web too).
+
+**Test logins:** `hello+app-{admin,team,client}@m3m.ae` (client → "Test Client (App)"); passwords in `~/mesh-media-test-logins.env`. Give Apple the team or client login, never admin (admin sees live finance).
+
+**Next:** first EAS builds (free quota resets 1 Dec 2026) → TestFlight + Play internal testing; App Store listing; Track B web upgrades. Known gap: `GET /api/invoices/[id]` is public by ID (used by emailed print links) — move to a signed token.
+
 ## The approach in one paragraph
 
 A real native iOS + Android app built with **Expo / React Native** — the same toolchain as Forme
