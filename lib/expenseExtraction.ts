@@ -28,14 +28,23 @@ async function callGemini(parts: any[]): Promise<ExtractedExpense> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 256 },
+        // Gemini 2.5 "thinks" by default and that thinking counts against
+        // maxOutputTokens — with a small cap the JSON came back cut off.
+        // Turn thinking off and ask for JSON directly.
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     }
   )
   const data = await res.json()
   if (!res.ok) throw new Error(data.error?.message ?? 'Gemini error')
-  const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
-  const cleaned = text.replace(/```json\s*|```/g, '').trim()
+  const outParts: any[] = data.candidates?.[0]?.content?.parts ?? []
+  const text: string = outParts.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text).join('') || '{}'
+  const cleaned = text.replace(/```json\s*|```/g, '').trim().replace(/^[^{]*/, '').replace(/[^}]*$/, '')
 
   let parsed: any
   try { parsed = JSON.parse(cleaned) } catch { throw new Error('Could not parse a receipt/expense from that') }

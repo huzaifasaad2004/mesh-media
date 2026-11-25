@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const baseBody = {
       system_instruction: { parts: [{ text: systemPrompt(role, clientContext) }] },
       tools: [{ function_declarations: toolDeclarations }],
-      generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.6, maxOutputTokens: 4096 }, // room for 2.5's thinking + the reply
     }
 
     const actions: string[] = []
